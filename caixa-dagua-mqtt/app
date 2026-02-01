@@ -1,1 +1,304 @@
+// ====== CONFIGURAÇÕES MQTT ======
+let mqttClient = null;
+let chartData = [];
+let levelChart = null;
+
+// Topics MQTT
+const TOPIC_DATA = 'caixa/dados';
+const TOPIC_STATUS = 'caixa/status';
+
+// ====== INICIALIZAR GRÁFICO ======
+function initChart() {
+  const ctx = document.getElementById('levelChart').getContext('2d');
+  
+  levelChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: 'Nível (%)',
+        data: [],
+        borderColor: 'rgb(0, 119, 182)',
+        backgroundColor: 'rgba(0, 119, 182, 0.1)',
+        borderWidth: 2,
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            unit: 'hour',
+            displayFormats: {
+              hour: 'HH:mm'
+            }
+          },
+          title: {
+            display: true,
+            text: 'Hora'
+          }
+        },
+        y: {
+          min: 0,
+          max: 100,
+          title: {
+            display: true,
+            text: 'Nível (%)'
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top'
+        }
+      }
+    }
+  });
+}
+
+// ====== CONECTAR AO MQTT ======
+function connectMQTT() {
+  const broker = document.getElementById('mqttBroker').value;
+  const username = document.getElementById('mqttUser').value;
+  const password = document.getElementById('mqttPassword').value;
+  const connectBtn = document.getElementById('connectBtn');
+  
+  updateMQTTStatus('connecting', 'Conectando ao MQTT HiveMQ...');
+  connectBtn.disabled = true;
+  
+  try {
+    // Criar cliente MQTT
+    mqttClient = mqtt.connect(broker, {
+      username: username,
+      password: password,
+      clientId: 'dashboard_' + Math.random().toString(16).substr(2, 8),
+      clean: true,
+      reconnectPeriod: 5000,
+      connectTimeout: 10000
+    });
+    
+    // Evento: Conectado
+    mqttClient.on('connect', function() {
+      console.log('✅ Conectado ao MQTT HiveMQ!');
+      updateMQTTStatus('connected', 'Conectado ao MQTT HiveMQ ✓');
+      connectBtn.disabled = false;
+      
+      // Subscrever aos tópicos
+      mqttClient.subscribe(TOPIC_DATA, function(err) {
+        if (!err) {
+          console.log('📡 Subscrito ao tópico:', TOPIC_DATA);
+        } else {
+          console.error('❌ Erro ao subscrever:', err);
+        }
+      });
+      
+      mqttClient.subscribe(TOPIC_STATUS, function(err) {
+        if (!err) {
+          console.log('📡 Subscrito ao tópico:', TOPIC_STATUS);
+        } else {
+          console.error('❌ Erro ao subscrever:', err);
+        }
+      });
+    });
+    
+    // Evento: Mensagem recebida
+    mqttClient.on('message', function(topic, message) {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log('📨 Mensagem recebida:', topic, data);
+        
+        if (topic === TOPIC_DATA) {
+          updateDashboard(data);
+        } else if (topic === TOPIC_STATUS) {
+          updateSystemStatus(data);
+        }
+      } catch (err) {
+        console.error('❌ Erro ao processar mensagem:', err);
+        console.log('Mensagem raw:', message.toString());
+      }
+    });
+    
+    // Evento: Erro
+    mqttClient.on('error', function(err) {
+      console.error('❌ Erro MQTT:', err);
+      updateMQTTStatus('disconnected', 'Erro: ' + err.message);
+      connectBtn.disabled = false;
+    });
+    
+    // Evento: Desconectado
+    mqttClient.on('close', function() {
+      console.log('⚠️ Desconectado do MQTT');
+      updateMQTTStatus('disconnected', 'Desconectado - Tentando reconectar...');
+      connectBtn.disabled = false;
+    });
+    
+    // Evento: Reconectando
+    mqttClient.on('reconnect', function() {
+      console.log('🔄 Reconectando ao MQTT...');
+      updateMQTTStatus('connecting', 'Reconectando...');
+    });
+    
+    // Evento: Offline
+    mqttClient.on('offline', function() {
+      console.log('📵 Cliente MQTT offline');
+      updateMQTTStatus('disconnected', 'Offline');
+    });
+    
+  } catch (err) {
+    console.error('❌ Erro ao criar cliente MQTT:', err);
+    updateMQTTStatus('disconnected', 'Erro ao conectar: ' + err.message);
+    connectBtn.disabled = false;
+  }
+}
+
+// ====== RECONECTAR MQTT ======
+function reconnectMQTT() {
+  if (mqttClient) {
+    mqttClient.end(true);
+  }
+  setTimeout(connectMQTT, 500);
+}
+
+// ====== ATUALIZAR STATUS MQTT ======
+function updateMQTTStatus(status, message) {
+  const statusEl = document.getElementById('mqttStatus');
+  
+  statusEl.className = 'mqtt-status ' + status;
+  
+  if (status === 'connected') {
+    statusEl.innerHTML = '<i class="fas fa-check-circle"></i><span>' + message + '</span>';
+  } else if (status === 'connecting') {
+    statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i><span>' + message + '</span>';
+  } else {
+    statusEl.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>' + message + '</span>';
+  }
+}
+
+// ====== ATUALIZAR DASHBOARD COM DADOS DO SENSOR ======
+function updateDashboard(data) {
+  // Atualizar valores principais
+  document.getElementById('percentage').textContent = data.percentage + '%';
+  document.getElementById('liters').textContent = data.liters + ' L';
+  document.getElementById('distance').textContent = data.distance.toFixed(1) + ' cm';
+  
+  // Atualizar tanque visual
+  const waterLevel = document.getElementById('waterLevel');
+  const waterPercentage = document.getElementById('waterPercentage');
+  waterLevel.style.height = data.percentage + '%';
+  waterPercentage.textContent = data.percentage + '%';
+  
+  // Mudar cor do tanque baseado no nível
+  if (data.percentage <= 20) {
+    waterLevel.style.background = 'linear-gradient(to top, #d00000, #e63946)';
+  } else if (data.percentage <= 40) {
+    waterLevel.style.background = 'linear-gradient(to top, #ff9e00, #ffb84d)';
+  } else {
+    waterLevel.style.background = 'linear-gradient(to top, #0096c7, #48cae4)';
+  }
+  
+  // Atualizar informações de volume
+  if (data.config && data.config.volume_total) {
+    document.getElementById('litersTotal').textContent = data.config.volume_total;
+    document.getElementById('litersActual').textContent = data.liters;
+  }
+  
+  // Altura da água
+  if (data.level) {
+    document.getElementById('waterHeight').textContent = data.level + ' cm';
+  }
+  
+  // Status do sensor
+  const sensorStatus = document.getElementById('sensorStatus');
+  if (data.sensor_ok) {
+    sensorStatus.className = 'status-item online';
+    sensorStatus.querySelector('.status-value').textContent = 'OK';
+  } else {
+    sensorStatus.className = 'status-item offline';
+    sensorStatus.querySelector('.status-value').textContent = 'ERRO';
+  }
+  
+  // Status LoRa
+  const loraStatus = document.getElementById('loraStatus');
+  if (data.lora_signal && data.lora_signal.quality > 0) {
+    loraStatus.className = 'status-item online';
+    loraStatus.querySelector('.status-value').textContent = 'Conectado';
+  }
+  
+  // Qualidade do sinal
+  const signalStatus = document.getElementById('signalStatus');
+  if (data.lora_signal) {
+    const quality = data.lora_signal.quality;
+    signalStatus.querySelector('.status-value').textContent = quality + '%';
+    
+    if (quality >= 70) {
+      signalStatus.className = 'status-item online';
+    } else if (quality >= 40) {
+      signalStatus.className = 'status-item warning';
+    } else {
+      signalStatus.className = 'status-item offline';
+    }
+  }
+  
+  // Última atualização
+  const now = new Date();
+  document.getElementById('lastUpdateStatus').querySelector('.status-value').textContent = 
+    now.toLocaleTimeString('pt-BR');
+  
+  // Adicionar ao gráfico
+  addChartData(data.percentage);
+}
+
+// ====== ATUALIZAR STATUS DO SISTEMA ======
+function updateSystemStatus(data) {
+  console.log('📊 Status do sistema:', data);
+  
+  // Atualizar status LoRa se desconectado
+  if (data.lora_last_receive > 30) {
+    const loraStatus = document.getElementById('loraStatus');
+    loraStatus.className = 'status-item offline';
+    loraStatus.querySelector('.status-value').textContent = 'Aguardando';
+  }
+}
+
+// ====== ADICIONAR DADOS AO GRÁFICO ======
+function addChartData(percentage) {
+  const now = new Date();
+  
+  chartData.push({
+    x: now,
+    y: percentage
+  });
+  
+  // Manter apenas últimas 24 horas
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  chartData = chartData.filter(function(item) {
+    return item.x > oneDayAgo;
+  });
+  
+  // Atualizar gráfico
+  if (levelChart) {
+    levelChart.data.datasets[0].data = chartData;
+    levelChart.update('none');
+  }
+}
+
+// ====== INICIALIZAÇÃO ======
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('🚀 Iniciando Dashboard MQTT');
+  console.log('📡 Broker: wss://4e7f2439378945bfbd24b2a1777b5ea2.s1.eu.hivemq.cloud:8884/mqtt');
+  console.log('👤 Cliente: hivemq.webclient.1769967284481');
+  
+  // Inicializar gráfico
+  initChart();
+  
+  // Adicionar evento ao botão de conectar
+  document.getElementById('connectBtn').addEventListener('click', reconnectMQTT);
+  
+  // Conectar ao MQTT após 1 segundo
+  setTimeout(connectMQTT, 1000);
+});
 
