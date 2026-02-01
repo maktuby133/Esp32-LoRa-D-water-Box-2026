@@ -1,1 +1,716 @@
 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌊 Monitor Inteligente de Caixa d'Água - MQTT</title>
+  
+  <!-- MQTT.js Library para WebSocket -->
+  <script src="https://unpkg.com/mqtt@5.3.0/dist/mqtt.min.js"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary: #0077b6;
+      --primary-dark: #023e8a;
+      --secondary: #00b4d8;
+      --success: #38b000;
+      --warning: #ff9e00;
+      --danger: #e63946;
+      --light: #f8f9fa;
+      --dark: #212529;
+      --gray: #6c757d;
+      --water-blue: #48cae4;
+      --water-deep: #0096c7;
+      --waiting: #6c757d;
+      --sensor-error: #d00000;
+      --level-critical: #e63946;
+      --level-low: #ff9e00;
+      --level-medium: #ffd500;
+      --level-good: #90e0ef;
+      --level-full: #0077b6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      padding: 8px;
+      color: var(--dark);
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* HEADER */
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    }
+
+    .header h1 {
+      color: var(--primary-dark);
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .subtitle {
+      color: var(--gray);
+      font-size: 0.7rem;
+      margin-top: 5px;
+    }
+
+    /* MQTT STATUS */
+    .mqtt-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 8px;
+      padding: 8px;
+      background: #f0f0f0;
+      border-radius: 8px;
+    }
+
+    .mqtt-status.connected {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .mqtt-status.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .mqtt-status i {
+      font-size: 1.2rem;
+    }
+
+    /* DASHBOARD GRID */
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-title {
+      font-size: 0.9rem;
+      color: var(--gray);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 10px 0;
+    }
+
+    /* TANK VISUAL */
+    .tank-container {
+      position: relative;
+      width: 100%;
+      max-width: 200px;
+      height: 300px;
+      margin: 20px auto;
+      background: rgba(0, 119, 182, 0.1);
+      border: 3px solid var(--primary);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .water-level {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: linear-gradient(to top, var(--water-deep), var(--water-blue));
+      transition: height 1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 1.5rem;
+    }
+
+    .water-waves {
+      position: absolute;
+      top: -10px;
+      left: 0;
+      width: 100%;
+      height: 20px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120'%3E%3Cpath fill='%2348cae4' d='M0,0 Q300,40 600,0 T1200,0 L1200,60 L0,60 Z'/%3E%3C/svg%3E");
+      background-size: 200% 100%;
+      animation: wave 3s linear infinite;
+    }
+
+    @keyframes wave {
+      0% { background-position: 0% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* CHART */
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-top: 15px;
+    }
+
+    /* STATUS INDICATORS */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .status-item {
+      padding: 12px;
+      background: var(--light);
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .status-item.online {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-item.offline {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .status-item.warning {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-label {
+      font-size: 0.8rem;
+      margin-bottom: 5px;
+    }
+
+    .status-value {
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+
+    /* CONFIG PANEL */
+    .config-panel {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    }
+
+    .config-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      font-size: 0.85rem;
+      color: var(--gray);
+      margin-bottom: 5px;
+    }
+
+    .form-group input {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 119, 182, 0.3);
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+      
+      .config-form {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- HEADER -->
+    <div class="header">
+      <h1>
+        <i class="fas fa-water"></i>
+        Monitor Inteligente de Caixa d'Água
+      </h1>
+      <p class="subtitle">Sistema de Monitoramento via LoRa + MQTT HiveMQ</p>
+      
+      <!-- MQTT STATUS -->
+      <div class="mqtt-status" id="mqttStatus">
+        <i class="fas fa-circle-notch fa-spin"></i>
+        <span>Conectando ao MQTT...</span>
+      </div>
+    </div>
+
+    <!-- PAINEL DE CONFIGURAÇÃO MQTT -->
+    <div class="config-panel">
+      <h3><i class="fas fa-cog"></i> Configuração MQTT HiveMQ</h3>
+      <div class="config-form">
+        <div class="form-group">
+          <label>Broker URL:</label>
+          <input type="text" id="mqttBroker" value="wss://seu-broker.hivemq.cloud:8884/mqtt" placeholder="wss://broker.hivemq.cloud:8884/mqtt">
+        </div>
+        <div class="form-group">
+          <label>Usuário:</label>
+          <input type="text" id="mqttUser" value="seu_usuario" placeholder="Usuário MQTT">
+        </div>
+        <div class="form-group">
+          <label>Senha:</label>
+          <input type="password" id="mqttPassword" value="sua_senha" placeholder="Senha MQTT">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" onclick="reconnectMQTT()">
+            <i class="fas fa-sync"></i> Conectar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="dashboard">
+      <!-- CARD: NÍVEL DA CAIXA -->
+      <div class="card">
+        <div class="card-title">
+          <i class="fas fa-tint"></i>
+          Nível da Caixa
+        </div>
+        <div class="card-value" id="percentage">--</div>
+        
+        <!-- VISUALIZAÇÃO DO TANQUE -->
+        <div class="tank-container">
+          <div class="water-level" id="waterLevel" style="height: 0%;">
+            <div class="water-waves"></div>
+            <span id="waterPercentage">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD: VOLUME ATUAL -->
+      <div class="card">
+        <div class="card-title">
+          <i class="fas fa-droplet"></i>
+          Volume Atual
+        </div>
+        <div class="card-value" id="liters">-- L</div>
+        <p style="color: var(--gray); margin-top: 10px;">
+          <strong id="litersActual">0</strong> de <strong id="litersTotal">0</strong> litros
+        </p>
+      </div>
+
+      <!-- CARD: DISTÂNCIA -->
+      <div class="card">
+        <div class="card-title">
+          <i class="fas fa-ruler-vertical"></i>
+          Distância Sensor
+        </div>
+        <div class="card-value" id="distance">-- cm</div>
+        <p style="color: var(--gray); margin-top: 10px;">
+          Altura da água: <strong id="waterHeight">0 cm</strong>
+        </p>
+      </div>
+    </div>
+
+    <!-- STATUS DO SISTEMA -->
+    <div class="card">
+      <div class="card-title">
+        <i class="fas fa-heartbeat"></i>
+        Status do Sistema
+      </div>
+      
+      <div class="status-grid">
+        <div class="status-item" id="sensorStatus">
+          <div class="status-label">Sensor Ultrassônico</div>
+          <div class="status-value">--</div>
+        </div>
+        
+        <div class="status-item" id="loraStatus">
+          <div class="status-label">Comunicação LoRa</div>
+          <div class="status-value">--</div>
+        </div>
+        
+        <div class="status-item" id="signalStatus">
+          <div class="status-label">Qualidade do Sinal</div>
+          <div class="status-value">--</div>
+        </div>
+        
+        <div class="status-item" id="lastUpdateStatus">
+          <div class="status-label">Última Atualização</div>
+          <div class="status-value">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRÁFICO -->
+    <div class="card">
+      <div class="card-title">
+        <i class="fas fa-chart-line"></i>
+        Histórico do Nível (últimas 24h)
+      </div>
+      <div class="chart-container">
+        <canvas id="levelChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ====== CONFIGURAÇÕES MQTT ======
+    let mqttClient = null;
+    let chartData = [];
+    let levelChart = null;
+    
+    // Topics MQTT
+    const TOPIC_DATA = 'caixa/dados';
+    const TOPIC_STATUS = 'caixa/status';
+    
+    // ====== INICIALIZAR GRÁFICO ======
+    function initChart() {
+      const ctx = document.getElementById('levelChart').getContext('2d');
+      
+      levelChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          datasets: [{
+            label: 'Nível (%)',
+            data: [],
+            borderColor: 'rgb(0, 119, 182)',
+            backgroundColor: 'rgba(0, 119, 182, 0.1)',
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'hour',
+                displayFormats: {
+                  hour: 'HH:mm'
+                }
+              },
+              title: {
+                display: true,
+                text: 'Hora'
+              }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Nível (%)'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            }
+          }
+        }
+      });
+    }
+    
+    // ====== CONECTAR AO MQTT ======
+    function connectMQTT() {
+      const broker = document.getElementById('mqttBroker').value;
+      const username = document.getElementById('mqttUser').value;
+      const password = document.getElementById('mqttPassword').value;
+      
+      updateMQTTStatus('connecting', 'Conectando ao MQTT...');
+      
+      try {
+        // Criar cliente MQTT
+        mqttClient = mqtt.connect(broker, {
+          username: username,
+          password: password,
+          clientId: 'dashboard_' + Math.random().toString(16).substr(2, 8),
+          clean: true,
+          reconnectPeriod: 5000
+        });
+        
+        // Evento: Conectado
+        mqttClient.on('connect', () => {
+          console.log('✅ Conectado ao MQTT HiveMQ!');
+          updateMQTTStatus('connected', 'Conectado ao MQTT HiveMQ');
+          
+          // Subscrever aos tópicos
+          mqttClient.subscribe(TOPIC_DATA, (err) => {
+            if (!err) {
+              console.log('📡 Subscrito ao tópico:', TOPIC_DATA);
+            }
+          });
+          
+          mqttClient.subscribe(TOPIC_STATUS, (err) => {
+            if (!err) {
+              console.log('📡 Subscrito ao tópico:', TOPIC_STATUS);
+            }
+          });
+        });
+        
+        // Evento: Mensagem recebida
+        mqttClient.on('message', (topic, message) => {
+          try {
+            const data = JSON.parse(message.toString());
+            console.log('📨 Mensagem recebida:', topic, data);
+            
+            if (topic === TOPIC_DATA) {
+              updateDashboard(data);
+            } else if (topic === TOPIC_STATUS) {
+              updateSystemStatus(data);
+            }
+          } catch (err) {
+            console.error('❌ Erro ao processar mensagem:', err);
+          }
+        });
+        
+        // Evento: Erro
+        mqttClient.on('error', (err) => {
+          console.error('❌ Erro MQTT:', err);
+          updateMQTTStatus('disconnected', 'Erro: ' + err.message);
+        });
+        
+        // Evento: Desconectado
+        mqttClient.on('close', () => {
+          console.log('⚠️ Desconectado do MQTT');
+          updateMQTTStatus('disconnected', 'Desconectado - Tentando reconectar...');
+        });
+        
+        // Evento: Reconectando
+        mqttClient.on('reconnect', () => {
+          console.log('🔄 Reconectando ao MQTT...');
+          updateMQTTStatus('connecting', 'Reconectando...');
+        });
+        
+      } catch (err) {
+        console.error('❌ Erro ao criar cliente MQTT:', err);
+        updateMQTTStatus('disconnected', 'Erro ao conectar');
+      }
+    }
+    
+    // ====== RECONECTAR MQTT ======
+    function reconnectMQTT() {
+      if (mqttClient) {
+        mqttClient.end(true);
+      }
+      setTimeout(connectMQTT, 500);
+    }
+    
+    // ====== ATUALIZAR STATUS MQTT ======
+    function updateMQTTStatus(status, message) {
+      const statusEl = document.getElementById('mqttStatus');
+      
+      statusEl.className = 'mqtt-status ' + status;
+      
+      if (status === 'connected') {
+        statusEl.innerHTML = '<i class="fas fa-check-circle"></i><span>' + message + '</span>';
+      } else if (status === 'connecting') {
+        statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i><span>' + message + '</span>';
+      } else {
+        statusEl.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>' + message + '</span>';
+      }
+    }
+    
+    // ====== ATUALIZAR DASHBOARD COM DADOS DO SENSOR ======
+    function updateDashboard(data) {
+      // Atualizar valores principais
+      document.getElementById('percentage').textContent = data.percentage + '%';
+      document.getElementById('liters').textContent = data.liters + ' L';
+      document.getElementById('distance').textContent = data.distance.toFixed(1) + ' cm';
+      
+      // Atualizar tanque visual
+      const waterLevel = document.getElementById('waterLevel');
+      const waterPercentage = document.getElementById('waterPercentage');
+      waterLevel.style.height = data.percentage + '%';
+      waterPercentage.textContent = data.percentage + '%';
+      
+      // Mudar cor do tanque baseado no nível
+      if (data.percentage <= 20) {
+        waterLevel.style.background = 'linear-gradient(to top, #d00000, #e63946)';
+      } else if (data.percentage <= 40) {
+        waterLevel.style.background = 'linear-gradient(to top, #ff9e00, #ffb84d)';
+      } else {
+        waterLevel.style.background = 'linear-gradient(to top, #0096c7, #48cae4)';
+      }
+      
+      // Atualizar informações de volume
+      if (data.config && data.config.volume_total) {
+        document.getElementById('litersTotal').textContent = data.config.volume_total;
+        document.getElementById('litersActual').textContent = data.liters;
+      }
+      
+      // Altura da água
+      if (data.level) {
+        document.getElementById('waterHeight').textContent = data.level + ' cm';
+      }
+      
+      // Status do sensor
+      const sensorStatus = document.getElementById('sensorStatus');
+      if (data.sensor_ok) {
+        sensorStatus.className = 'status-item online';
+        sensorStatus.querySelector('.status-value').textContent = 'OK';
+      } else {
+        sensorStatus.className = 'status-item offline';
+        sensorStatus.querySelector('.status-value').textContent = 'ERRO';
+      }
+      
+      // Status LoRa
+      const loraStatus = document.getElementById('loraStatus');
+      if (data.lora_signal && data.lora_signal.quality > 0) {
+        loraStatus.className = 'status-item online';
+        loraStatus.querySelector('.status-value').textContent = 'Conectado';
+      }
+      
+      // Qualidade do sinal
+      const signalStatus = document.getElementById('signalStatus');
+      if (data.lora_signal) {
+        const quality = data.lora_signal.quality;
+        signalStatus.querySelector('.status-value').textContent = quality + '%';
+        
+        if (quality >= 70) {
+          signalStatus.className = 'status-item online';
+        } else if (quality >= 40) {
+          signalStatus.className = 'status-item warning';
+        } else {
+          signalStatus.className = 'status-item offline';
+        }
+      }
+      
+      // Última atualização
+      const now = new Date();
+      document.getElementById('lastUpdateStatus').querySelector('.status-value').textContent = 
+        now.toLocaleTimeString('pt-BR');
+      
+      // Adicionar ao gráfico
+      addChartData(data.percentage);
+    }
+    
+    // ====== ATUALIZAR STATUS DO SISTEMA ======
+    function updateSystemStatus(data) {
+      console.log('📊 Status do sistema:', data);
+      
+      // Atualizar status LoRa se desconectado
+      if (data.lora_last_receive > 30) {
+        const loraStatus = document.getElementById('loraStatus');
+        loraStatus.className = 'status-item offline';
+        loraStatus.querySelector('.status-value').textContent = 'Aguardando';
+      }
+    }
+    
+    // ====== ADICIONAR DADOS AO GRÁFICO ======
+    function addChartData(percentage) {
+      const now = new Date();
+      
+      chartData.push({
+        x: now,
+        y: percentage
+      });
+      
+      // Manter apenas últimas 24 horas
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      chartData = chartData.filter(item => item.x > oneDayAgo);
+      
+      // Atualizar gráfico
+      if (levelChart) {
+        levelChart.data.datasets[0].data = chartData;
+        levelChart.update('none');
+      }
+    }
+    
+    // ====== INICIALIZAÇÃO ======
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🚀 Iniciando Dashboard MQTT');
+      
+      // Inicializar gráfico
+      initChart();
+      
+      // Conectar ao MQTT após 1 segundo
+      setTimeout(connectMQTT, 1000);
+    });
+  </script>
+</body>
+</html>
