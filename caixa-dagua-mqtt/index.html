@@ -101,6 +101,11 @@
       color: #155724;
     }
 
+    .mqtt-status.connecting {
+      background: #fff3cd;
+      color: #856404;
+    }
+
     .mqtt-status.disconnected {
       background: #f8d7da;
       color: #721c24;
@@ -261,6 +266,7 @@
       font-size: 0.85rem;
       color: var(--gray);
       margin-bottom: 5px;
+      font-weight: 500;
     }
 
     .form-group input {
@@ -289,6 +295,12 @@
       background: var(--primary-dark);
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 119, 182, 0.3);
+    }
+
+    .btn-primary:disabled {
+      background: var(--gray);
+      cursor: not-allowed;
+      transform: none;
     }
 
     /* RESPONSIVE */
@@ -325,20 +337,20 @@
       <h3><i class="fas fa-cog"></i> Configuração MQTT HiveMQ</h3>
       <div class="config-form">
         <div class="form-group">
-          <label>4e7f2439378945bfbd24b2a1777b5ea2.s1.eu.hivemq.cloud:</label>
+          <label>Broker WebSocket:</label>
           <input type="text" id="mqttBroker" value="wss://4e7f2439378945bfbd24b2a1777b5ea2.s1.eu.hivemq.cloud:8884/mqtt" placeholder="wss://broker.hivemq.cloud:8884/mqtt">
         </div>
         <div class="form-group">
-          <label>hivemq.webclient.1769967284481:</label>
-          <input type="text" id="mqttUser" value="seu_usuario" placeholder="Usuário MQTT">
+          <label>Cliente ID / Usuário:</label>
+          <input type="text" id="mqttUser" value="hivemq.webclient.1769967284481" placeholder="Usuário MQTT">
         </div>
         <div class="form-group">
-          <label>P;:MJ<.3A012EGqbrcda:</label>
-          <input type="password" id="mqttPassword" value="sua_senha" placeholder="Senha MQTT">
+          <label>Senha:</label>
+          <input type="password" id="mqttPassword" value="P;:MJ<.3A012EGqbrcda" placeholder="Senha MQTT">
         </div>
         <div class="form-group">
           <label>&nbsp;</label>
-          <button class="btn btn-primary" onclick="reconnectMQTT()">
+          <button class="btn btn-primary" id="connectBtn" onclick="reconnectMQTT()">
             <i class="fas fa-sync"></i> Conectar
           </button>
         </div>
@@ -499,8 +511,10 @@
       const broker = document.getElementById('mqttBroker').value;
       const username = document.getElementById('mqttUser').value;
       const password = document.getElementById('mqttPassword').value;
+      const connectBtn = document.getElementById('connectBtn');
       
-      updateMQTTStatus('connecting', 'Conectando ao MQTT...');
+      updateMQTTStatus('connecting', 'Conectando ao MQTT HiveMQ...');
+      connectBtn.disabled = true;
       
       try {
         // Criar cliente MQTT
@@ -509,24 +523,30 @@
           password: password,
           clientId: 'dashboard_' + Math.random().toString(16).substr(2, 8),
           clean: true,
-          reconnectPeriod: 5000
+          reconnectPeriod: 5000,
+          connectTimeout: 10000
         });
         
         // Evento: Conectado
         mqttClient.on('connect', () => {
           console.log('✅ Conectado ao MQTT HiveMQ!');
-          updateMQTTStatus('connected', 'Conectado ao MQTT HiveMQ');
+          updateMQTTStatus('connected', 'Conectado ao MQTT HiveMQ ✓');
+          connectBtn.disabled = false;
           
           // Subscrever aos tópicos
           mqttClient.subscribe(TOPIC_DATA, (err) => {
             if (!err) {
               console.log('📡 Subscrito ao tópico:', TOPIC_DATA);
+            } else {
+              console.error('❌ Erro ao subscrever:', err);
             }
           });
           
           mqttClient.subscribe(TOPIC_STATUS, (err) => {
             if (!err) {
               console.log('📡 Subscrito ao tópico:', TOPIC_STATUS);
+            } else {
+              console.error('❌ Erro ao subscrever:', err);
             }
           });
         });
@@ -544,6 +564,7 @@
             }
           } catch (err) {
             console.error('❌ Erro ao processar mensagem:', err);
+            console.log('Mensagem raw:', message.toString());
           }
         });
         
@@ -551,12 +572,14 @@
         mqttClient.on('error', (err) => {
           console.error('❌ Erro MQTT:', err);
           updateMQTTStatus('disconnected', 'Erro: ' + err.message);
+          connectBtn.disabled = false;
         });
         
         // Evento: Desconectado
         mqttClient.on('close', () => {
           console.log('⚠️ Desconectado do MQTT');
           updateMQTTStatus('disconnected', 'Desconectado - Tentando reconectar...');
+          connectBtn.disabled = false;
         });
         
         // Evento: Reconectando
@@ -565,9 +588,16 @@
           updateMQTTStatus('connecting', 'Reconectando...');
         });
         
+        // Evento: Offline
+        mqttClient.on('offline', () => {
+          console.log('📵 Cliente MQTT offline');
+          updateMQTTStatus('disconnected', 'Offline');
+        });
+        
       } catch (err) {
         console.error('❌ Erro ao criar cliente MQTT:', err);
-        updateMQTTStatus('disconnected', 'Erro ao conectar');
+        updateMQTTStatus('disconnected', 'Erro ao conectar: ' + err.message);
+        connectBtn.disabled = false;
       }
     }
     
@@ -703,6 +733,8 @@
     // ====== INICIALIZAÇÃO ======
     document.addEventListener('DOMContentLoaded', () => {
       console.log('🚀 Iniciando Dashboard MQTT');
+      console.log('📡 Broker: wss://4e7f2439378945bfbd24b2a1777b5ea2.s1.eu.hivemq.cloud:8884/mqtt');
+      console.log('👤 Cliente: hivemq.webclient.1769967284481');
       
       // Inicializar gráfico
       initChart();
