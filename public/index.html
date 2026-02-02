@@ -45,20 +45,16 @@
 
     .container { max-width: 1400px; margin: 0 auto; }
 
-    /* Header Compacto com Botões */
+    /* Header */
     .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      text-align: center;
       margin-bottom: 8px;
-      padding: 12px 16px;
+      padding: 12px;
       background: white;
       border-radius: 12px;
       box-shadow: 0 4px 15px rgba(0,0,0,0.06);
       position: relative;
       overflow: hidden;
-      flex-wrap: wrap;
-      gap: 10px;
     }
 
     .header::before {
@@ -68,20 +64,14 @@
       background: linear-gradient(90deg, var(--primary), var(--mqtt-color));
     }
 
-    .header-title {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex: 1;
-    }
-
     .header h1 {
       color: var(--primary-dark);
-      font-size: 1.2rem;
+      font-size: 1.3rem;
+      margin-bottom: 4px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      white-space: nowrap;
+      justify-content: center;
+      gap: 10px;
     }
 
     .mqtt-badge {
@@ -90,40 +80,38 @@
       gap: 5px;
       background: var(--mqtt-color);
       color: white;
-      padding: 4px 10px;
+      padding: 4px 12px;
       border-radius: 20px;
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       font-weight: 600;
+      margin-top: 5px;
     }
 
     .mqtt-badge.disconnected {
       background: var(--danger);
     }
 
-    /* Botões no Header */
-    .header-controls {
+    /* Controles Topo */
+    .controls-top {
       display: flex;
-      gap: 8px;
+      justify-content: space-between;
       align-items: center;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     .btn {
-      padding: 8px 14px;
+      padding: 8px 16px;
       border: none;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       font-weight: 600;
       transition: all 0.3s;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      white-space: nowrap;
-    }
-
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
     .btn-reboot {
@@ -133,6 +121,8 @@
 
     .btn-reboot:hover {
       background: #d62839;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(230, 57, 70, 0.3);
     }
 
     .btn-refresh {
@@ -140,44 +130,38 @@
       color: white;
     }
 
-    .btn-refresh:hover {
-      background: var(--primary-dark);
-    }
-
-    /* Status Panel Compacto */
+    /* Status Panel Grid */
     .status-panel {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 6px;
-      margin-bottom: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
     }
 
     .status-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
       background: white;
-      padding: 8px 10px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       transition: transform 0.2s;
-      min-height: 44px;
     }
 
-    .status-item:hover { transform: translateY(-1px); }
+    .status-item:hover { transform: translateY(-2px); }
 
     .status-label {
       font-weight: 600;
       color: var(--gray);
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       text-transform: uppercase;
-      line-height: 1.2;
     }
 
     .status-value {
       font-weight: 700;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       text-align: right;
     }
 
@@ -187,52 +171,30 @@
 
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-    /* Sinal com dBm */
-    .signal-info {
-      text-align: right;
-    }
-
-    .signal-bar { 
-      display: flex; 
-      align-items: flex-end; 
-      gap: 2px; 
-      height: 14px; 
-      justify-content: flex-end;
-      margin-bottom: 2px;
-    }
-    
+    /* Sinal bars */
+    .signal-bar { display: flex; align-items: flex-end; gap: 2px; height: 16px; }
     .signal-bar-item {
-      width: 4px; 
-      background: #e9ecef; 
-      border-radius: 2px;
+      width: 4px; background: #e9ecef; border-radius: 2px;
       transition: all 0.3s;
     }
-    
     .signal-bar-item.active { background: var(--primary); }
     .signal-bar-item:nth-child(1) { height: 4px; }
-    .signal-bar-item:nth-child(2) { height: 6px; }
-    .signal-bar-item:nth-child(3) { height: 8px; }
-    .signal-bar-item:nth-child(4) { height: 11px; }
-    .signal-bar-item:nth-child(5) { height: 14px; }
-
-    .signal-dbm {
-      font-size: 0.7rem;
-      color: var(--gray);
-      font-weight: 600;
-    }
+    .signal-bar-item:nth-child(2) { height: 7px; }
+    .signal-bar-item:nth-child(3) { height: 10px; }
+    .signal-bar-item:nth-child(4) { height: 13px; }
+    .signal-bar-item:nth-child(5) { height: 16px; }
 
     /* Warning Banner */
     .connection-warning {
       display: none;
-      padding: 10px;
-      margin-bottom: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
       border-radius: 8px;
       text-align: center;
       font-weight: 600;
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       animation: slideInDown 0.5s ease;
     }
-    
     .connection-warning.show { display: block; }
     .receptor-off {
       background: #fee2e2; color: #991b1b; border: 2px solid #f87171;
@@ -250,42 +212,38 @@
     .main-content {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 10px;
+      margin-bottom: 10px;
     }
 
-    @media (max-width: 768px) { 
-      .main-content { grid-template-columns: 1fr; }
-      .header { flex-direction: column; align-items: stretch; }
-      .header-controls { justify-content: center; }
-    }
+    @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
 
     /* Cards */
     .card {
       background: white;
-      padding: 12px;
-      border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      padding: 15px;
+      border-radius: 15px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.08);
     }
 
     .card-header {
       text-align: center;
-      margin-bottom: 12px;
+      margin-bottom: 15px;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
       color: var(--primary-dark);
-      font-size: 0.95rem;
+      font-size: 1rem;
       font-weight: 600;
     }
 
-    /* Tank Visual Melhorado */
+    /* Tank Visual */
     .tank-wrapper {
       position: relative;
-      width: 200px;
-      height: 180px;
-      margin: 8px auto;
+      width: 240px;
+      height: 220px;
+      margin: 10px auto;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -295,7 +253,7 @@
       position: absolute;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
-      width: 110%; height: 110%;
+      width: 108%; height: 108%;
       object-fit: contain;
       z-index: 1;
       pointer-events: none;
@@ -304,345 +262,169 @@
 
     .tank {
       position: absolute;
-      left: 50%; 
-      transform: translateX(-50%);
-      width: 38px;
-      top: 32px; 
-      bottom: 36px;
-      border-radius: 6px;
+      left: 50%; transform: translateX(-50%);
+      width: 44px;
+      top: 38px; bottom: 42px;
+      border-radius: 8px;
       overflow: hidden;
       z-index: 2;
-      background: rgba(20, 40, 60, 0.3);
-      box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+      background: rgba(20, 40, 60, 0.35);
+      backdrop-filter: blur(1px);
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
     }
 
-    /* ÁGUA COM EFEITO REALISTA */
     .water {
       position: absolute;
-      bottom: 0; 
-      width: 100%;
-      background: linear-gradient(180deg, 
-        rgba(72, 202, 228, 0.9) 0%, 
-        rgba(0, 150, 199, 0.95) 50%,
-        rgba(0, 119, 182, 1) 100%
-      );
-      transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      bottom: 0; width: 100%;
+      background: linear-gradient(to top, var(--water-deep) 0%, var(--water-blue) 100%);
+      transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
       font-weight: 700;
-      font-size: 0.75rem;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.4);
-      border-radius: 0 0 6px 6px;
-      min-height: 18px;
-      position: relative;
-      overflow: hidden;
+      font-size: 0.8rem;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+      border-radius: 0 0 8px 8px;
+      min-height: 20px;
     }
 
-    /* ONDA SUPERIOR */
     .water::before {
       content: '';
       position: absolute;
-      top: -8px;
-      left: -50%;
-      width: 200%;
-      height: 16px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z' fill='rgba(72, 202, 228, 0.8)'/%3E%3C/svg%3E");
-      background-size: 50% 100%;
-      animation: waveMove 3s linear infinite;
-      opacity: 0.9;
-    }
-
-    /* SEGUNDA ONDA */
-    .water::after {
-      content: '';
-      position: absolute;
-      top: -6px;
-      left: -25%;
-      width: 200%;
-      height: 12px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,40 C200,100 400,20 600,60 C800,100 1000,20 1200,60 L1200,120 L0,120 Z' fill='rgba(255, 255, 255, 0.3)'/%3E%3C/svg%3E");
-      background-size: 40% 100%;
-      animation: waveMove 4s linear infinite reverse;
-    }
-
-    @keyframes waveMove {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-25%); }
-    }
-
-    /* BOLHAS ANIMADAS */
-    .bubbles {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      overflow: hidden;
-    }
-
-    .bubble {
-      position: absolute;
-      bottom: -10px;
+      top: -6px; left: -50%;
+      width: 200%; height: 12px;
       background: rgba(255,255,255,0.3);
       border-radius: 50%;
-      animation: rise 4s infinite ease-in;
+      animation: wave 3s infinite linear;
     }
 
-    @keyframes rise {
-      0% { 
-        bottom: -10px; 
-        opacity: 0;
-        transform: translateX(0) scale(0.5);
-      }
-      10% { opacity: 1; }
-      90% { opacity: 0.5; }
-      100% { 
-        bottom: 100%; 
-        opacity: 0;
-        transform: translateX(10px) scale(1);
-      }
+    @keyframes wave {
+      0% { transform: translateX(0) rotate(0deg); }
+      100% { transform: translateX(-25%) rotate(360deg); }
     }
 
-    .water.critical { 
-      background: linear-gradient(180deg, #fca5a5 0%, #dc2626 50%, #991b1b 100%);
-      animation: pulseRed 1.5s infinite;
-    }
-    .water.critical::before { fill: rgba(252, 165, 165, 0.8); }
-    
-    .water.low { 
-      background: linear-gradient(180deg, #fdba74 0%, #ea580c 50%, #9a3412 100%);
-    }
-    .water.low::before { fill: rgba(253, 186, 116, 0.8); }
-    
-    .water.medium { 
-      background: linear-gradient(180deg, #fde047 0%, #ca8a04 50%, #854d0e 100%);
-    }
-    
-    .water.good { 
-      background: linear-gradient(180deg, #7dd3fc 0%, #0284c7 50%, #0c4a6e 100%);
-    }
-    
-    .water.full { 
-      background: linear-gradient(180deg, #38bdf8 0%, #0369a1 50%, #082f49 100%);
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
-    }
+    .water.critical { background: linear-gradient(to top, #dc2626, #ef4444); animation: pulse 1s infinite; }
+    .water.low { background: linear-gradient(to top, #ea580c, #fb923c); }
+    .water.medium { background: linear-gradient(to top, #ca8a04, #fbbf24); }
+    .water.good { background: linear-gradient(to top, #0284c7, #38bdf8); }
+    .water.full { background: linear-gradient(to top, #0369a1, #0ea5e9); }
 
-    @keyframes pulseRed {
-      0%, 100% { opacity: 1; box-shadow: inset 0 0 10px rgba(220, 38, 38, 0.5); }
-      50% { opacity: 0.9; box-shadow: inset 0 0 20px rgba(220, 38, 38, 0.8); }
-    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
 
     .tank-marks {
       position: absolute;
-      left: 50%; 
-      transform: translateX(-50%);
-      width: 38px;
-      top: 32px; 
-      bottom: 36px;
+      left: 50%; transform: translateX(-50%);
+      width: 44px;
+      top: 38px; bottom: 42px;
       z-index: 3;
       pointer-events: none;
     }
-    
     .tank-mark {
       position: absolute;
-      right: -28px;
-      font-size: 0.6rem;
+      right: -32px;
+      font-size: 0.65rem;
       color: var(--gray);
       font-weight: 600;
       display: flex;
       align-items: center;
-      gap: 3px;
+      gap: 4px;
     }
-    
-    .tank-mark::before { content: ''; width: 6px; height: 1px; background: var(--gray); }
+    .tank-mark::before { content: ''; width: 8px; height: 1px; background: var(--gray); }
     .tank-mark.top { top: 0; }
     .tank-mark.mid { top: 50%; transform: translateY(-50%); }
     .tank-mark.bottom { bottom: 0; }
 
     .tank-capacity {
       text-align: center;
-      margin: 8px 0;
-      padding: 8px;
+      margin: 10px 0;
+      padding: 10px;
       background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-      border-radius: 8px;
+      border-radius: 10px;
       border: 2px solid var(--primary);
     }
-    
-    .tank-capacity-label { font-size: 0.65rem; color: var(--gray); font-weight: 600; text-transform: uppercase; }
-    .tank-capacity-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-dark); }
+    .tank-capacity-label { font-size: 0.7rem; color: var(--gray); font-weight: 600; text-transform: uppercase; }
+    .tank-capacity-value { font-size: 1.2rem; font-weight: 700; color: var(--primary-dark); }
 
-    /* Info Grid Compacto */
+    /* Info Grid */
     .info-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-top: 8px;
+      gap: 8px;
+      margin-top: 10px;
     }
-    
     @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; } }
 
     .info-card {
       background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-      padding: 10px 6px;
-      border-radius: 8px;
+      padding: 12px 8px;
+      border-radius: 10px;
       text-align: center;
       cursor: pointer;
       transition: all 0.3s;
       border: 2px solid transparent;
     }
-    
     .info-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
       border-color: var(--primary);
       background: white;
     }
-    
-    .info-card-label { 
-      font-size: 0.6rem; 
-      color: var(--gray); 
-      font-weight: 600; 
-      text-transform: uppercase; 
-      margin-bottom: 3px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-    }
-    
-    .info-card-value { font-size: 1rem; font-weight: 700; color: var(--primary-dark); }
-    .info-card-unit { font-size: 0.7rem; color: var(--gray); }
+    .info-card-label { font-size: 0.65rem; color: var(--gray); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .info-card-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-dark); }
+    .info-card-unit { font-size: 0.75rem; color: var(--gray); }
 
     /* Chart */
-    #nivelChart { max-height: 200px; width: 100% !important; }
+    #nivelChart { max-height: 250px; width: 100% !important; }
 
-    /* History Table Compacta com 4 itens */
+    /* History Table */
     .table-container {
       overflow-x: auto;
-      margin-top: 8px;
+      margin-top: 10px;
       border-radius: 8px;
       border: 1px solid #e9ecef;
     }
-    
-    table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-    
-    thead { 
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); 
-      color: white; 
-    }
-    
-    th { 
-      padding: 8px 6px; 
-      text-align: left; 
-      font-weight: 600; 
-      white-space: nowrap;
-      font-size: 0.7rem;
-    }
-    
-    td { 
-      padding: 6px; 
-      border-bottom: 1px solid #e9ecef; 
-      white-space: nowrap;
-    }
-    
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
+    th { padding: 10px 8px; text-align: left; font-weight: 600; white-space: nowrap; }
+    td { padding: 8px; border-bottom: 1px solid #e9ecef; }
     tbody tr:hover { background: #f8f9fa; }
     tbody tr:last-child td { border-bottom: none; }
 
     .status-badge {
-      padding: 3px 6px;
-      border-radius: 10px;
-      font-size: 0.7rem;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
       font-weight: 600;
       display: inline-block;
     }
-    
     .badge-normal { background: #d4edda; color: #155724; }
     .badge-waiting { background: #fff3cd; color: #856404; }
     .badge-error { background: #f8d7da; color: #721c24; }
     .badge-offline { background: #fee2e2; color: #991b1b; }
 
-    /* Coluna LoRa com dBm */
-    .lora-info {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .mini-signal {
-      display: flex;
-      align-items: flex-end;
-      gap: 1px;
-      height: 10px;
-    }
-
-    .mini-bar {
-      width: 2px;
-      background: #ddd;
-      border-radius: 1px;
-    }
-
-    .mini-bar.active { background: var(--primary); }
-    .mini-bar:nth-child(1) { height: 3px; }
-    .mini-bar:nth-child(2) { height: 5px; }
-    .mini-bar:nth-child(3) { height: 7px; }
-    .mini-bar:nth-child(4) { height: 9px; }
-
-    .dbm-value {
-      font-size: 0.7rem;
-      color: var(--gray);
-      font-weight: 600;
-    }
-
-    /* Updates Log Compacto */
+    /* Updates Log */
     .update-entry {
-      padding: 6px 10px;
-      margin-bottom: 4px;
+      padding: 8px 12px;
+      margin-bottom: 6px;
       background: #f8f9fa;
       border-left: 3px solid var(--primary);
-      border-radius: 4px;
+      border-radius: 5px;
       display: flex;
-      gap: 8px;
-      font-size: 0.75rem;
+      gap: 10px;
+      font-size: 0.8rem;
       animation: slideIn 0.3s ease;
     }
-    
-    @keyframes slideIn { 
-      from { opacity: 0; transform: translateX(-10px); } 
-      to { opacity: 1; transform: translateX(0); } 
-    }
-    
-    .update-time { 
-      color: var(--primary); 
-      font-weight: 600; 
-      min-width: 55px; 
-      font-size: 0.7rem; 
-    }
-    
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    .update-time { color: var(--primary); font-weight: 600; min-width: 60px; font-size: 0.75rem; }
     .update-text { color: var(--dark); flex: 1; }
-    
-    #updateHistory { 
-      max-height: 120px; 
-      overflow-y: auto; 
-    }
-
-    /* Loading */
-    .loading { 
-      text-align: center; 
-      padding: 15px; 
-      color: var(--gray); 
-      font-size: 0.85rem; 
-    }
+    #updateHistory { max-height: 150px; overflow-y: auto; }
 
     /* Debug Button */
     .debug-btn {
       position: fixed;
-      bottom: 15px; 
-      right: 15px;
-      width: 45px; 
-      height: 45px;
+      bottom: 20px; right: 20px;
+      width: 50px; height: 50px;
       border-radius: 50%;
       background: var(--primary);
       color: white;
@@ -651,121 +433,93 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       transition: all 0.3s;
       z-index: 1000;
-      font-size: 1.1rem;
     }
-    
-    .debug-btn:hover { 
-      transform: scale(1.1); 
-      background: var(--primary-dark); 
-    }
+    .debug-btn:hover { transform: scale(1.1); background: var(--primary-dark); }
 
+    /* Loading */
+    .loading { text-align: center; padding: 20px; color: var(--gray); font-size: 0.9rem; }
+    
     /* Modal */
     .modal {
       display: none;
       position: fixed;
-      top: 0; 
-      left: 0; 
-      width: 100%; 
-      height: 100%;
+      top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.5);
       z-index: 2000;
       align-items: center;
       justify-content: center;
     }
-    
     .modal.show { display: flex; }
-    
     .modal-content {
       background: white;
       padding: 20px;
       border-radius: 12px;
-      max-width: 350px;
+      max-width: 400px;
       width: 90%;
       text-align: center;
     }
-    
-    .modal h3 { margin-bottom: 12px; color: var(--danger); font-size: 1.1rem; }
-    .modal p { margin-bottom: 18px; color: var(--gray); font-size: 0.9rem; }
-    
-    .modal-buttons { 
-      display: flex; 
-      gap: 10px; 
-      justify-content: center; 
-    }
-    
-    .btn-cancel { 
-      background: #e9ecef; 
-      color: var(--dark); 
-      padding: 10px 20px;
-    }
-    
-    .btn-confirm { 
-      background: var(--danger); 
-      color: white; 
-      padding: 10px 20px;
-    }
+    .modal h3 { margin-bottom: 15px; color: var(--danger); }
+    .modal p { margin-bottom: 20px; color: var(--gray); }
+    .modal-buttons { display: flex; gap: 10px; justify-content: center; }
+    .btn-cancel { background: #e9ecef; color: var(--dark); }
+    .btn-confirm { background: var(--danger); color: white; }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- Header com Botões Integrados -->
+    <!-- Header -->
     <div class="header">
-      <div class="header-title">
-        <h1>
-          <i class="fas fa-water"></i> Monitor de Caixa d'Água
-        </h1>
-        <div class="mqtt-badge" id="mqttStatus">
-          <i class="fas fa-broadcast-tower"></i> <span>MQTT</span>
-        </div>
+      <h1><i class="fas fa-water"></i> Monitor de Caixa d'Água</h1>
+      <div class="mqtt-badge" id="mqttStatus">
+        <i class="fas fa-broadcast-tower"></i> <span>MQTT Conectando...</span>
       </div>
-      
-      <div class="header-controls">
-        <button class="btn btn-refresh" onclick="carregarDados()" title="Atualizar dados agora">
-          <i class="fas fa-sync-alt"></i> Atualizar
-        </button>
-        <button class="btn btn-reboot" onclick="confirmarReboot()" title="Reiniciar receptor remoto">
-          <i class="fas fa-power-off"></i> Reiniciar
-        </button>
-      </div>
+    </div>
+
+    <!-- Controles -->
+    <div class="controls-top">
+      <button class="btn btn-refresh" onclick="carregarDados()">
+        <i class="fas fa-sync-alt"></i> Atualizar Agora
+      </button>
+      <button class="btn btn-reboot" onclick="confirmarReboot()">
+        <i class="fas fa-power-off"></i> Reiniciar Receptor
+      </button>
     </div>
 
     <!-- Warning Banner -->
     <div id="connectionWarning" class="connection-warning"></div>
 
-    <!-- Status Panel Compacto -->
+    <!-- Status Panel -->
     <div class="status-panel">
       <div class="status-item">
-        <span class="status-label">Servidor</span>
+        <span class="status-label">Servidor:</span>
         <span class="status-value online" id="apiStatus">Online</span>
       </div>
       <div class="status-item">
-        <span class="status-label">Receptor</span>
-        <span class="status-value" id="receptorStatus">--</span>
+        <span class="status-label">Receptor WiFi:</span>
+        <span class="status-value" id="receptorStatus">Verificando...</span>
       </div>
       <div class="status-item">
-        <span class="status-label">LoRa</span>
-        <span class="status-value" id="loraStatus">--</span>
+        <span class="status-label">LoRa:</span>
+        <span class="status-value" id="loraStatus">Verificando...</span>
       </div>
       <div class="status-item">
-        <span class="status-label">MQTT</span>
-        <span class="status-value" id="brokerStatus">--</span>
+        <span class="status-label">MQTT Broker:</span>
+        <span class="status-value" id="brokerStatus">Conectando...</span>
       </div>
       <div class="status-item">
-        <span class="status-label">Sinal LoRa</span>
-        <div class="signal-info">
+        <span class="status-label">Sinal LoRa:</span>
+        <div style="text-align: right;">
           <div class="signal-bar" id="signalBar">
-            <div class="signal-bar-item"></div>
-            <div class="signal-bar-item"></div>
-            <div class="signal-bar-item"></div>
-            <div class="signal-bar-item"></div>
+            <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
+            <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
             <div class="signal-bar-item"></div>
           </div>
-          <div class="signal-dbm" id="signalDbm">-- dBm</div>
+          <div style="font-size: 0.7rem; margin-top: 2px;" id="signalText">0%</div>
         </div>
       </div>
       <div class="status-item">
-        <span class="status-label">Último Dado</span>
-        <span class="status-value" id="lastUpdate">--:--</span>
+        <span class="status-label">Último Dado:</span>
+        <span class="status-value" id="lastUpdate">--:--:--</span>
       </div>
     </div>
 
@@ -782,11 +536,7 @@
                src="https://ik.imagekit.io/o7q7lmyva/Caixa-5000-frontal-sl-1024x762.png?updatedAt=1763608669534" 
                alt="Caixa d'água">
           <div class="tank">
-            <div class="water" id="waterLevel" style="height: 0%;">
-              <span id="waterText">0%</span>
-              <!-- Bolhas animadas -->
-              <div class="bubbles" id="bubbles"></div>
-            </div>
+            <div class="water" id="waterLevel" style="height: 0%;">0%</div>
           </div>
           <div class="tank-marks">
             <div class="tank-mark top">100%</div>
@@ -802,27 +552,21 @@
 
         <div class="info-grid">
           <div class="info-card" onclick="showDetails('volume')">
-            <div class="info-card-label">
-              <i class="fas fa-tint"></i> Volume
-            </div>
+            <div class="info-card-label"><i class="fas fa-tint"></i> Volume</div>
             <div class="info-card-value">
-              <span id="currentVolume">--</span><span class="info-card-unit"> L</span>
+              <span id="currentVolume">--</span><span class="info-card-unit">L</span>
             </div>
           </div>
           <div class="info-card" onclick="showDetails('distance')">
-            <div class="info-card-label">
-              <i class="fas fa-ruler-vertical"></i> Distância
-            </div>
+            <div class="info-card-label"><i class="fas fa-ruler-vertical"></i> Distância</div>
             <div class="info-card-value">
-              <span id="currentDistance">--</span><span class="info-card-unit"> cm</span>
+              <span id="currentDistance">--</span><span class="info-card-unit">cm</span>
             </div>
           </div>
           <div class="info-card" onclick="showDetails('level')">
-            <div class="info-card-label">
-              <i class="fas fa-arrows-alt-v"></i> Altura
-            </div>
+            <div class="info-card-label"><i class="fas fa-arrows-alt-v"></i> Altura</div>
             <div class="info-card-value">
-              <span id="currentLevel">--</span><span class="info-card-unit"> cm</span>
+              <span id="currentLevel">--</span><span class="info-card-unit">cm</span>
             </div>
           </div>
         </div>
@@ -837,8 +581,8 @@
       </div>
     </div>
 
-    <!-- History Table - Máximo 4 itens -->
-    <div class="card" style="margin-bottom: 8px;">
+    <!-- History Table -->
+    <div class="card" style="margin-bottom: 10px;">
       <div class="card-header">
         <i class="fas fa-history"></i> Últimas Leituras
       </div>
@@ -855,7 +599,7 @@
                 <th>Nível</th>
                 <th>Volume</th>
                 <th>Dist.</th>
-                <th>Sinal LoRa</th>
+                <th>LoRa</th>
               </tr>
             </thead>
             <tbody id="historyBody"></tbody>
@@ -870,7 +614,7 @@
     <!-- Updates Log -->
     <div class="card">
       <div class="card-header">
-        <i class="fas fa-bell"></i> Log de Eventos
+        <i class="fas fa-bell"></i> Log de Eventos MQTT
       </div>
       <div id="updateHistory"></div>
     </div>
@@ -900,30 +644,13 @@
     let savedCapacityTotal = 0;
     let currentData = {};
     let refreshInterval;
-    let lastRssi = null;
 
     // Inicialização
     document.addEventListener('DOMContentLoaded', () => {
-      criarBolinhas();
       carregarDados();
       refreshInterval = setInterval(carregarDados, 5000);
-      adicionarLog('🚀 Sistema iniciado');
+      adicionarLog('Sistema iniciado (MQTT Mode)');
     });
-
-    // Criar bolinhas animadas na água
-    function criarBolinhas() {
-      const container = document.getElementById('bubbles');
-      for (let i = 0; i < 5; i++) {
-        const bubble = document.createElement('div');
-        bubble.className = 'bubble';
-        bubble.style.left = Math.random() * 100 + '%';
-        bubble.style.width = (4 + Math.random() * 6) + 'px';
-        bubble.style.height = bubble.style.width;
-        bubble.style.animationDelay = (Math.random() * 4) + 's';
-        bubble.style.animationDuration = (3 + Math.random() * 2) + 's';
-        container.appendChild(bubble);
-      }
-    }
 
     // Carregar dados da API
     async function carregarDados() {
@@ -932,15 +659,16 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
-        console.log('📡 Dados:', data);
+        console.log('📡 Dados recebidos:', data);
         
         processarDados(data);
         atualizarInterface(data);
         atualizarHistorico(data.historico);
         atualizarGrafico(data.historico);
         
+        // Atualizar timestamp
         document.getElementById('lastUpdate').textContent = 
-          new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+          new Date().toLocaleTimeString('pt-BR');
           
       } catch (error) {
         console.error('❌ Erro:', error);
@@ -958,30 +686,26 @@
         savedCapacityTotal = data.caixa_config.volumeTotal;
       }
       
-      // Guardar último RSSI válido
-      if (data.lora_signal?.rssi !== null && data.lora_signal?.rssi !== undefined) {
-        lastRssi = data.lora_signal.rssi;
-      }
-      
+      // Guardar dados atuais
       currentData = {
         percentage: parseInt(data.percentage) || 0,
         liters: parseInt(data.liters) || 0,
         distance: parseFloat(data.distance) || 0,
         level: parseInt(data.level) || 0,
-        rssi: lastRssi,
+        rssi: data.lora_signal?.rssi || -100,
         quality: data.lora_signal?.quality || 0
       };
 
-      // Logs
+      // Log de eventos importantes
       if (data.status === 'receptor_disconnected') {
-        adicionarLog('⚠️ Receptor desconectado');
+        adicionarLog('⚠️ Receptor desconectado do WiFi');
       } else if (data.status === 'waiting_lora') {
         adicionarLog('⏳ Aguardando sinal LoRa');
       } else if (data.status === 'normal') {
         if (updateHistoryData.length === 0 || 
             updateHistoryData[0].text.includes('Aguardando') ||
             updateHistoryData[0].text.includes('desconectado')) {
-          adicionarLog('✅ Dados recebidos');
+          adicionarLog('✅ Conexão restaurada - Dados recebidos');
         }
       }
     }
@@ -991,33 +715,33 @@
       warning.className = 'connection-warning';
       warning.innerHTML = '';
 
-      // Status MQTT
+      // Status MQTT/Broker
       const mqttConnected = data.system_info?.mqtt_connected !== false;
-      document.getElementById('brokerStatus').textContent = mqttConnected ? 'Conectado' : 'Desc.';
+      document.getElementById('brokerStatus').textContent = mqttConnected ? 'Conectado' : 'Desconectado';
       document.getElementById('brokerStatus').className = mqttConnected ? 'status-value online' : 'status-value offline';
       
       const mqttBadge = document.getElementById('mqttStatus');
       if (mqttConnected) {
-        mqttBadge.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span>MQTT</span>';
+        mqttBadge.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span>MQTT Online</span>';
         mqttBadge.classList.remove('disconnected');
       } else {
-        mqttBadge.innerHTML = '<i class="fas fa-times-circle"></i> <span>Off</span>';
+        mqttBadge.innerHTML = '<i class="fas fa-times-circle"></i> <span>MQTT Offline</span>';
         mqttBadge.classList.add('disconnected');
       }
 
-      // Verificar receptor
+      // Verificar status receptor
       if (data.receptor_connected === false || data.status === 'receptor_disconnected') {
-        document.getElementById('receptorStatus').textContent = 'Off';
+        document.getElementById('receptorStatus').textContent = 'Offline';
         document.getElementById('receptorStatus').className = 'status-value offline';
         
         warning.className = 'connection-warning receptor-off show';
-        warning.innerHTML = '<i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO';
+        warning.innerHTML = '<i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO - Verifique alimentação e WiFi';
         
         zerarDisplay();
         return;
       }
 
-      document.getElementById('receptorStatus').textContent = 'On';
+      document.getElementById('receptorStatus').textContent = 'Online';
       document.getElementById('receptorStatus').className = 'status-value online';
 
       // Verificar LoRa
@@ -1026,25 +750,23 @@
         document.getElementById('loraStatus').className = 'status-value warning';
         
         warning.className = 'connection-warning lora-off show';
-        warning.innerHTML = '<i class="fas fa-satellite-dish"></i> AGUARDANDO LoRa';
+        warning.innerHTML = '<i class="fas fa-satellite-dish"></i> AGUARDANDO SINAL LoRa';
         
         zerarDisplay();
         return;
       }
 
-      document.getElementById('loraStatus').textContent = 'OK';
+      document.getElementById('loraStatus').textContent = 'Conectado';
       document.getElementById('loraStatus').className = 'status-value online';
 
-      // Mostrar dados
+      // Se chegou aqui, tudo OK - mostrar dados
       if (data.status !== 'sensor_error') {
         const pct = currentData.percentage;
         const water = document.getElementById('waterLevel');
-        const waterText = document.getElementById('waterText');
-        
         water.style.height = pct + '%';
-        waterText.textContent = pct + '%';
+        water.textContent = pct + '%';
         
-        // Classes de cor
+        // Cor baseada no nível
         water.className = 'water';
         if (pct <= 10) water.classList.add('critical');
         else if (pct <= 25) water.classList.add('low');
@@ -1057,22 +779,22 @@
         document.getElementById('currentLevel').textContent = currentData.level;
         document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
         
-        // Sempre mostrar dBm, mesmo se alto (ruim)
-        atualizarSinal(currentData.quality, lastRssi);
+        // Sinal
+        atualizarSinal(currentData.quality);
       }
     }
 
     function zerarDisplay() {
       document.getElementById('waterLevel').style.height = '0%';
-      document.getElementById('waterText').textContent = '--';
+      document.getElementById('waterLevel').textContent = '--';
       document.getElementById('currentVolume').textContent = '--';
       document.getElementById('currentDistance').textContent = '--';
       document.getElementById('currentLevel').textContent = '--';
-      document.getElementById('totalCapacity').textContent = savedCapacityTotal > 0 ? savedCapacityTotal + ' L' : '--';
-      atualizarSinal(0, null);
+      document.getElementById('totalCapacity').textContent = savedCapacityTotal > 0 ? savedCapacityTotal + ' L' : '-- L';
+      atualizarSinal(0);
     }
 
-    function atualizarSinal(quality, rssi) {
+    function atualizarSinal(quality) {
       const bars = document.querySelectorAll('.signal-bar-item');
       const activeBars = Math.ceil((quality / 100) * 5);
       
@@ -1080,21 +802,9 @@
         bar.classList.toggle('active', idx < activeBars);
       });
       
-      // SEMPRE mostrar dBm se disponível, mesmo que ruim
-      const dbmText = document.getElementById('signalDbm');
-      if (rssi !== null && rssi !== undefined) {
-        dbmText.textContent = rssi + ' dBm';
-        // Colorir baseado na qualidade
-        if (quality >= 80) dbmText.style.color = 'var(--success)';
-        else if (quality >= 50) dbmText.style.color = 'var(--warning)';
-        else dbmText.style.color = 'var(--danger)';
-      } else {
-        dbmText.textContent = '-- dBm';
-        dbmText.style.color = 'var(--gray)';
-      }
+      document.getElementById('signalText').textContent = quality + '%';
     }
 
-    // Histórico - MÁXIMO 4 ITENS
     function atualizarHistorico(historico) {
       const loading = document.getElementById('historyLoading');
       const container = document.getElementById('historyTableContainer');
@@ -1113,57 +823,24 @@
       message.style.display = 'none';
       
       tbody.innerHTML = '';
-      
-      // MÁXIMO 4 ITENS COMO SOLICITADO
-      historico.slice(0, 4).forEach(item => {
+      historico.slice(0, 10).forEach(item => {
         const row = document.createElement('tr');
-        const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR', {
-          hour: '2-digit', 
-          minute:'2-digit',
-          second:'2-digit'
-        });
+        const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
         
         let classeBadge = 'badge-normal';
-        let textoStatus = 'OK';
+        let textoStatus = 'Normal';
         
-        if (item.status === 'waiting_lora') { 
-          classeBadge = 'badge-waiting'; 
-          textoStatus = 'Aguar.'; 
-        }
-        else if (item.status === 'receptor_disconnected') { 
-          classeBadge = 'badge-offline'; 
-          textoStatus = 'Off'; 
-        }
-        else if (item.status === 'sensor_error') { 
-          classeBadge = 'badge-error'; 
-          textoStatus = 'Erro'; 
-        }
-        
-        // Mini barra de sinal + dBm
-        const q = item.lora_signal?.quality || 0;
-        const rssi = item.lora_signal?.rssi;
-        const miniBars = Math.ceil((q / 100) * 4);
-        
-        let miniSignalHtml = '<div class="mini-signal">';
-        for (let i = 0; i < 4; i++) {
-          miniSignalHtml += `<div class="mini-bar ${i < miniBars ? 'active' : ''}"></div>`;
-        }
-        miniSignalHtml += '</div>';
-        
-        const dbmText = rssi !== null && rssi !== undefined ? `${rssi} dBm` : '--';
+        if (item.status === 'waiting_lora') { classeBadge = 'badge-waiting'; textoStatus = 'Aguardando'; }
+        else if (item.status === 'receptor_disconnected') { classeBadge = 'badge-offline'; textoStatus = 'Offline'; }
+        else if (item.status === 'sensor_error') { claseBadge = 'badge-error'; textoStatus = 'Erro Sensor'; }
         
         row.innerHTML = `
           <td>${hora}</td>
           <td><span class="status-badge ${classeBadge}">${textoStatus}</span></td>
           <td>${item.percentage >= 0 ? item.percentage + '%' : '--'}</td>
           <td>${item.liters >= 0 ? item.liters + 'L' : '--'}</td>
-          <td>${item.distance >= 0 ? item.distance.toFixed(0) + 'cm' : '--'}</td>
-          <td>
-            <div class="lora-info">
-              ${miniSignalHtml}
-              <span class="dbm-value">${dbmText}</span>
-            </div>
-          </td>
+          <td>${item.distance >= 0 ? item.distance.toFixed(1) + 'cm' : '--'}</td>
+          <td>${item.lora_signal?.quality || 0}%</td>
         `;
         tbody.appendChild(row);
       });
@@ -1174,6 +851,7 @@
       if (!ctx || !historico) return;
       
       const dadosValidos = historico.filter(i => i.status === 'normal' && i.percentage >= 0);
+      
       if (dadosValidos.length === 0) return;
       
       const labels = dadosValidos.map(i => new Date(i.timestamp));
@@ -1191,9 +869,7 @@
               backgroundColor: 'rgba(0, 119, 182, 0.1)',
               borderWidth: 2,
               fill: true,
-              tension: 0.4,
-              pointRadius: 3,
-              pointBackgroundColor: '#0077b6'
+              tension: 0.4
             }]
           },
           options: {
@@ -1201,11 +877,7 @@
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-              y: { 
-                beginAtZero: true, 
-                max: 100, 
-                ticks: { callback: v => v + '%', font: {size: 10} } 
-              },
+              y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } },
               x: { display: false }
             }
           }
@@ -1213,17 +885,12 @@
       } else {
         chart.data.labels = labels;
         chart.data.datasets[0].data = data;
-        chart.update('none');
+        chart.update();
       }
     }
 
     function adicionarLog(texto) {
-      const hora = new Date().toLocaleTimeString('pt-BR', {
-        hour: '2-digit', 
-        minute:'2-digit', 
-        second:'2-digit'
-      });
-      
+      const hora = new Date().toLocaleTimeString('pt-BR');
       const div = document.createElement('div');
       div.className = 'update-entry';
       div.innerHTML = `<span class="update-time">${hora}</span><span class="update-text">${texto}</span>`;
@@ -1231,7 +898,8 @@
       const container = document.getElementById('updateHistory');
       container.insertBefore(div, container.firstChild);
       
-      while (container.children.length > 15) {
+      // Limitar a 20 itens
+      while (container.children.length > 20) {
         container.removeChild(container.lastChild);
       }
     }
@@ -1255,8 +923,8 @@
         });
         const data = await res.json();
         if (data.success) {
-          adicionarLog('🔄 Reinício remoto enviado');
-          alert('Comando enviado! Aguarde 30s...');
+          adicionarLog('🔄 Comando de reinício enviado via MQTT');
+          alert('Comando enviado! O receptor vai reiniciar em alguns segundos.');
         } else {
           throw new Error(data.error);
         }
@@ -1268,18 +936,20 @@
     function showDetails(tipo) {
       let msg = '';
       switch(tipo) {
-        case 'volume': msg = `Volume: ${currentData.liters}L / ${savedCapacityTotal}L`; break;
-        case 'distance': msg = `Distância sensor-água: ${currentData.distance}cm`; break;
-        case 'level': msg = `Altura da água: ${currentData.level}cm`; break;
+        case 'volume': msg = `Volume atual: ${currentData.liters}L\nCapacidade: ${savedCapacityTotal}L`; break;
+        case 'distance': msg = `Distância do sensor até a água: ${currentData.distance}cm`; break;
+        case 'level': msg = `Altura da coluna de água: ${currentData.level}cm`; break;
       }
       alert(msg);
     }
 
     function debugData() {
-      console.log('Current:', currentData);
+      console.log('Current Data:', currentData);
+      console.log('Capacity:', savedCapacityTotal);
       fetch('/api/lora').then(r => r.json()).then(d => console.log('Raw:', d));
     }
 
+    // Fechar modal ao clicar fora
     document.getElementById('modalReboot').addEventListener('click', (e) => {
       if (e.target.id === 'modalReboot') fecharModal();
     });
