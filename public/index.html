@@ -45,7 +45,7 @@
 
     .container { max-width: 1400px; margin: 0 auto; }
 
-    /* Header Compacto com Botões */
+    /* Header com Título Centralizado e Botões nas Laterais */
     .header {
       display: flex;
       justify-content: space-between;
@@ -68,31 +68,39 @@
       background: linear-gradient(90deg, var(--primary), var(--mqtt-color));
     }
 
-    .header-title {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    /* Lado Esquerdo - Botão Atualizar */
+    .header-left {
+      flex: 0 0 auto;
+    }
+
+    /* Centro - Título e MQTT Badge */
+    .header-center {
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
     }
 
     .header h1 {
       color: var(--primary-dark);
-      font-size: 1.2rem;
+      font-size: 1.3rem;
       display: flex;
       align-items: center;
-      gap: 8px;
-      white-space: nowrap;
+      gap: 10px;
+      margin-bottom: 6px;
     }
 
     .mqtt-badge {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       background: var(--mqtt-color);
       color: white;
-      padding: 4px 10px;
+      padding: 5px 14px;
       border-radius: 20px;
-      font-size: 0.7rem;
+      font-size: 0.8rem;
       font-weight: 600;
     }
 
@@ -100,30 +108,29 @@
       background: var(--danger);
     }
 
-    /* Botões no Header */
-    .header-controls {
-      display: flex;
-      gap: 8px;
-      align-items: center;
+    /* Lado Direito - Botão Reiniciar */
+    .header-right {
+      flex: 0 0 auto;
     }
 
+    /* Botões */
     .btn {
-      padding: 8px 14px;
+      padding: 10px 18px;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       cursor: pointer;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       font-weight: 600;
       transition: all 0.3s;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       white-space: nowrap;
     }
 
     .btn:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      box-shadow: 0 6px 15px rgba(0,0,0,0.2);
     }
 
     .btn-reboot {
@@ -147,7 +154,7 @@
     /* Status Panel Compacto */
     .status-panel {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 6px;
       margin-bottom: 8px;
     }
@@ -158,11 +165,11 @@
       justify-content: space-between;
       gap: 6px;
       background: white;
-      padding: 8px 10px;
-      border-radius: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
       transition: transform 0.2s;
-      min-height: 44px;
+      min-height: 50px;
     }
 
     .status-item:hover { transform: translateY(-1px); }
@@ -177,7 +184,7 @@
 
     .status-value {
       font-weight: 700;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       text-align: right;
     }
 
@@ -187,22 +194,24 @@
 
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-    /* Sinal com dBm */
+    /* Sinal com dBm e Porcentagem */
     .signal-info {
       text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
     }
 
     .signal-bar { 
       display: flex; 
       align-items: flex-end; 
-      gap: 2px; 
-      height: 14px; 
-      justify-content: flex-end;
-      margin-bottom: 2px;
+      gap: 3px; 
+      height: 16px; 
     }
     
     .signal-bar-item {
-      width: 4px; 
+      width: 5px; 
       background: #e9ecef; 
       border-radius: 2px;
       transition: all 0.3s;
@@ -210,13 +219,24 @@
     
     .signal-bar-item.active { background: var(--primary); }
     .signal-bar-item:nth-child(1) { height: 4px; }
-    .signal-bar-item:nth-child(2) { height: 6px; }
-    .signal-bar-item:nth-child(3) { height: 8px; }
-    .signal-bar-item:nth-child(4) { height: 11px; }
-    .signal-bar-item:nth-child(5) { height: 14px; }
+    .signal-bar-item:nth-child(2) { height: 7px; }
+    .signal-bar-item:nth-child(3) { height: 10px; }
+    .signal-bar-item:nth-child(4) { height: 13px; }
+    .signal-bar-item:nth-child(5) { height: 16px; }
+
+    .signal-details {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+    }
+
+    .signal-percent {
+      font-weight: 700;
+      color: var(--primary-dark);
+    }
 
     .signal-dbm {
-      font-size: 0.7rem;
       color: var(--gray);
       font-weight: 600;
     }
@@ -224,12 +244,12 @@
     /* Warning Banner */
     .connection-warning {
       display: none;
-      padding: 10px;
+      padding: 12px;
       margin-bottom: 8px;
-      border-radius: 8px;
+      border-radius: 10px;
       text-align: center;
       font-weight: 600;
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       animation: slideInDown 0.5s ease;
     }
     
@@ -250,42 +270,43 @@
     .main-content {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 10px;
+      margin-bottom: 10px;
     }
 
     @media (max-width: 768px) { 
       .main-content { grid-template-columns: 1fr; }
-      .header { flex-direction: column; align-items: stretch; }
-      .header-controls { justify-content: center; }
+      .header { flex-direction: column; }
+      .header-left, .header-right { width: 100%; }
+      .header-center { order: -1; }
     }
 
     /* Cards */
     .card {
       background: white;
-      padding: 12px;
-      border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      padding: 15px;
+      border-radius: 15px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.08);
     }
 
     .card-header {
       text-align: center;
-      margin-bottom: 12px;
+      margin-bottom: 15px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 10px;
       color: var(--primary-dark);
-      font-size: 0.95rem;
+      font-size: 1.1rem;
       font-weight: 600;
     }
 
-    /* Tank Visual Melhorado */
+    /* Tank Visual - CORRIGIDO: Água sobe de baixo para cima */
     .tank-wrapper {
       position: relative;
-      width: 200px;
-      height: 180px;
-      margin: 8px auto;
+      width: 220px;
+      height: 200px;
+      margin: 10px auto;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -295,76 +316,78 @@
       position: absolute;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
-      width: 110%; height: 110%;
+      width: 115%; height: 115%;
       object-fit: contain;
       z-index: 1;
       pointer-events: none;
-      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+      filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));
     }
 
     .tank {
       position: absolute;
       left: 50%; 
       transform: translateX(-50%);
-      width: 38px;
-      top: 32px; 
-      bottom: 36px;
-      border-radius: 6px;
+      width: 42px;
+      top: 28px; 
+      bottom: 32px;
+      border-radius: 8px;
       overflow: hidden;
       z-index: 2;
-      background: rgba(20, 40, 60, 0.3);
-      box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+      background: rgba(20, 40, 60, 0.25);
+      box-shadow: inset 0 0 15px rgba(0,0,0,0.4);
+      border: 2px solid rgba(255,255,255,0.1);
     }
 
-    /* ÁGUA COM EFEITO REALISTA */
+    /* ÁGUA - CORRIGIDO: bottom 0 faz subir de baixo */
     .water {
       position: absolute;
       bottom: 0; 
+      left: 0;
       width: 100%;
+      height: 0%; /* Começa vazio, JS aumenta para subir */
       background: linear-gradient(180deg, 
-        rgba(72, 202, 228, 0.9) 0%, 
-        rgba(0, 150, 199, 0.95) 50%,
+        rgba(72, 202, 228, 0.95) 0%, 
+        rgba(0, 150, 199, 0.98) 40%,
         rgba(0, 119, 182, 1) 100%
       );
-      transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
       font-weight: 700;
-      font-size: 0.75rem;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      font-size: 0.8rem;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.4);
       border-radius: 0 0 6px 6px;
-      min-height: 18px;
-      position: relative;
       overflow: hidden;
+      position: relative;
     }
 
-    /* ONDA SUPERIOR */
+    /* ONDA SUPERIOR - CORRIGIDA */
     .water::before {
       content: '';
       position: absolute;
-      top: -8px;
+      top: -10px;
       left: -50%;
       width: 200%;
-      height: 16px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,60 C150,120 350,0 600,60 C850,120 1050,0 1200,60 L1200,120 L0,120 Z' fill='rgba(72, 202, 228, 0.8)'/%3E%3C/svg%3E");
+      height: 20px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,60 C200,10 400,110 600,60 C800,10 1000,110 1200,60 L1200,120 L0,120 Z' fill='rgba(72, 202, 228, 0.9)'/%3E%3C/svg%3E");
       background-size: 50% 100%;
-      animation: waveMove 3s linear infinite;
-      opacity: 0.9;
+      animation: waveMove 2.5s linear infinite;
+      opacity: 0.95;
     }
 
     /* SEGUNDA ONDA */
     .water::after {
       content: '';
       position: absolute;
-      top: -6px;
+      top: -8px;
       left: -25%;
       width: 200%;
-      height: 12px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,40 C200,100 400,20 600,60 C800,100 1000,20 1200,60 L1200,120 L0,120 Z' fill='rgba(255, 255, 255, 0.3)'/%3E%3C/svg%3E");
+      height: 16px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0,80 C300,20 500,120 600,70 C700,20 900,120 1200,80 L1200,120 L0,120 Z' fill='rgba(255, 255, 255, 0.4)'/%3E%3C/svg%3E");
       background-size: 40% 100%;
-      animation: waveMove 4s linear infinite reverse;
+      animation: waveMove 3.5s linear infinite reverse;
     }
 
     @keyframes waveMove {
@@ -372,7 +395,7 @@
       100% { transform: translateX(-25%); }
     }
 
-    /* BOLHAS ANIMADAS */
+    /* BOLHAS */
     .bubbles {
       position: absolute;
       bottom: 0;
@@ -385,149 +408,186 @@
 
     .bubble {
       position: absolute;
-      bottom: -10px;
-      background: rgba(255,255,255,0.3);
+      bottom: -15px;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(255,255,255,0.2));
       border-radius: 50%;
-      animation: rise 4s infinite ease-in;
+      animation: rise 3s infinite ease-in;
     }
 
     @keyframes rise {
       0% { 
-        bottom: -10px; 
+        bottom: -15px; 
         opacity: 0;
-        transform: translateX(0) scale(0.5);
+        transform: translateX(0) scale(0.3);
       }
-      10% { opacity: 1; }
-      90% { opacity: 0.5; }
+      15% { opacity: 0.8; }
+      50% { transform: translateX(5px) scale(0.8); }
       100% { 
         bottom: 100%; 
         opacity: 0;
-        transform: translateX(10px) scale(1);
+        transform: translateX(-5px) scale(0.4);
       }
     }
 
     .water.critical { 
-      background: linear-gradient(180deg, #fca5a5 0%, #dc2626 50%, #991b1b 100%);
-      animation: pulseRed 1.5s infinite;
+      background: linear-gradient(180deg, #fca5a5 0%, #dc2626 40%, #991b1b 100%);
+      animation: pulseRed 1.2s infinite;
     }
-    .water.critical::before { fill: rgba(252, 165, 165, 0.8); }
     
     .water.low { 
-      background: linear-gradient(180deg, #fdba74 0%, #ea580c 50%, #9a3412 100%);
+      background: linear-gradient(180deg, #fdba74 0%, #ea580c 40%, #9a3412 100%);
     }
-    .water.low::before { fill: rgba(253, 186, 116, 0.8); }
     
     .water.medium { 
-      background: linear-gradient(180deg, #fde047 0%, #ca8a04 50%, #854d0e 100%);
+      background: linear-gradient(180deg, #fde047 0%, #ca8a04 40%, #854d0e 100%);
     }
     
     .water.good { 
-      background: linear-gradient(180deg, #7dd3fc 0%, #0284c7 50%, #0c4a6e 100%);
+      background: linear-gradient(180deg, #7dd3fc 0%, #0284c7 40%, #0c4a6e 100%);
     }
     
     .water.full { 
-      background: linear-gradient(180deg, #38bdf8 0%, #0369a1 50%, #082f49 100%);
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+      background: linear-gradient(180deg, #38bdf8 0%, #0369a1 40%, #082f49 100%);
+      box-shadow: 0 0 30px rgba(56, 189, 248, 0.6);
     }
 
     @keyframes pulseRed {
-      0%, 100% { opacity: 1; box-shadow: inset 0 0 10px rgba(220, 38, 38, 0.5); }
-      50% { opacity: 0.9; box-shadow: inset 0 0 20px rgba(220, 38, 38, 0.8); }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.85; }
     }
 
     .tank-marks {
       position: absolute;
       left: 50%; 
       transform: translateX(-50%);
-      width: 38px;
-      top: 32px; 
-      bottom: 36px;
+      width: 42px;
+      top: 28px; 
+      bottom: 32px;
       z-index: 3;
       pointer-events: none;
     }
     
     .tank-mark {
       position: absolute;
-      right: -28px;
-      font-size: 0.6rem;
+      right: -32px;
+      font-size: 0.65rem;
       color: var(--gray);
-      font-weight: 600;
+      font-weight: 700;
       display: flex;
       align-items: center;
-      gap: 3px;
+      gap: 4px;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.8);
     }
     
-    .tank-mark::before { content: ''; width: 6px; height: 1px; background: var(--gray); }
+    .tank-mark::before { 
+      content: ''; 
+      width: 8px; 
+      height: 2px; 
+      background: var(--gray); 
+    }
+    
     .tank-mark.top { top: 0; }
     .tank-mark.mid { top: 50%; transform: translateY(-50%); }
     .tank-mark.bottom { bottom: 0; }
 
     .tank-capacity {
       text-align: center;
-      margin: 8px 0;
-      padding: 8px;
+      margin: 12px 0;
+      padding: 12px;
       background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-      border-radius: 8px;
+      border-radius: 12px;
       border: 2px solid var(--primary);
+      box-shadow: 0 4px 10px rgba(0,119,182,0.15);
     }
     
-    .tank-capacity-label { font-size: 0.65rem; color: var(--gray); font-weight: 600; text-transform: uppercase; }
-    .tank-capacity-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-dark); }
+    .tank-capacity-label { 
+      font-size: 0.7rem; 
+      color: var(--gray); 
+      font-weight: 700; 
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .tank-capacity-value { 
+      font-size: 1.3rem; 
+      font-weight: 800; 
+      color: var(--primary-dark);
+      margin-top: 4px;
+    }
 
-    /* Info Grid Compacto */
+    /* Info Grid */
     .info-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-top: 8px;
+      gap: 8px;
+      margin-top: 12px;
     }
     
     @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; } }
 
     .info-card {
-      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-      padding: 10px 6px;
-      border-radius: 8px;
+      background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+      padding: 14px 8px;
+      border-radius: 12px;
       text-align: center;
       cursor: pointer;
       transition: all 0.3s;
       border: 2px solid transparent;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
     
     .info-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
       border-color: var(--primary);
       background: white;
     }
     
     .info-card-label { 
-      font-size: 0.6rem; 
+      font-size: 0.65rem; 
       color: var(--gray); 
-      font-weight: 600; 
-      text-transform: uppercase; 
-      margin-bottom: 3px;
+      font-weight: 700; 
+      text-transform: uppercase;
+      margin-bottom: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 5px;
+      letter-spacing: 0.3px;
     }
     
-    .info-card-value { font-size: 1rem; font-weight: 700; color: var(--primary-dark); }
-    .info-card-unit { font-size: 0.7rem; color: var(--gray); }
+    .info-card-value { 
+      font-size: 1.15rem; 
+      font-weight: 800; 
+      color: var(--primary-dark);
+    }
+    
+    .info-card-unit { 
+      font-size: 0.75rem; 
+      color: var(--gray);
+      font-weight: 600;
+    }
 
     /* Chart */
-    #nivelChart { max-height: 200px; width: 100% !important; }
+    #nivelChart { 
+      max-height: 220px; 
+      width: 100% !important;
+    }
 
-    /* History Table Compacta com 4 itens */
+    /* History Table */
     .table-container {
       overflow-x: auto;
-      margin-top: 8px;
-      border-radius: 8px;
+      margin-top: 10px;
+      border-radius: 10px;
       border: 1px solid #e9ecef;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
     
-    table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 0.8rem; 
+    }
     
     thead { 
       background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); 
@@ -535,27 +595,29 @@
     }
     
     th { 
-      padding: 8px 6px; 
+      padding: 10px 8px; 
       text-align: left; 
-      font-weight: 600; 
+      font-weight: 700; 
       white-space: nowrap;
-      font-size: 0.7rem;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     
     td { 
-      padding: 6px; 
+      padding: 10px 8px; 
       border-bottom: 1px solid #e9ecef; 
       white-space: nowrap;
     }
     
-    tbody tr:hover { background: #f8f9fa; }
+    tbody tr:hover { background: #f0f7ff; }
     tbody tr:last-child td { border-bottom: none; }
 
     .status-badge {
-      padding: 3px 6px;
-      border-radius: 10px;
-      font-size: 0.7rem;
-      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
       display: inline-block;
     }
     
@@ -564,99 +626,109 @@
     .badge-error { background: #f8d7da; color: #721c24; }
     .badge-offline { background: #fee2e2; color: #991b1b; }
 
-    /* Coluna LoRa com dBm */
     .lora-info {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
 
     .mini-signal {
       display: flex;
       align-items: flex-end;
-      gap: 1px;
-      height: 10px;
+      gap: 2px;
+      height: 12px;
     }
 
     .mini-bar {
-      width: 2px;
+      width: 3px;
       background: #ddd;
-      border-radius: 1px;
+      border-radius: 2px;
+      transition: all 0.3s;
     }
 
     .mini-bar.active { background: var(--primary); }
     .mini-bar:nth-child(1) { height: 3px; }
     .mini-bar:nth-child(2) { height: 5px; }
-    .mini-bar:nth-child(3) { height: 7px; }
-    .mini-bar:nth-child(4) { height: 9px; }
+    .mini-bar:nth-child(3) { height: 8px; }
+    .mini-bar:nth-child(4) { height: 12px; }
 
     .dbm-value {
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       color: var(--gray);
-      font-weight: 600;
+      font-weight: 700;
+      min-width: 55px;
     }
 
-    /* Updates Log Compacto */
+    /* Updates Log */
     .update-entry {
-      padding: 6px 10px;
-      margin-bottom: 4px;
-      background: #f8f9fa;
-      border-left: 3px solid var(--primary);
-      border-radius: 4px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, #f8f9fa 0%, #fff 100%);
+      border-left: 4px solid var(--primary);
+      border-radius: 8px;
       display: flex;
-      gap: 8px;
-      font-size: 0.75rem;
-      animation: slideIn 0.3s ease;
+      gap: 12px;
+      font-size: 0.85rem;
+      animation: slideIn 0.4s ease;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.03);
     }
     
     @keyframes slideIn { 
-      from { opacity: 0; transform: translateX(-10px); } 
+      from { opacity: 0; transform: translateX(-15px); } 
       to { opacity: 1; transform: translateX(0); } 
     }
     
     .update-time { 
       color: var(--primary); 
-      font-weight: 600; 
-      min-width: 55px; 
-      font-size: 0.7rem; 
+      font-weight: 700; 
+      min-width: 65px; 
+      font-size: 0.8rem;
     }
     
-    .update-text { color: var(--dark); flex: 1; }
+    .update-text { 
+      color: var(--dark); 
+      flex: 1;
+      font-weight: 500;
+    }
     
     #updateHistory { 
-      max-height: 120px; 
+      max-height: 140px; 
       overflow-y: auto; 
     }
 
     /* Loading */
     .loading { 
       text-align: center; 
-      padding: 15px; 
+      padding: 20px; 
       color: var(--gray); 
-      font-size: 0.85rem; 
+      font-size: 0.9rem; 
     }
 
     /* Debug Button */
     .debug-btn {
       position: fixed;
-      bottom: 15px; 
-      right: 15px;
-      width: 45px; 
-      height: 45px;
+      bottom: 20px; 
+      right: 20px;
+      width: 50px; 
+      height: 50px;
       border-radius: 50%;
       background: var(--primary);
       color: white;
       border: none;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
       transition: all 0.3s;
       z-index: 1000;
-      font-size: 1.1rem;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     
     .debug-btn:hover { 
-      transform: scale(1.1); 
-      background: var(--primary-dark); 
+      transform: scale(1.15) rotate(10deg); 
+      background: var(--primary-dark);
+      box-shadow: 0 8px 25px rgba(0,119,182,0.4);
     }
 
     /* Modal */
@@ -667,7 +739,8 @@
       left: 0; 
       width: 100%; 
       height: 100%;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
       z-index: 2000;
       align-items: center;
       justify-content: center;
@@ -677,52 +750,89 @@
     
     .modal-content {
       background: white;
-      padding: 20px;
-      border-radius: 12px;
-      max-width: 350px;
+      padding: 28px;
+      border-radius: 20px;
+      max-width: 400px;
       width: 90%;
       text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: modalPop 0.3s ease;
+    }
+
+    @keyframes modalPop {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
     }
     
-    .modal h3 { margin-bottom: 12px; color: var(--danger); font-size: 1.1rem; }
-    .modal p { margin-bottom: 18px; color: var(--gray); font-size: 0.9rem; }
+    .modal h3 { 
+      margin-bottom: 16px; 
+      color: var(--danger); 
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .modal p { 
+      margin-bottom: 24px; 
+      color: var(--gray); 
+      font-size: 1rem;
+      line-height: 1.5;
+    }
     
     .modal-buttons { 
       display: flex; 
-      gap: 10px; 
+      gap: 12px; 
       justify-content: center; 
     }
     
     .btn-cancel { 
       background: #e9ecef; 
       color: var(--dark); 
-      padding: 10px 20px;
+      padding: 12px 28px;
+      font-size: 0.95rem;
+    }
+
+    .btn-cancel:hover {
+      background: #dee2e6;
     }
     
     .btn-confirm { 
       background: var(--danger); 
       color: white; 
-      padding: 10px 20px;
+      padding: 12px 28px;
+      font-size: 0.95rem;
+    }
+
+    .btn-confirm:hover {
+      background: #dc2626;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- Header com Botões Integrados -->
+    <!-- Header com Título Centralizado -->
     <div class="header">
-      <div class="header-title">
+      <!-- Esquerda: Atualizar -->
+      <div class="header-left">
+        <button class="btn btn-refresh" onclick="carregarDados()" title="Atualizar dados agora">
+          <i class="fas fa-sync-alt"></i> Atualizar
+        </button>
+      </div>
+
+      <!-- Centro: Título e MQTT -->
+      <div class="header-center">
         <h1>
           <i class="fas fa-water"></i> Monitor de Caixa d'Água
         </h1>
         <div class="mqtt-badge" id="mqttStatus">
-          <i class="fas fa-broadcast-tower"></i> <span>MQTT</span>
+          <i class="fas fa-broadcast-tower"></i> <span>MQTT Conectado</span>
         </div>
       </div>
-      
-      <div class="header-controls">
-        <button class="btn btn-refresh" onclick="carregarDados()" title="Atualizar dados agora">
-          <i class="fas fa-sync-alt"></i> Atualizar
-        </button>
+
+      <!-- Direita: Reiniciar -->
+      <div class="header-right">
         <button class="btn btn-reboot" onclick="confirmarReboot()" title="Reiniciar receptor remoto">
           <i class="fas fa-power-off"></i> Reiniciar
         </button>
@@ -732,14 +842,14 @@
     <!-- Warning Banner -->
     <div id="connectionWarning" class="connection-warning"></div>
 
-    <!-- Status Panel Compacto -->
+    <!-- Status Panel -->
     <div class="status-panel">
       <div class="status-item">
         <span class="status-label">Servidor</span>
         <span class="status-value online" id="apiStatus">Online</span>
       </div>
       <div class="status-item">
-        <span class="status-label">Receptor</span>
+        <span class="status-label">Receptor WiFi</span>
         <span class="status-value" id="receptorStatus">--</span>
       </div>
       <div class="status-item">
@@ -747,7 +857,7 @@
         <span class="status-value" id="loraStatus">--</span>
       </div>
       <div class="status-item">
-        <span class="status-label">MQTT</span>
+        <span class="status-label">MQTT Broker</span>
         <span class="status-value" id="brokerStatus">--</span>
       </div>
       <div class="status-item">
@@ -760,7 +870,10 @@
             <div class="signal-bar-item"></div>
             <div class="signal-bar-item"></div>
           </div>
-          <div class="signal-dbm" id="signalDbm">-- dBm</div>
+          <div class="signal-details">
+            <span class="signal-percent" id="signalPercent">0%</span>
+            <span class="signal-dbm" id="signalDbm">-- dBm</span>
+          </div>
         </div>
       </div>
       <div class="status-item">
@@ -784,7 +897,6 @@
           <div class="tank">
             <div class="water" id="waterLevel" style="height: 0%;">
               <span id="waterText">0%</span>
-              <!-- Bolhas animadas -->
               <div class="bubbles" id="bubbles"></div>
             </div>
           </div>
@@ -838,7 +950,7 @@
     </div>
 
     <!-- History Table - Máximo 4 itens -->
-    <div class="card" style="margin-bottom: 8px;">
+    <div class="card" style="margin-bottom: 10px;">
       <div class="card-header">
         <i class="fas fa-history"></i> Últimas Leituras
       </div>
@@ -880,7 +992,7 @@
   <div id="modalReboot" class="modal">
     <div class="modal-content">
       <h3><i class="fas fa-exclamation-triangle"></i> Reiniciar Receptor?</h3>
-      <p>O dispositivo ESP32 será reiniciado remotamente via MQTT. Isso pode levar 30 segundos.</p>
+      <p>O dispositivo ESP32 será reiniciado remotamente via MQTT. Isso pode levar até 30 segundos.</p>
       <div class="modal-buttons">
         <button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button>
         <button class="btn btn-confirm" onclick="executarReboot()">Sim, Reiniciar</button>
@@ -913,14 +1025,14 @@
     // Criar bolinhas animadas na água
     function criarBolinhas() {
       const container = document.getElementById('bubbles');
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
-        bubble.style.left = Math.random() * 100 + '%';
-        bubble.style.width = (4 + Math.random() * 6) + 'px';
+        bubble.style.left = (10 + Math.random() * 80) + '%';
+        bubble.style.width = (3 + Math.random() * 5) + 'px';
         bubble.style.height = bubble.style.width;
-        bubble.style.animationDelay = (Math.random() * 4) + 's';
-        bubble.style.animationDuration = (3 + Math.random() * 2) + 's';
+        bubble.style.animationDelay = (Math.random() * 3) + 's';
+        bubble.style.animationDuration = (2.5 + Math.random() * 2) + 's';
         container.appendChild(bubble);
       }
     }
@@ -958,7 +1070,7 @@
         savedCapacityTotal = data.caixa_config.volumeTotal;
       }
       
-      // Guardar último RSSI válido
+      // Guardar último RSSI válido (mesmo se ruim)
       if (data.lora_signal?.rssi !== null && data.lora_signal?.rssi !== undefined) {
         lastRssi = data.lora_signal.rssi;
       }
@@ -974,14 +1086,14 @@
 
       // Logs
       if (data.status === 'receptor_disconnected') {
-        adicionarLog('⚠️ Receptor desconectado');
+        adicionarLog('⚠️ Receptor desconectado do WiFi');
       } else if (data.status === 'waiting_lora') {
         adicionarLog('⏳ Aguardando sinal LoRa');
       } else if (data.status === 'normal') {
         if (updateHistoryData.length === 0 || 
             updateHistoryData[0].text.includes('Aguardando') ||
             updateHistoryData[0].text.includes('desconectado')) {
-          adicionarLog('✅ Dados recebidos');
+          adicionarLog('✅ Dados recebidos via LoRa');
         }
       }
     }
@@ -993,31 +1105,31 @@
 
       // Status MQTT
       const mqttConnected = data.system_info?.mqtt_connected !== false;
-      document.getElementById('brokerStatus').textContent = mqttConnected ? 'Conectado' : 'Desc.';
+      document.getElementById('brokerStatus').textContent = mqttConnected ? 'Conectado' : 'Descon.';
       document.getElementById('brokerStatus').className = mqttConnected ? 'status-value online' : 'status-value offline';
       
       const mqttBadge = document.getElementById('mqttStatus');
       if (mqttConnected) {
-        mqttBadge.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span>MQTT</span>';
+        mqttBadge.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span>MQTT Conectado</span>';
         mqttBadge.classList.remove('disconnected');
       } else {
-        mqttBadge.innerHTML = '<i class="fas fa-times-circle"></i> <span>Off</span>';
+        mqttBadge.innerHTML = '<i class="fas fa-times-circle"></i> <span>MQTT Desconectado</span>';
         mqttBadge.classList.add('disconnected');
       }
 
       // Verificar receptor
       if (data.receptor_connected === false || data.status === 'receptor_disconnected') {
-        document.getElementById('receptorStatus').textContent = 'Off';
+        document.getElementById('receptorStatus').textContent = 'Offline';
         document.getElementById('receptorStatus').className = 'status-value offline';
         
         warning.className = 'connection-warning receptor-off show';
-        warning.innerHTML = '<i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO';
+        warning.innerHTML = '<i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO - Verifique alimentação e WiFi';
         
         zerarDisplay();
         return;
       }
 
-      document.getElementById('receptorStatus').textContent = 'On';
+      document.getElementById('receptorStatus').textContent = 'Online';
       document.getElementById('receptorStatus').className = 'status-value online';
 
       // Verificar LoRa
@@ -1026,13 +1138,13 @@
         document.getElementById('loraStatus').className = 'status-value warning';
         
         warning.className = 'connection-warning lora-off show';
-        warning.innerHTML = '<i class="fas fa-satellite-dish"></i> AGUARDANDO LoRa';
+        warning.innerHTML = '<i class="fas fa-satellite-dish"></i> AGUARDANDO SINAL LoRa - Verifique transmissor';
         
         zerarDisplay();
         return;
       }
 
-      document.getElementById('loraStatus').textContent = 'OK';
+      document.getElementById('loraStatus').textContent = 'Conectado';
       document.getElementById('loraStatus').className = 'status-value online';
 
       // Mostrar dados
@@ -1041,10 +1153,11 @@
         const water = document.getElementById('waterLevel');
         const waterText = document.getElementById('waterText');
         
+        // CORRIGIDO: height controla quanto sobe de baixo
         water.style.height = pct + '%';
         waterText.textContent = pct + '%';
         
-        // Classes de cor
+        // Classes de cor baseadas no nível
         water.className = 'water';
         if (pct <= 10) water.classList.add('critical');
         else if (pct <= 25) water.classList.add('low');
@@ -1057,7 +1170,7 @@
         document.getElementById('currentLevel').textContent = currentData.level;
         document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
         
-        // Sempre mostrar dBm, mesmo se alto (ruim)
+        // Sempre mostrar % e dBm, mesmo se ruim
         atualizarSinal(currentData.quality, lastRssi);
       }
     }
@@ -1074,23 +1187,36 @@
 
     function atualizarSinal(quality, rssi) {
       const bars = document.querySelectorAll('.signal-bar-item');
-      const activeBars = Math.ceil((quality / 100) * 5);
+      const activeBars = Math.max(1, Math.ceil((quality / 100) * 5)); // Pelo menos 1 barra se tiver dados
       
       bars.forEach((bar, idx) => {
         bar.classList.toggle('active', idx < activeBars);
       });
       
-      // SEMPRE mostrar dBm se disponível, mesmo que ruim
-      const dbmText = document.getElementById('signalDbm');
+      // SEMPRE mostrar % e dBm se disponível
+      const percentEl = document.getElementById('signalPercent');
+      const dbmEl = document.getElementById('signalDbm');
+      
       if (rssi !== null && rssi !== undefined) {
-        dbmText.textContent = rssi + ' dBm';
+        percentEl.textContent = quality + '%';
+        dbmEl.textContent = rssi + ' dBm';
+        
         // Colorir baseado na qualidade
-        if (quality >= 80) dbmText.style.color = 'var(--success)';
-        else if (quality >= 50) dbmText.style.color = 'var(--warning)';
-        else dbmText.style.color = 'var(--danger)';
+        if (quality >= 80) {
+          percentEl.style.color = 'var(--success)';
+          dbmEl.style.color = 'var(--success)';
+        } else if (quality >= 50) {
+          percentEl.style.color = 'var(--warning)';
+          dbmEl.style.color = 'var(--warning)';
+        } else {
+          percentEl.style.color = 'var(--danger)';
+          dbmEl.style.color = 'var(--danger)';
+        }
       } else {
-        dbmText.textContent = '-- dBm';
-        dbmText.style.color = 'var(--gray)';
+        percentEl.textContent = '0%';
+        dbmEl.textContent = '-- dBm';
+        percentEl.style.color = 'var(--gray)';
+        dbmEl.style.color = 'var(--gray)';
       }
     }
 
@@ -1114,7 +1240,7 @@
       
       tbody.innerHTML = '';
       
-      // MÁXIMO 4 ITENS COMO SOLICITADO
+      // MÁXIMO 4 ITENS
       historico.slice(0, 4).forEach(item => {
         const row = document.createElement('tr');
         const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR', {
@@ -1139,10 +1265,10 @@
           textoStatus = 'Erro'; 
         }
         
-        // Mini barra de sinal + dBm
+        // Mini barra de sinal + % + dBm
         const q = item.lora_signal?.quality || 0;
         const rssi = item.lora_signal?.rssi;
-        const miniBars = Math.ceil((q / 100) * 4);
+        const miniBars = Math.max(1, Math.ceil((q / 100) * 4));
         
         let miniSignalHtml = '<div class="mini-signal">';
         for (let i = 0; i < 4; i++) {
@@ -1150,7 +1276,7 @@
         }
         miniSignalHtml += '</div>';
         
-        const dbmText = rssi !== null && rssi !== undefined ? `${rssi} dBm` : '--';
+        const dbmText = rssi !== null && rssi !== undefined ? `${q}% (${rssi} dBm)` : '--';
         
         row.innerHTML = `
           <td>${hora}</td>
@@ -1169,11 +1295,16 @@
       });
     }
 
+    // CORRIGIDO: Gráfico com dados ordenados corretamente
     function atualizarGrafico(historico) {
       const ctx = document.getElementById('nivelChart');
       if (!ctx || !historico) return;
       
-      const dadosValidos = historico.filter(i => i.status === 'normal' && i.percentage >= 0);
+      // Pegar dados válidos e ordenar do mais antigo para o mais novo (para o gráfico subir da esquerda)
+      const dadosValidos = historico
+        .filter(i => i.status === 'normal' && i.percentage >= 0)
+        .reverse(); // Inverte para mostrar do mais antigo ao mais novo
+      
       if (dadosValidos.length === 0) return;
       
       const labels = dadosValidos.map(i => new Date(i.timestamp));
@@ -1188,25 +1319,53 @@
               label: 'Nível %',
               data: data,
               borderColor: '#0077b6',
-              backgroundColor: 'rgba(0, 119, 182, 0.1)',
-              borderWidth: 2,
+              backgroundColor: 'rgba(0, 119, 182, 0.15)',
+              borderWidth: 3,
               fill: true,
               tension: 0.4,
-              pointRadius: 3,
-              pointBackgroundColor: '#0077b6'
+              pointRadius: 4,
+              pointBackgroundColor: '#0077b6',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { 
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return 'Nível: ' + context.parsed.y + '%';
+                  }
+                }
+              }
+            },
             scales: {
               y: { 
                 beginAtZero: true, 
                 max: 100, 
-                ticks: { callback: v => v + '%', font: {size: 10} } 
+                ticks: { 
+                  callback: v => v + '%', 
+                  font: {size: 11},
+                  color: '#666'
+                },
+                grid: {
+                  color: 'rgba(0,0,0,0.05)'
+                }
               },
-              x: { display: false }
+              x: { 
+                display: true,
+                ticks: {
+                  maxTicksLimit: 6,
+                  font: {size: 10},
+                  color: '#888'
+                },
+                grid: {
+                  display: false
+                }
+              }
             }
           }
         });
@@ -1255,29 +1414,30 @@
         });
         const data = await res.json();
         if (data.success) {
-          adicionarLog('🔄 Reinício remoto enviado');
-          alert('Comando enviado! Aguarde 30s...');
+          adicionarLog('🔄 Comando de reinício enviado via MQTT');
+          alert('✅ Comando enviado!\n\nO receptor vai reiniciar em alguns segundos...');
         } else {
           throw new Error(data.error);
         }
       } catch (e) {
-        alert('Erro: ' + e.message);
+        alert('❌ Erro: ' + e.message);
       }
     }
 
     function showDetails(tipo) {
       let msg = '';
       switch(tipo) {
-        case 'volume': msg = `Volume: ${currentData.liters}L / ${savedCapacityTotal}L`; break;
-        case 'distance': msg = `Distância sensor-água: ${currentData.distance}cm`; break;
-        case 'level': msg = `Altura da água: ${currentData.level}cm`; break;
+        case 'volume': msg = `Volume atual: ${currentData.liters}L\nCapacidade total: ${savedCapacityTotal}L\n\n${((currentData.liters/savedCapacityTotal)*100).toFixed(1)}% cheio`; break;
+        case 'distance': msg = `Distância sensor → água: ${currentData.distance}cm\n\nQuanto MENOR, mais CHEIA está a caixa`; break;
+        case 'level': msg = `Altura da coluna d'água: ${currentData.level}cm\n\nIsso representa ${currentData.percentage}% da capacidade`; break;
       }
       alert(msg);
     }
 
     function debugData() {
-      console.log('Current:', currentData);
-      fetch('/api/lora').then(r => r.json()).then(d => console.log('Raw:', d));
+      console.log('Current Data:', currentData);
+      console.log('Last RSSI:', lastRssi);
+      fetch('/api/lora').then(r => r.json()).then(d => console.log('Raw API:', d));
     }
 
     document.getElementById('modalReboot').addEventListener('click', (e) => {
