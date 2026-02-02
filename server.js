@@ -5,86 +5,93 @@ import dotenv from "dotenv";
 import fs from "fs";
 import mqtt from 'mqtt';
 
+// Carrega variáveis do arquivo .env (se existir localmente)
 dotenv.config();
-
-const app = express();
-app.use(express.json({ limit: '50mb' }));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ====== CONFIGURAÇÃO MQTT ======
-const MQTT_BROKER = process.env.MQTT_BROKER || "SEU-CLUSTER.hivemq.cloud";
-const MQTT_PORT = process.env.MQTT_PORT || 8883;
-const MQTT_USER = process.env.MQTT_USER || "esp32-receptor";
-const MQTT_PASS = process.env.MQTT_PASS || "SuaSenhaSegura123";
+const app = express();
+app.use(express.json());
+app.use(express.static("public")); // Pasta onde está o HTML
 
-// Tópicos
+// ==========================================
+// CONFIGURAÇÃO MQTT - SEUS DADOS HIVE MQ
+// ==========================================
+const MQTT_BROKER = process.env.MQTT_BROKER || "006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud";
+const MQTT_PORT = parseInt(process.env.MQTT_PORT) || 8883;
+const MQTT_USER = process.env.MQTT_USER || "esp32-receptor";
+const MQTT_PASS = process.env.MQTT_PASS || "061084Cc@";
+
 const TOPIC_DADOS = "caixas/agua/dados";
 const TOPIC_STATUS = "caixas/agua/status";
+const TOPIC_COMANDOS = "caixas/agua/comandos";
 
-// ====== VARIÁVEIS GLOBAIS (iguais ao seu código) ======
-let historico = [];
-let caixaConfig = { altura: 0, volumeTotal: 0, distanciaCheia: 0, distanciaVazia: 0, updatedAt: null };
-let systemStatus = {
-  receptor: { connected: false, lastSeen: Date.now(), wifiSignal: -50 },
-  lora: { connected: false, lastPacket: null, quality: 0, rssi: null },
-  sensor: { hasError: false }
+// ==========================================
+// VARIÁVEIS GLOBAIS (memória do servidor)
+// ==========================================
+let historico = []; // Últimas 500 leituras
+let ultimoDado = null; // Dado mais recente
+let caixaConfig = {
+  altura: 0,
+  volumeTotal: 0,
+  distanciaCheia: 0,
+  distanciaVazia: 0,
+  updatedAt: null
 };
 
-let lastReceptorRequest = Date.now();
+let systemStatus = {
+  receptorOnline: false,
+  ultimaMensagem: null,
+  mqttConectado: false
+};
 
-// ====== CONEXÃO MQTT ======
-console.log(`🔌 Conectando ao HiveMQ: ${MQTT_BROKER}...`);
+// ==========================================
+// CONEXÃO MQTT COM HIVE MQ
+// ==========================================
+console.log(`🔌 Iniciando conexão MQTT...`);
+console.log(`   Broker: ${MQTT_BROKER}:${MQTT_PORT}`);
+console.log(`   User: ${MQTT_USER}`);
 
 const client = mqtt.connect(`mqtts://${MQTT_BROKER}:${MQTT_PORT}`, {
   username: MQTT_USER,
   password: MQTT_PASS,
-  rejectUnauthorized: true, // Verificar certificado TLS
-  clientId: `server-node-${Math.random().toString(16).substr(2, 8)}`,
+  rejectUnauthorized: true, // Verifica certificado SSL
+  clientId: `render-server-${Math.random().toString(16).substr(2, 8)}`,
   clean: true,
   connectTimeout: 4000,
-  reconnectPeriod: 1000,
+  reconnectPeriod: 5000, // Tenta reconectar a cada 5s se cair
 });
 
+// Evento: Conectou com sucesso
 client.on('connect', () => {
-  console.log('✅ Conectado ao HiveMQ Cloud!');
+  console.log('✅ CONECTADO AO HIVE MQ!');
+  systemStatus.mqttConectado = true;
   
-  // Inscrever-se nos tópicos
+  // Se inscreve nos tópicos para receber dados
   client.subscribe([TOPIC_DADOS, TOPIC_STATUS], (err) => {
     if (err) {
-      console.error('❌ Erro ao inscrever:', err);
+      console.error('❌ Erro ao se inscrever:', err);
     } else {
-      console.log(`📡 Inscrito em: ${TOPIC_DADOS}, ${TOPIC_STATUS}`);
+      console.log(`📡 Inscrito em: ${TOPIC_DADOS}`);
+      console.log(`📡 Inscrito em: ${TOPIC_STATUS}`);
+      console.log('⏳ Aguardando dados do ESP32...');
     }
   });
 });
 
+// Evento: Recebeu mensagem do ESP32
 client.on('message', (topic, message) => {
   try {
     const payload = JSON.parse(message.toString());
-    lastReceptorRequest = Date.now();
+    systemStatus.ultimaMensagem = new Date().toISOString();
+    systemStatus.receptorOnline = true;
     
+    // Se for dados do sensor (tópico dados)
     if (topic === TOPIC_DADOS) {
-      console.log(`📥 Dados recebidos de ${payload.device}`);
+      console.log(`📥 Recebido: ${payload.percentage}% | ${payload.liters}L | RSSI:${payload.lora_rssi}`);
       
-      // Atualizar status
-      systemStatus.receptor.connected = true;
-      systemStatus.receptor.lastSeen = Date.now();
-      systemStatus.receptor.wifiSignal = payload.wifi_rssi || -50;
-      systemStatus.lora.connected = true;
-      systemStatus.lora.lastPacket = Date.now();
-      systemStatus.lora.quality = payload.signal_quality || 0;
-      systemStatus.lora.rssi = payload.lora_rssi;
-      
-      // Verificar erro no sensor
-      if (payload.sensor_ok === false || payload.distance === -1) {
-        systemStatus.sensor.hasError = true;
-      } else {
-        systemStatus.sensor.hasError = false;
-      }
-      
-      // Atualizar config da caixa se vier nos dados
+      // Atualiza config da caixa se vier nos dados
       if (payload.config_volume_total > 0) {
         caixaConfig = {
           altura: payload.config_altura,
@@ -93,160 +100,144 @@ client.on('message', (topic, message) => {
           distanciaVazia: payload.config_distancia_vazia,
           updatedAt: new Date().toISOString()
         };
-        // Salvar em arquivo para não perder
-        fs.writeFileSync('config-caixa.json', JSON.stringify(caixaConfig));
+        // Salva em arquivo para não perder se servidor reiniciar
+        fs.writeFileSync('config.json', JSON.stringify(caixaConfig));
       }
       
-      // Adicionar ao histórico
+      // Adiciona ao histórico
       const registro = {
-        device: payload.device || "ESP32",
+        device: payload.device || "TX_CAIXA_01",
         distance: payload.distance,
         level: payload.level,
         percentage: payload.percentage,
         liters: payload.liters,
         sensor_ok: payload.sensor_ok,
         timestamp: new Date().toISOString(),
-        status: systemStatus.sensor.hasError ? "sensor_error" : "normal",
+        status: payload.sensor_ok ? "normal" : "sensor_error",
         lora_signal: {
           rssi: payload.lora_rssi,
           snr: payload.lora_snr,
-          quality: payload.signal_quality
+          quality: payload.signal_quality || 85
         }
       };
       
       historico.push(registro);
-      if (historico.length > 500) historico.shift();
-      console.log(`✅ Dados processados: ${payload.percentage}% | ${payload.liters}L`);
+      ultimoDado = registro;
+      
+      // Mantém apenas últimos 500 registros
+      if (historico.length > 500) {
+        historico.shift();
+      }
     }
     
-    else if (topic === TOPIC_STATUS) {
+    // Se for status do receptor (online/offline)
+    if (topic === TOPIC_STATUS) {
       if (payload.status === "online") {
-        systemStatus.receptor.connected = true;
-        console.log("✅ Receptor reportou status: ONLINE");
+        console.log("✅ Receptor reportou: ONLINE");
+        systemStatus.receptorOnline = true;
       } else if (payload.status === "offline") {
-        systemStatus.receptor.connected = false;
-        console.log("⚠️ Receptor desconectou (Last Will)");
+        console.log("⚠️ Receptor desconectou");
+        systemStatus.receptorOnline = false;
       }
     }
     
   } catch (e) {
-    console.error('❌ Erro ao processar mensagem:', e);
+    console.error('❌ Erro ao processar:', e.message);
   }
 });
 
+// Evento: Erro de conexão
 client.on('error', (err) => {
-  console.error('❌ Erro MQTT:', err);
+  console.error('❌ Erro MQTT:', err.message);
+  systemStatus.mqttConectado = false;
 });
 
+// Evento: Desconectou
 client.on('disconnect', () => {
-  console.log('⚠️ Desconectado do MQTT');
+  console.log('⚠️ Desconectado do HiveMQ');
+  systemStatus.mqttConectado = false;
 });
 
-// ====== VERIFICAÇÃO DE TIMEOUT (60s sem mensagens) ======
-setInterval(() => {
-  const timeSinceLast = Date.now() - lastReceptorRequest;
-  if (timeSinceLast > 60000) {
-    if (systemStatus.receptor.connected) {
-      systemStatus.receptor.connected = false;
-      console.log(`⏰ Receptor offline (sem mensagens há ${Math.floor(timeSinceLast/1000)}s)`);
-    }
-  }
-}, 10000);
+// ==========================================
+// API HTTP (para o Dashboard consultar)
+// ==========================================
 
-// ====== API HTTP (mantida para o Dashboard) ======
-
-// Função auxiliar cálculo consumo (copiar do seu código atual)
-function calcularConsumo(index) {
-  // ... (mesma função do seu server.js atual)
-  return { uso1h: null, usoSemana: null, usoMes: null };
-}
-
-// Rota principal do Dashboard (GET /api/lora)
-app.get("/api/lora", (req, res) => {
-  // Preparar resposta igual ao seu código atual
-  let responseData;
-  const hasRecentData = historico.length > 0 && 
-    (Date.now() - new Date(historico[historico.length-1].timestamp).getTime()) < 120000;
-
-  if (!systemStatus.receptor.connected) {
-    responseData = {
-      device: "RECEPTOR_CASA",
-      distance: -1, level: -1, percentage: -1, liters: -1,
-      status: "receptor_disconnected",
-      receptor_connected: false,
-      message: "Receptor offline"
-    };
-  } else if (systemStatus.sensor.hasError) {
-    const last = historico[historico.length-1] || {};
-    responseData = { ...last, status: "sensor_error", sensor_error: true };
-  } else if (historico.length > 0 && hasRecentData) {
-    const last = historico[historico.length-1];
-    responseData = {
-      ...last,
-      display_mode: "normal",
-      receptor_connected: true,
-      lora_connected: true
-    };
-  } else {
-    // Aguardando dados LoRa (receptor online mas sem pacotes recentes)
-    responseData = {
-      device: "RECEPTOR_CASA",
-      distance: -1, level: -1, percentage: -1, liters: -1,
-      status: "waiting_lora",
-      receptor_connected: true,
-      lora_connected: false,
-      message: "Aguardando dados LoRa"
-    };
-  }
-
-  // Adicionar histórico e configs
-  const historicoComConsumo = historico.slice(-100).map((item, idx) => {
-    const consumo = calcularConsumo(historico.indexOf(item));
-    return { ...item, uso_1h: consumo.uso1h, uso_semana: consumo.usoSemana };
-  }).reverse();
-
-  res.json({
-    ...responseData,
-    caixa_config: caixaConfig,
-    receptor_status: systemStatus.receptor,
-    lora_status: systemStatus.lora,
-    historico: historicoComConsumo,
-    system_info: {
-      server_time: new Date().toISOString(),
-      mqtt_connected: client.connected
-    }
-  });
-});
-
-// Rota de teste
-app.get("/api/test", (req, res) => {
-  res.json({ 
-    status: "MQTT Server funcionando", 
-    mqtt_connected: client.connected,
-    historico_count: historico.length 
-  });
-});
-
-// Comandos (exemplo: reiniciar receptor remotamente)
-app.post("/api/comando", (req, res) => {
-  const { comando } = req.body;
-  if (client.connected) {
-    client.publish("caixas/agua/comandos", comando);
-    res.json({ success: true, message: `Comando ${comando} enviado` });
-  } else {
-    res.status(503).json({ error: "MQTT desconectado" });
-  }
-});
-
-// Servir arquivos estáticos (dashboard HTML)
-app.use(express.static("public"));
+// Rota principal do Dashboard
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// API que o HTML consulta a cada 5 segundos
+app.get("/api/lora", (req, res) => {
+  // Verifica se está desatualizado (mais de 2 minutos sem dados)
+  const agora = new Date();
+  const ultima = systemStatus.ultimaMensagem ? new Date(systemStatus.ultimaMensagem) : null;
+  const desatualizado = ultima ? (agora - ultima) > 120000 : true;
+  
+  let resposta;
+  
+  if (!systemStatus.receptorOnline || desatualizado || !ultimoDado) {
+    resposta = {
+      device: "TX_CAIXA_01",
+      distance: -1,
+      level: -1,
+      percentage: -1,
+      liters: -1,
+      sensor_ok: false,
+      status: "waiting_lora",
+      timestamp: new Date().toISOString(),
+      message: desatualizado ? "Aguardando dados..." : "Receptor offline",
+      receptor_connected: systemStatus.receptorOnline,
+      lora_connected: !desatualizado,
+      caixa_config: caixaConfig,
+      historico: historico.slice(-20).reverse() // Últimos 20, mais recentes primeiro
+    };
+  } else {
+    resposta = {
+      ...ultimoDado,
+      receptor_connected: true,
+      lora_connected: true,
+      caixa_config: caixaConfig,
+      historico: historico.slice(-20).reverse()
+    };
+  }
+  
+  res.json(resposta);
+});
+
+// Rota de teste
+app.get("/api/test", (req, res) => {
+  res.json({
+    status: "OK",
+    mqtt_conectado: systemStatus.mqttConectado,
+    receptor_online: systemStatus.receptorOnline,
+    ultima_mensagem: systemStatus.ultimaMensagem,
+    total_registros: historico.length
+  });
+});
+
+// Rota para enviar comandos ao ESP32 (reboot, etc)
+app.post("/api/comando", express.json(), (req, res) => {
+  const { comando } = req.body;
+  
+  if (!client.connected()) {
+    return res.status(503).json({ error: "MQTT desconectado" });
+  }
+  
+  client.publish(TOPIC_COMANDOS, comando);
+  console.log(`📤 Comando enviado: ${comando}`);
+  
+  res.json({ success: true, comando: comando });
+});
+
+// ==========================================
+// INICIA SERVIDOR
+// ==========================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`\n🚀 Servidor HTTP na porta ${PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${PORT}`);
-  console.log(`🔌 Sistema MQTT ativo (HiveMQ Cloud)`);
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 SERVIDOR HTTP RODANDO NA PORTA ${PORT}`);
+  console.log(`🌐 Dashboard: http://localhost:${PORT}`);
+  console.log(`   ou no Render: https://seu-app.onrender.com`);
+  console.log(`\n⏳ Conectando ao HiveMQ...`);
 });
