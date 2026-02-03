@@ -8,6 +8,7 @@
   <!-- Bibliotecas externas -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.esm.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
@@ -251,7 +252,7 @@
 
     .tank-image {
       position: absolute;
-      top: 50%; left: 53%;
+      top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       width: 108%; height: 108%;
       object-fit: contain;
@@ -463,6 +464,44 @@
     .modal-buttons { display: flex; gap: 10px; justify-content: center; }
     .btn-cancel { background: #e9ecef; color: var(--dark); }
     .btn-confirm { background: var(--danger); color: white; }
+
+    /* Config Panel */
+    .config-panel {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      z-index: 3000;
+      max-width: 400px;
+      width: 90%;
+    }
+    .config-panel.show { display: block; }
+    .config-panel h3 { margin-bottom: 15px; color: var(--primary-dark); }
+    .config-panel input {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .config-panel .btn {
+      width: 100%;
+      margin-top: 10px;
+      justify-content: center;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2500;
+    }
+    .overlay.show { display: block; }
   </style>
 </head>
 <body>
@@ -483,6 +522,9 @@
       <button class="btn btn-reboot" onclick="confirmarReboot()">
         <i class="fas fa-power-off"></i> Reiniciar Receptor
       </button>
+      <button class="btn btn-refresh" onclick="toggleConfig()" style="background: var(--secondary);">
+        <i class="fas fa-cog"></i> Configurar MQTT
+      </button>
     </div>
 
     <!-- Warning Banner -->
@@ -492,7 +534,7 @@
     <div class="status-panel">
       <div class="status-item">
         <span class="status-label">Servidor:</span>
-        <span class="status-value online" id="apiStatus">Online</span>
+        <span class="status-value online" id="apiStatus">WebSocket</span>
       </div>
       <div class="status-item">
         <span class="status-label">Receptor WiFi:</span>
@@ -586,10 +628,10 @@
       <div class="card-header">
         <i class="fas fa-history"></i> Últimas Leituras
       </div>
-      <div id="historyLoading" class="loading">
+      <div id="historyLoading" class="loading" style="display: none;">
         <i class="fas fa-spinner fa-spin"></i> Carregando...
       </div>
-      <div id="historyTableContainer" style="display: none;">
+      <div id="historyTableContainer">
         <div class="table-container">
           <table>
             <thead>
@@ -624,7 +666,10 @@
   <div id="modalReboot" class="modal">
     <div class="modal-content">
       <h3><i class="fas fa-exclamation-triangle"></i> Reiniciar Receptor?</h3>
-      <p>O dispositivo ESP32 será reiniciado remotamente via MQTT. Isso pode levar 30 segundos.</p>
+      <p>O dispositivo ESP32 será reiniciado remotamente via MQTT.</p>
+      <div style="margin: 15px 0;">
+        <input type="password" id="rebootPassword" placeholder="Senha de comando" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+      </div>
       <div class="modal-buttons">
         <button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button>
         <button class="btn btn-confirm" onclick="executarReboot()">Sim, Reiniciar</button>
@@ -632,110 +677,311 @@
     </div>
   </div>
 
+  <!-- Config Panel -->
+  <div class="overlay" id="configOverlay" onclick="toggleConfig()"></div>
+  <div class="config-panel" id="configPanel">
+    <h3><i class="fas fa-cog"></i> Configuração MQTT</h3>
+    <p style="font-size: 0.8rem; color: var(--gray); margin-bottom: 15px;">
+      Configure as credenciais do HiveMQ Cloud. Use um usuário com permissão de <strong>leitura apenas</strong> para segurança.
+    </p>
+    <input type="text" id="mqttBroker" placeholder="Broker (ex: xxx.s1.eu.hivemq.cloud)">
+    <input type="text" id="mqttUser" placeholder="Usuário MQTT">
+    <input type="password" id="mqttPass" placeholder="Senha MQTT">
+    <input type="password" id="mqttCommandPass" placeholder="Senha para comandos (opcional)">
+    <button class="btn btn-refresh" onclick="salvarConfig()">
+      <i class="fas fa-save"></i> Salvar e Conectar
+    </button>
+    <button class="btn btn-cancel" onclick="toggleConfig()" style="margin-top: 8px;">
+      Cancelar
+    </button>
+  </div>
+
   <!-- Debug Button -->
   <button class="debug-btn" onclick="debugData()" title="Debug">
     <i class="fas fa-bug"></i>
   </button>
 
-  <script>
-    // Variáveis globais
-    let chart = null;
-    let updateHistoryData = [];
-    let savedCapacityTotal = 0;
-    let currentData = {};
-    let refreshInterval;
+  <script type="module">
+    // ==========================================
+    // CONFIGURAÇÃO MQTT - HIVE MQ CLOUD
+    // ==========================================
+    
+    // Configurações padrão (podem ser alteradas via painel)
+    const DEFAULT_CONFIG = {
+      broker: '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud',
+      port: 8884,  // WebSocket Secure port
+      user: 'esp32-receptor',  // ⚠️ Altere para um usuário de LEITURA apenas!
+      pass: '061084Cc@',       // ⚠️ Nunca use a senha de admin aqui!
+      commandPass: '',         // Senha para enviar comandos (reboot)
+      clientId: 'dashboard_' + Math.random().toString(16).substr(2, 8)
+    };
 
-    // Inicialização
+    // Tópicos MQTT
+    const TOPIC_DADOS = 'caixas/agua/dados';
+    const TOPIC_STATUS = 'caixas/agua/status';
+    const TOPIC_COMANDOS = 'caixas/agua/comandos';
+
+    // ==========================================
+    // VARIÁVEIS GLOBAIS
+    // ==========================================
+    let mqttClient = null;
+    let chart = null;
+    let historico = [];
+    let ultimoDado = null;
+    let caixaConfig = {
+      altura: 0,
+      volumeTotal: 0,
+      distanciaCheia: 0,
+      distanciaVazia: 0,
+      updatedAt: null
+    };
+    let systemStatus = {
+      receptorOnline: false,
+      ultimaMensagem: null,
+      mqttConectado: false
+    };
+    let config = { ...DEFAULT_CONFIG };
+
+    // ==========================================
+    // INICIALIZAÇÃO
+    // ==========================================
     document.addEventListener('DOMContentLoaded', () => {
-      carregarDados();
-      refreshInterval = setInterval(carregarDados, 5000);
-      adicionarLog('Sistema iniciado (MQTT Mode)');
+      carregarConfigLocal();
+      conectarMQTT();
+      adicionarLog('Sistema iniciado (Modo WebSocket MQTT)');
+      
+      // Carregar histórico do localStorage
+      const histSalvo = localStorage.getItem('historico_caixa');
+      if (histSalvo) {
+        historico = JSON.parse(histSalvo);
+        atualizarHistorico(historico);
+        atualizarGrafico(historico);
+      }
     });
 
-    // Carregar dados da API
-    async function carregarDados() {
-      try {
-        const response = await fetch('/api/lora');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    // ==========================================
+    // FUNÇÕES DE CONFIGURAÇÃO
+    // ==========================================
+    function carregarConfigLocal() {
+      const saved = localStorage.getItem('mqtt_config');
+      if (saved) {
+        config = { ...config, ...JSON.parse(saved) };
+      }
+      // Preencher campos do painel
+      document.getElementById('mqttBroker').value = config.broker;
+      document.getElementById('mqttUser').value = config.user;
+      document.getElementById('mqttPass').value = config.pass;
+      document.getElementById('mqttCommandPass').value = config.commandPass || '';
+    }
+
+    function salvarConfig() {
+      config.broker = document.getElementById('mqttBroker').value || DEFAULT_CONFIG.broker;
+      config.user = document.getElementById('mqttUser').value || DEFAULT_CONFIG.user;
+      config.pass = document.getElementById('mqttPass').value || DEFAULT_CONFIG.pass;
+      config.commandPass = document.getElementById('mqttCommandPass').value || '';
+      
+      localStorage.setItem('mqtt_config', JSON.stringify(config));
+      adicionarLog('💾 Configuração salva');
+      toggleConfig();
+      
+      // Reconectar com novas credenciais
+      if (mqttClient) mqttClient.end();
+      conectarMQTT();
+    }
+
+    window.toggleConfig = function() {
+      document.getElementById('configPanel').classList.toggle('show');
+      document.getElementById('configOverlay').classList.toggle('show');
+    };
+
+    // ==========================================
+    // CONEXÃO MQTT VIA WEBSOCKET
+    // ==========================================
+    function conectarMQTT() {
+      const wsUrl = `wss://${config.broker}:${config.port}/mqtt`;
+      
+      console.log('🔌 Conectando ao HiveMQ:', wsUrl);
+      adicionarLog('🔌 Conectando ao broker MQTT...');
+      
+      mqttClient = mqtt.connect(wsUrl, {
+        username: config.user,
+        password: config.pass,
+        clientId: config.clientId,
+        clean: true,
+        reconnectPeriod: 5000,
+        connectTimeout: 30000
+      });
+
+      mqttClient.on('connect', () => {
+        console.log('✅ Conectado ao HiveMQ!');
+        systemStatus.mqttConectado = true;
+        atualizarStatusMQTT(true);
         
-        const data = await response.json();
-        console.log('📡 Dados recebidos:', data);
-        
-        processarDados(data);
-        atualizarInterface(data);
-        atualizarHistorico(data.historico);
-        atualizarGrafico(data.historico);
-        
-        // Atualizar timestamp
-        document.getElementById('lastUpdate').textContent = 
-          new Date().toLocaleTimeString('pt-BR');
+        // Inscrever nos tópicos
+        mqttClient.subscribe([TOPIC_DADOS, TOPIC_STATUS], (err) => {
+          if (err) {
+            console.error('❌ Erro ao inscrever:', err);
+            adicionarLog('❌ Erro ao inscrever nos tópicos');
+          } else {
+            console.log('📡 Inscrito em:', TOPIC_DADOS, TOPIC_STATUS);
+            adicionarLog('📡 Conectado e inscrito nos tópicos');
+          }
+        });
+      });
+
+      mqttClient.on('message', (topic, message) => {
+        try {
+          const payload = JSON.parse(message.toString());
+          systemStatus.ultimaMensagem = new Date().toISOString();
           
-      } catch (error) {
-        console.error('❌ Erro:', error);
-        document.getElementById('apiStatus').textContent = 'Erro';
-        document.getElementById('apiStatus').className = 'status-value offline';
-        document.getElementById('mqttStatus').innerHTML = 
-          '<i class="fas fa-times-circle"></i> <span>Offline</span>';
-        document.getElementById('mqttStatus').classList.add('disconnected');
+          if (topic === TOPIC_DADOS) {
+            processarDadosMQTT(payload);
+          } else if (topic === TOPIC_STATUS) {
+            processarStatusMQTT(payload);
+          }
+        } catch (e) {
+          console.error('❌ Erro ao processar mensagem:', e);
+        }
+      });
+
+      mqttClient.on('error', (err) => {
+        console.error('❌ Erro MQTT:', err);
+        systemStatus.mqttConectado = false;
+        atualizarStatusMQTT(false);
+        adicionarLog('❌ Erro na conexão MQTT');
+      });
+
+      mqttClient.on('disconnect', () => {
+        console.log('⚠️ Desconectado do MQTT');
+        systemStatus.mqttConectado = false;
+        atualizarStatusMQTT(false);
+        adicionarLog('⚠️ Desconectado do broker');
+      });
+
+      mqttClient.on('reconnect', () => {
+        console.log('🔄 Reconectando...');
+        adicionarLog('🔄 Reconectando ao broker...');
+      });
+    }
+
+    function atualizarStatusMQTT(conectado) {
+      const badge = document.getElementById('mqttStatus');
+      const brokerStatus = document.getElementById('brokerStatus');
+      
+      if (conectado) {
+        badge.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span>MQTT Online</span>';
+        badge.classList.remove('disconnected');
+        brokerStatus.textContent = 'Conectado';
+        brokerStatus.className = 'status-value online';
+      } else {
+        badge.innerHTML = '<i class="fas fa-times-circle"></i> <span>MQTT Offline</span>';
+        badge.classList.add('disconnected');
+        brokerStatus.textContent = 'Desconectado';
+        brokerStatus.className = 'status-value offline';
       }
     }
 
-    function processarDados(data) {
-      // Guardar capacidade
-      if (data.caixa_config?.volumeTotal > 0) {
-        savedCapacityTotal = data.caixa_config.volumeTotal;
-      }
+    // ==========================================
+    // PROCESSAMENTO DE DADOS MQTT
+    // ==========================================
+    function processarDadosMQTT(payload) {
+      console.log('📥 Dados recebidos:', payload);
       
-      // Guardar dados atuais
-      currentData = {
-        percentage: parseInt(data.percentage) || 0,
-        liters: parseInt(data.liters) || 0,
-        distance: parseFloat(data.distance) || 0,
-        level: parseInt(data.level) || 0,
-        rssi: data.lora_signal?.rssi || -100,
-        quality: data.lora_signal?.quality || 0
+      // Atualiza config da caixa
+      if (payload.config_volume_total > 0) {
+        caixaConfig = {
+          altura: payload.config_altura,
+          volumeTotal: payload.config_volume_total,
+          distanciaCheia: payload.config_distancia_cheia,
+          distanciaVazia: payload.config_distancia_vazia,
+          updatedAt: new Date().toISOString()
+        };
+        localStorage.setItem('caixa_config', JSON.stringify(caixaConfig));
+      }
+
+      // Cria registro no formato compatível
+      const registro = {
+        device: payload.device || "TX_CAIXA_01",
+        distance: payload.distance,
+        level: payload.level,
+        percentage: payload.percentage,
+        liters: payload.liters,
+        sensor_ok: payload.sensor_ok,
+        timestamp: new Date().toISOString(),
+        status: payload.sensor_ok ? "normal" : "sensor_error",
+        lora_signal: {
+          rssi: payload.lora_rssi,
+          snr: payload.lora_snr,
+          quality: payload.signal_quality || calcularQualidade(payload.lora_rssi)
+        }
       };
 
-      // Log de eventos importantes
-      if (data.status === 'receptor_disconnected') {
-        adicionarLog('⚠️ Receptor desconectado do WiFi');
-      } else if (data.status === 'waiting_lora') {
-        adicionarLog('⏳ Aguardando sinal LoRa');
-      } else if (data.status === 'normal') {
-        if (updateHistoryData.length === 0 || 
-            updateHistoryData[0].text.includes('Aguardando') ||
-            updateHistoryData[0].text.includes('desconectado')) {
-          adicionarLog('✅ Conexão restaurada - Dados recebidos');
-        }
+      // Adiciona ao histórico
+      historico.push(registro);
+      if (historico.length > 500) historico.shift();
+      
+      // Salva no localStorage
+      localStorage.setItem('historico_caixa', JSON.stringify(historico));
+      
+      ultimoDado = registro;
+      systemStatus.receptorOnline = true;
+      
+      // Atualiza interface
+      atualizarInterface({
+        ...registro,
+        receptor_connected: true,
+        lora_connected: true,
+        caixa_config: caixaConfig,
+        historico: historico
+      });
+      
+      // Logs
+      if (registro.status === 'normal') {
+        adicionarLog(`📊 ${payload.percentage}% | ${payload.liters}L | RSSI:${payload.lora_rssi}`);
       }
     }
 
-    function atualizarInterface(data) {
+    function processarStatusMQTT(payload) {
+      if (payload.status === 'online') {
+        systemStatus.receptorOnline = true;
+        adicionarLog('✅ Receptor reportou: ONLINE');
+      } else if (payload.status === 'offline') {
+        systemStatus.receptorOnline = false;
+        adicionarLog('⚠️ Receptor reportou: OFFLINE');
+      }
+    }
+
+    function calcularQualidade(rssi) {
+      if (rssi >= -50) return 100;
+      if (rssi >= -60) return 85;
+      if (rssi >= -70) return 75;
+      if (rssi >= -80) return 65;
+      if (rssi >= -90) return 50;
+      return 20;
+    }
+
+    // ==========================================
+    // ATUALIZAÇÃO DA INTERFACE (100% compatível)
+    // ==========================================
+    window.atualizarInterface = function(data) {
       const warning = document.getElementById('connectionWarning');
       warning.className = 'connection-warning';
       warning.innerHTML = '';
 
-      // Status MQTT/Broker
-      const mqttConnected = data.system_info?.mqtt_connected !== false;
-      document.getElementById('brokerStatus').textContent = mqttConnected ? 'Conectado' : 'Desconectado';
-      document.getElementById('brokerStatus').className = mqttConnected ? 'status-value online' : 'status-value offline';
-      
-      const mqttBadge = document.getElementById('mqttStatus');
-      if (mqttConnected) {
-        mqttBadge.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span>MQTT Online</span>';
-        mqttBadge.classList.remove('disconnected');
-      } else {
-        mqttBadge.innerHTML = '<i class="fas fa-times-circle"></i> <span>MQTT Offline</span>';
-        mqttBadge.classList.add('disconnected');
-      }
+      // Verifica timeout (2 minutos sem dados)
+      const agora = new Date();
+      const ultima = systemStatus.ultimaMensagem ? new Date(systemStatus.ultimaMensagem) : null;
+      const desatualizado = ultima ? (agora - ultima) > 120000 : true;
 
-      // Verificar status receptor
-      if (data.receptor_connected === false || data.status === 'receptor_disconnected') {
+      // Status Receptor
+      if (!systemStatus.receptorOnline || desatualizado) {
         document.getElementById('receptorStatus').textContent = 'Offline';
         document.getElementById('receptorStatus').className = 'status-value offline';
         
-        warning.className = 'connection-warning receptor-off show';
-        warning.innerHTML = '<i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO - Verifique alimentação e WiFi';
+        if (desatualizado && ultima) {
+          warning.className = 'connection-warning receptor-off show';
+          warning.innerHTML = '<i class="fas fa-wifi"></i> SEM DADOS RECENTES - Verifique conexão';
+        }
         
         zerarDisplay();
         return;
@@ -744,8 +990,8 @@
       document.getElementById('receptorStatus').textContent = 'Online';
       document.getElementById('receptorStatus').className = 'status-value online';
 
-      // Verificar LoRa
-      if (data.lora_connected === false || data.status === 'waiting_lora') {
+      // Status LoRa
+      if (!data.lora_signal || data.distance < 0) {
         document.getElementById('loraStatus').textContent = 'Sem Sinal';
         document.getElementById('loraStatus').className = 'status-value warning';
         
@@ -759,9 +1005,9 @@
       document.getElementById('loraStatus').textContent = 'Conectado';
       document.getElementById('loraStatus').className = 'status-value online';
 
-      // Se chegou aqui, tudo OK - mostrar dados
-      if (data.status !== 'sensor_error') {
-        const pct = currentData.percentage;
+      // Dados OK - Atualiza display
+      if (data.status !== 'sensor_error' && data.percentage >= 0) {
+        const pct = data.percentage;
         const water = document.getElementById('waterLevel');
         water.style.height = pct + '%';
         water.textContent = pct + '%';
@@ -774,15 +1020,19 @@
         else if (pct <= 80) water.classList.add('good');
         else water.classList.add('full');
 
-        document.getElementById('currentVolume').textContent = currentData.liters;
-        document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1);
-        document.getElementById('currentLevel').textContent = currentData.level;
-        document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
+        document.getElementById('currentVolume').textContent = data.liters;
+        document.getElementById('currentDistance').textContent = data.distance.toFixed(1);
+        document.getElementById('currentLevel').textContent = data.level;
+        document.getElementById('totalCapacity').textContent = (caixaConfig.volumeTotal || 0) + ' L';
         
         // Sinal
-        atualizarSinal(currentData.quality);
+        atualizarSinal(data.lora_signal.quality);
+        
+        // Timestamp
+        document.getElementById('lastUpdate').textContent = 
+          new Date(data.timestamp).toLocaleTimeString('pt-BR');
       }
-    }
+    };
 
     function zerarDisplay() {
       document.getElementById('waterLevel').style.height = '0%';
@@ -790,7 +1040,8 @@
       document.getElementById('currentVolume').textContent = '--';
       document.getElementById('currentDistance').textContent = '--';
       document.getElementById('currentLevel').textContent = '--';
-      document.getElementById('totalCapacity').textContent = savedCapacityTotal > 0 ? savedCapacityTotal + ' L' : '-- L';
+      document.getElementById('totalCapacity').textContent = 
+        (caixaConfig.volumeTotal || 0) > 0 ? caixaConfig.volumeTotal + ' L' : '-- L';
       atualizarSinal(0);
     }
 
@@ -805,13 +1056,16 @@
       document.getElementById('signalText').textContent = quality + '%';
     }
 
-    function atualizarHistorico(historico) {
+    // ==========================================
+    // HISTÓRICO E GRÁFICO
+    // ==========================================
+    window.atualizarHistorico = function(historicoData) {
       const loading = document.getElementById('historyLoading');
       const container = document.getElementById('historyTableContainer');
       const message = document.getElementById('historyMessage');
       const tbody = document.getElementById('historyBody');
       
-      if (!historico || historico.length === 0) {
+      if (!historicoData || historicoData.length === 0) {
         loading.style.display = 'none';
         container.style.display = 'none';
         message.style.display = 'block';
@@ -823,7 +1077,7 @@
       message.style.display = 'none';
       
       tbody.innerHTML = '';
-      historico.slice(0, 10).forEach(item => {
+      historicoData.slice().reverse().slice(0, 10).forEach(item => {
         const row = document.createElement('tr');
         const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
         
@@ -832,7 +1086,7 @@
         
         if (item.status === 'waiting_lora') { classeBadge = 'badge-waiting'; textoStatus = 'Aguardando'; }
         else if (item.status === 'receptor_disconnected') { classeBadge = 'badge-offline'; textoStatus = 'Offline'; }
-        else if (item.status === 'sensor_error') { claseBadge = 'badge-error'; textoStatus = 'Erro Sensor'; }
+        else if (item.status === 'sensor_error') { classeBadge = 'badge-error'; textoStatus = 'Erro Sensor'; }
         
         row.innerHTML = `
           <td>${hora}</td>
@@ -844,13 +1098,13 @@
         `;
         tbody.appendChild(row);
       });
-    }
+    };
 
-    function atualizarGrafico(historico) {
+    window.atualizarGrafico = function(historicoData) {
       const ctx = document.getElementById('nivelChart');
-      if (!ctx || !historico) return;
+      if (!ctx || !historicoData) return;
       
-      const dadosValidos = historico.filter(i => i.status === 'normal' && i.percentage >= 0);
+      const dadosValidos = historicoData.filter(i => i.status === 'normal' && i.percentage >= 0);
       
       if (dadosValidos.length === 0) return;
       
@@ -887,9 +1141,12 @@
         chart.data.datasets[0].data = data;
         chart.update();
       }
-    }
+    };
 
-    function adicionarLog(texto) {
+    // ==========================================
+    // LOG DE EVENTOS
+    // ==========================================
+    window.adicionarLog = function(texto) {
       const hora = new Date().toLocaleTimeString('pt-BR');
       const div = document.createElement('div');
       div.className = 'update-entry';
@@ -898,56 +1155,84 @@
       const container = document.getElementById('updateHistory');
       container.insertBefore(div, container.firstChild);
       
-      // Limitar a 20 itens
       while (container.children.length > 20) {
         container.removeChild(container.lastChild);
       }
-    }
+    };
 
-    // Comandos
-    function confirmarReboot() {
-      document.getElementById('modalReboot').classList.add('show');
-    }
-
-    function fecharModal() {
-      document.getElementById('modalReboot').classList.remove('show');
-    }
-
-    async function executarReboot() {
-      fecharModal();
-      try {
-        const res = await fetch('/api/comando', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({comando: 'REBOOT'})
+    // ==========================================
+    // COMANDOS E CONTROLES
+    // ==========================================
+    window.carregarDados = function() {
+      // Na versão MQTT, os dados chegam em tempo real
+      // Esta função apenas força um refresh visual
+      if (ultimoDado) {
+        atualizarInterface({
+          ...ultimoDado,
+          receptor_connected: systemStatus.receptorOnline,
+          lora_connected: true,
+          caixa_config: caixaConfig,
+          historico: historico
         });
-        const data = await res.json();
-        if (data.success) {
-          adicionarLog('🔄 Comando de reinício enviado via MQTT');
-          alert('Comando enviado! O receptor vai reiniciar em alguns segundos.');
-        } else {
-          throw new Error(data.error);
-        }
-      } catch (e) {
-        alert('Erro: ' + e.message);
+        atualizarHistorico(historico);
+        atualizarGrafico(historico);
       }
-    }
+      adicionarLog('🔄 Dados atualizados manualmente');
+    };
 
-    function showDetails(tipo) {
+    window.confirmarReboot = function() {
+      document.getElementById('modalReboot').classList.add('show');
+      document.getElementById('rebootPassword').value = '';
+    };
+
+    window.fecharModal = function() {
+      document.getElementById('modalReboot').classList.remove('show');
+    };
+
+    window.executarReboot = function() {
+      const senha = document.getElementById('rebootPassword').value;
+      
+      // Verifica senha de comando
+      if (config.commandPass && senha !== config.commandPass) {
+        alert('Senha incorreta!');
+        return;
+      }
+      
+      if (!mqttClient || !mqttClient.connected) {
+        alert('MQTT não está conectado!');
+        return;
+      }
+      
+      mqttClient.publish(TOPIC_COMANDOS, 'REBOOT');
+      console.log('📤 Comando REBOOT enviado');
+      adicionarLog('🔄 Comando de reinício enviado via MQTT');
+      fecharModal();
+      alert('Comando enviado! O receptor vai reiniciar em alguns segundos.');
+    };
+
+    window.showDetails = function(tipo) {
       let msg = '';
       switch(tipo) {
-        case 'volume': msg = `Volume atual: ${currentData.liters}L\nCapacidade: ${savedCapacityTotal}L`; break;
-        case 'distance': msg = `Distância do sensor até a água: ${currentData.distance}cm`; break;
-        case 'level': msg = `Altura da coluna de água: ${currentData.level}cm`; break;
+        case 'volume': 
+          msg = `Volume atual: ${ultimoDado?.liters || '--'}L\nCapacidade: ${caixaConfig.volumeTotal || '--'}L`; 
+          break;
+        case 'distance': 
+          msg = `Distância do sensor até a água: ${ultimoDado?.distance?.toFixed(1) || '--'}cm`; 
+          break;
+        case 'level': 
+          msg = `Altura da coluna de água: ${ultimoDado?.level || '--'}cm`; 
+          break;
       }
       alert(msg);
-    }
+    };
 
-    function debugData() {
-      console.log('Current Data:', currentData);
-      console.log('Capacity:', savedCapacityTotal);
-      fetch('/api/lora').then(r => r.json()).then(d => console.log('Raw:', d));
-    }
+    window.debugData = function() {
+      console.log('Current Data:', ultimoDado);
+      console.log('Config:', caixaConfig);
+      console.log('Status:', systemStatus);
+      console.log('Histórico:', historico);
+      adicionarLog('🐛 Debug: dados impressos no console (F12)');
+    };
 
     // Fechar modal ao clicar fora
     document.getElementById('modalReboot').addEventListener('click', (e) => {
