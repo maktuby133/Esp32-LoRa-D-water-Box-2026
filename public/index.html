@@ -8,7 +8,6 @@
   <!-- Bibliotecas externas -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.esm.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
@@ -26,6 +25,7 @@
       --water-deep: #0096c7;
       --mqtt-color: #7b2cbf;
       
+      /* Cores níveis */
       --level-critical: #e63946;
       --level-low: #ff9e00;
       --level-medium: #ffd500;
@@ -45,6 +45,7 @@
 
     .container { max-width: 1400px; margin: 0 auto; }
 
+    /* Header com Botões */
     .header {
       text-align: center;
       margin-bottom: 8px;
@@ -63,14 +64,23 @@
       background: linear-gradient(90deg, var(--primary), var(--mqtt-color));
     }
 
+    .header-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     .header h1 {
       color: var(--primary-dark);
       font-size: 1.3rem;
-      margin-bottom: 4px;
+      margin: 0;
       display: flex;
       align-items: center;
-      justify-content: center;
       gap: 10px;
+      flex: 1;
+      justify-content: center;
     }
 
     .mqtt-badge {
@@ -83,18 +93,17 @@
       border-radius: 20px;
       font-size: 0.75rem;
       font-weight: 600;
-      margin-top: 5px;
     }
 
-    .mqtt-badge.disconnected { background: var(--danger); }
+    .mqtt-badge.disconnected {
+      background: var(--danger);
+    }
 
-    .controls-top {
+    /* Botões no Header */
+    .header-controls {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      flex-wrap: wrap;
       gap: 10px;
+      align-items: center;
     }
 
     .btn {
@@ -110,17 +119,6 @@
       gap: 6px;
     }
 
-    .btn-reboot {
-      background: var(--danger);
-      color: white;
-    }
-
-    .btn-reboot:hover {
-      background: #d62839;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(230, 57, 70, 0.3);
-    }
-
     .btn-refresh {
       background: var(--primary);
       color: white;
@@ -129,8 +127,21 @@
     .btn-refresh:hover {
       background: var(--primary-dark);
       transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 119, 182, 0.3);
     }
 
+    .btn-config {
+      background: var(--mqtt-color);
+      color: white;
+    }
+
+    .btn-config:hover {
+      background: #6a1fa7;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(123, 44, 191, 0.3);
+    }
+
+    /* Status Panel Grid */
     .status-panel {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -171,6 +182,7 @@
 
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
+    /* Sinal bars */
     .signal-bar { display: flex; align-items: flex-end; gap: 2px; height: 16px; }
     .signal-bar-item {
       width: 4px; background: #e9ecef; border-radius: 2px;
@@ -183,6 +195,7 @@
     .signal-bar-item:nth-child(4) { height: 13px; }
     .signal-bar-item:nth-child(5) { height: 16px; }
 
+    /* Warning Banner */
     .connection-warning {
       display: none;
       padding: 12px;
@@ -206,6 +219,7 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
+    /* Main Content */
     .main-content {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -213,8 +227,13 @@
       margin-bottom: 10px;
     }
 
-    @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { 
+      .main-content { grid-template-columns: 1fr; }
+      .header-content { flex-direction: column; }
+      .header h1 { font-size: 1.1rem; }
+    }
 
+    /* Cards */
     .card {
       background: white;
       padding: 15px;
@@ -234,714 +253,562 @@
       font-weight: 600;
     }
 
+    /* Tank Visual */
     .tank-wrapper {
       position: relative;
       width: 240px;
       height: 220px;
-      margin: 10px auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      margin: 0 auto 20px;
     }
 
-    .tank-image {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: 108%; height: 108%;
-      object-fit: contain;
-      z-index: 1;
-      pointer-events: none;
-      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
-    }
-
-    .tank {
-      position: absolute;
-      left: 50%; transform: translateX(-50%);
-      width: 44px;
-      top: 38px; bottom: 42px;
-      border-radius: 8px;
+    .tank-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: linear-gradient(to bottom, #e9ecef 0%, #dee2e6 100%);
+      border: 4px solid var(--primary-dark);
+      border-radius: 0 0 12px 12px;
       overflow: hidden;
-      z-index: 2;
-      background: rgba(20, 40, 60, 0.35);
-      backdrop-filter: blur(1px);
-      box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
+      box-shadow: inset 0 2px 10px rgba(0,0,0,0.1);
     }
 
     .water {
       position: absolute;
-      bottom: 0; width: 100%;
-      background: linear-gradient(to top, var(--water-deep) 0%, var(--water-blue) 100%);
-      transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      bottom: 0;
+      width: 100%;
+      background: linear-gradient(to top, var(--water-deep), var(--water-blue));
+      transition: height 0.8s ease, background 0.3s;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 2rem;
+      font-weight: bold;
       color: white;
-      font-weight: 700;
-      font-size: 0.8rem;
-      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-      border-radius: 0 0 8px 8px;
-      min-height: 20px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
+
+    .water.critical { background: linear-gradient(to top, #c1121f, var(--level-critical)); }
+    .water.low { background: linear-gradient(to top, #f77f00, var(--level-low)); }
+    .water.medium { background: linear-gradient(to top, #fcbf49, var(--level-medium)); }
+    .water.good { background: linear-gradient(to top, #0096c7, var(--level-good)); }
+    .water.full { background: linear-gradient(to top, #023e8a, var(--level-full)); }
 
     .water::before {
       content: '';
       position: absolute;
-      top: -6px; left: -50%;
-      width: 200%; height: 12px;
+      top: -10px;
+      left: 0;
+      width: 200%;
+      height: 20px;
       background: rgba(255,255,255,0.3);
       border-radius: 50%;
-      animation: wave 3s infinite linear;
+      animation: wave 3s ease-in-out infinite;
     }
 
     @keyframes wave {
-      0% { transform: translateX(0) rotate(0deg); }
-      100% { transform: translateX(-25%) rotate(360deg); }
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-5px); }
     }
 
-    .water.critical { background: linear-gradient(to top, #dc2626, #ef4444); animation: pulse 1s infinite; }
-    .water.low { background: linear-gradient(to top, #ea580c, #fb923c); }
-    .water.medium { background: linear-gradient(to top, #ca8a04, #fbbf24); }
-    .water.good { background: linear-gradient(to top, #0284c7, #38bdf8); }
-    .water.full { background: linear-gradient(to top, #0369a1, #0ea5e9); }
-
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
-
-    .tank-marks {
-      position: absolute;
-      left: 50%; transform: translateX(-50%);
-      width: 44px;
-      top: 38px; bottom: 42px;
-      z-index: 3;
-      pointer-events: none;
-    }
-    .tank-mark {
-      position: absolute;
-      right: -32px;
-      font-size: 0.65rem;
-      color: var(--gray);
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .tank-mark::before { content: ''; width: 8px; height: 1px; background: var(--gray); }
-    .tank-mark.top { top: 0; }
-    .tank-mark.mid { top: 50%; transform: translateY(-50%); }
-    .tank-mark.bottom { bottom: 0; }
-
-    .tank-capacity {
-      text-align: center;
-      margin: 10px 0;
-      padding: 10px;
-      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-      border-radius: 10px;
-      border: 2px solid var(--primary);
-    }
-    .tank-capacity-label { font-size: 0.7rem; color: var(--gray); font-weight: 600; text-transform: uppercase; }
-    .tank-capacity-value { font-size: 1.2rem; font-weight: 700; color: var(--primary-dark); }
-
-    .info-grid {
+    /* Medições Grid */
+    .measurements {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-top: 10px;
-    }
-    @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; } }
-
-    .info-card {
-      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-      padding: 12px 8px;
-      border-radius: 10px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.3s;
-      border: 2px solid transparent;
-    }
-    .info-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-      border-color: var(--primary);
-      background: white;
-    }
-    .info-card-label { font-size: 0.65rem; color: var(--gray); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
-    .info-card-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-dark); }
-    .info-card-unit { font-size: 0.75rem; color: var(--gray); }
-
-    #nivelChart { max-height: 250px; width: 100% !important; }
-
-    .table-container {
-      overflow-x: auto;
-      margin-top: 10px;
-      border-radius: 8px;
-      border: 1px solid #e9ecef;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-    thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
-    th { padding: 10px 8px; text-align: left; font-weight: 600; white-space: nowrap; }
-    td { padding: 8px; border-bottom: 1px solid #e9ecef; }
-    tbody tr:hover { background: #f8f9fa; }
-    tbody tr:last-child td { border-bottom: none; }
-
-    .status-badge {
-      padding: 4px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      display: inline-block;
-    }
-    .badge-normal { background: #d4edda; color: #155724; }
-    .badge-waiting { background: #fff3cd; color: #856404; }
-    .badge-error { background: #f8d7da; color: #721c24; }
-    .badge-offline { background: #fee2e2; color: #991b1b; }
-
-    .update-entry {
-      padding: 8px 12px;
-      margin-bottom: 6px;
-      background: #f8f9fa;
-      border-left: 3px solid var(--primary);
-      border-radius: 5px;
-      display: flex;
+      grid-template-columns: repeat(2, 1fr);
       gap: 10px;
-      font-size: 0.8rem;
-      animation: slideIn 0.3s ease;
+      margin-top: 15px;
     }
-    @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-    .update-time { color: var(--primary); font-weight: 600; min-width: 60px; font-size: 0.75rem; }
-    .update-text { color: var(--dark); flex: 1; }
-    #updateHistory { max-height: 150px; overflow-y: auto; }
 
-    .debug-btn {
-      position: fixed;
-      bottom: 20px; right: 20px;
-      width: 50px; height: 50px;
-      border-radius: 50%;
+    .measure-box {
+      background: var(--light);
+      padding: 12px;
+      border-radius: 10px;
+      border-left: 4px solid var(--primary);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .measure-box:hover { transform: translateX(5px); }
+
+    .measure-label {
+      font-size: 0.75rem;
+      color: var(--gray);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .measure-value {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: var(--primary-dark);
+    }
+
+    .measure-unit {
+      font-size: 0.85rem;
+      color: var(--gray);
+      margin-left: 4px;
+    }
+
+    /* Histórico */
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .history-table th {
       background: var(--primary);
       color: white;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      transition: all 0.3s;
-      z-index: 1000;
+      padding: 8px;
+      text-align: left;
+      font-size: 0.7rem;
     }
-    .debug-btn:hover { transform: scale(1.1); background: var(--primary-dark); }
 
-    .loading { text-align: center; padding: 20px; color: var(--gray); font-size: 0.9rem; }
-    
+    .history-table td {
+      padding: 8px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .history-table tr:hover {
+      background: var(--light);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.65rem;
+      font-weight: 600;
+    }
+
+    .badge-normal { background: #d1f2eb; color: #0f5132; }
+    .badge-waiting { background: #fff3cd; color: #997404; }
+    .badge-offline { background: #f8d7da; color: #842029; }
+    .badge-error { background: #f8d7da; color: #842029; }
+
+    /* Gráfico */
+    .chart-container {
+      position: relative;
+      height: 200px;
+      margin-top: 15px;
+    }
+
+    /* Updates Log */
+    .updates-log {
+      max-height: 200px;
+      overflow-y: auto;
+      background: var(--light);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .update-entry {
+      padding: 6px;
+      margin-bottom: 5px;
+      background: white;
+      border-radius: 5px;
+      font-size: 0.75rem;
+      border-left: 3px solid var(--primary);
+    }
+
+    .update-time {
+      font-weight: 600;
+      color: var(--gray);
+      margin-right: 8px;
+    }
+
+    .update-text {
+      color: var(--dark);
+    }
+
+    /* Modal MQTT Config */
     .modal {
       display: none;
       position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
       background: rgba(0,0,0,0.5);
-      z-index: 2000;
-      align-items: center;
-      justify-content: center;
+      animation: fadeIn 0.3s;
     }
-    .modal.show { display: flex; }
+
+    .modal.show { display: flex; align-items: center; justify-content: center; }
+
     .modal-content {
       background: white;
-      padding: 20px;
-      border-radius: 12px;
-      max-width: 400px;
+      padding: 30px;
+      border-radius: 15px;
+      max-width: 500px;
       width: 90%;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      animation: slideUp 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+      font-size: 1.4rem;
+      font-weight: bold;
+      color: var(--primary-dark);
+      margin-bottom: 20px;
       text-align: center;
     }
-    .modal h3 { margin-bottom: 15px; color: var(--danger); }
-    .modal p { margin-bottom: 20px; color: var(--gray); }
-    .modal-buttons { display: flex; gap: 10px; justify-content: center; }
-    .btn-cancel { background: #e9ecef; color: var(--dark); }
-    .btn-confirm { background: var(--danger); color: white; }
 
-    .config-panel {
-      display: none;
-      position: fixed;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-      z-index: 3000;
-      max-width: 400px;
-      width: 90%;
+    .form-group {
+      margin-bottom: 15px;
     }
-    .config-panel.show { display: block; }
-    .config-panel h3 { margin-bottom: 15px; color: var(--primary-dark); }
-    .config-panel input {
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      color: var(--gray);
+      margin-bottom: 5px;
+      font-size: 0.85rem;
+    }
+
+    .form-group input {
       width: 100%;
       padding: 10px;
-      margin: 8px 0;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
       font-size: 0.9rem;
+      transition: border 0.3s;
     }
-    .config-panel .btn {
-      width: 100%;
-      margin-top: 10px;
-      justify-content: center;
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--mqtt-color);
     }
-    .overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 2500;
+
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
     }
-    .overlay.show { display: block; }
+
+    .btn-modal {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-save {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-save:hover {
+      background: #2d8a00;
+    }
+
+    .btn-cancel {
+      background: var(--gray);
+      color: white;
+    }
+
+    .btn-cancel:hover {
+      background: #5a5a5a;
+    }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: var(--gray);
+    }
+
+    .loading i {
+      font-size: 2rem;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- Header -->
+    <!-- Header com Botões -->
     <div class="header">
-      <h1><i class="fas fa-water"></i> Monitor de Caixa d'Água</h1>
-      <div class="mqtt-badge" id="mqttStatus">
-        <i class="fas fa-broadcast-tower"></i> <span>MQTT Conectando...</span>
+      <div class="header-content">
+        <!-- Botão Atualizar (Esquerda) -->
+        <div class="header-controls">
+          <button class="btn btn-refresh" onclick="buscarDados()" title="Atualizar dados">
+            <i class="fas fa-sync-alt"></i> Atualizar
+          </button>
+        </div>
+
+        <!-- Título Central -->
+        <h1>
+          <i class="fas fa-tint"></i>
+          Monitor de Caixa d'Água
+          <span class="mqtt-badge" id="mqttStatus">
+            <i class="fas fa-broadcast-tower"></i>
+            <span>MQTT Online</span>
+          </span>
+        </h1>
+
+        <!-- Botão Config MQTT (Direita) -->
+        <div class="header-controls">
+          <button class="btn btn-config" onclick="abrirModalConfig()" title="Configurar MQTT">
+            <i class="fas fa-cog"></i> Config MQTT
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Controles -->
-    <div class="controls-top">
-      <button class="btn btn-refresh" onclick="carregarDados()">
-        <i class="fas fa-sync-alt"></i> Atualizar Agora
-      </button>
-      <button class="btn btn-reboot" onclick="confirmarReboot()">
-        <i class="fas fa-power-off"></i> Reiniciar Receptor
-      </button>
-      <button class="btn btn-refresh" onclick="toggleConfig()" style="background: var(--secondary);">
-        <i class="fas fa-cog"></i> Configurar MQTT
-      </button>
-    </div>
-
-    <!-- Warning Banner -->
+    <!-- Aviso de Conexão -->
     <div id="connectionWarning" class="connection-warning"></div>
 
     <!-- Status Panel -->
     <div class="status-panel">
       <div class="status-item">
-        <span class="status-label">Servidor:</span>
-        <span class="status-value online" id="apiStatus">WebSocket</span>
+        <span class="status-label">🔌 Broker MQTT</span>
+        <span class="status-value online" id="brokerStatus">Conectado</span>
       </div>
       <div class="status-item">
-        <span class="status-label">Receptor WiFi:</span>
-        <span class="status-value" id="receptorStatus">Verificando...</span>
+        <span class="status-label">📡 Receptor</span>
+        <span class="status-value online" id="receptorStatus">Online</span>
       </div>
       <div class="status-item">
-        <span class="status-label">LoRa:</span>
-        <span class="status-value" id="loraStatus">Verificando...</span>
+        <span class="status-label">📶 Sinal LoRa</span>
+        <span class="status-value online" id="loraStatus">Conectado</span>
       </div>
       <div class="status-item">
-        <span class="status-label">MQTT Broker:</span>
-        <span class="status-value" id="brokerStatus">Conectando...</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Sinal LoRa:</span>
-        <div style="text-align: right;">
-          <div class="signal-bar" id="signalBar">
-            <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
-            <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
-            <div class="signal-bar-item"></div>
-          </div>
-          <div style="font-size: 0.7rem; margin-top: 2px;" id="signalText">0%</div>
+        <span class="status-label">🎯 Qualidade</span>
+        <div class="signal-bar">
+          <div class="signal-bar-item"></div>
+          <div class="signal-bar-item"></div>
+          <div class="signal-bar-item"></div>
+          <div class="signal-bar-item"></div>
+          <div class="signal-bar-item"></div>
         </div>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Último Dado:</span>
-        <span class="status-value" id="lastUpdate">--:--:--</span>
+        <span class="status-value" id="signalText">0%</span>
       </div>
     </div>
 
     <!-- Main Content -->
     <div class="main-content">
-      <!-- Tank Card -->
+      <!-- Card 1: Nível da Caixa -->
       <div class="card">
         <div class="card-header">
-          <i class="fas fa-tint"></i> Status da Caixa
+          <i class="fas fa-water"></i>
+          Nível da Caixa
         </div>
-        
+
         <div class="tank-wrapper">
-          <img class="tank-image" 
-               src="https://ik.imagekit.io/o7q7lmyva/Caixa-5000-frontal-sl-1024x762.png?updatedAt=1763608669534" 
-               alt="Caixa d'água">
-          <div class="tank">
-            <div class="water" id="waterLevel" style="height: 0%;">0%</div>
-          </div>
-          <div class="tank-marks">
-            <div class="tank-mark top">100%</div>
-            <div class="tank-mark mid">50%</div>
-            <div class="tank-mark bottom">0%</div>
+          <div class="tank-container">
+            <div class="water" id="waterLevel" style="height: 0%;">--</div>
           </div>
         </div>
 
-        <div class="tank-capacity">
-          <div class="tank-capacity-label">Capacidade Total</div>
-          <div class="tank-capacity-value" id="totalCapacity">-- L</div>
-        </div>
+        <div class="measurements">
+          <div class="measure-box" onclick="showDetails('volume')">
+            <div class="measure-label">💧 Volume Atual</div>
+            <div class="measure-value">
+              <span id="currentVolume">--</span>
+              <span class="measure-unit">Litros</span>
+            </div>
+          </div>
 
-        <div class="info-grid">
-          <div class="info-card" onclick="showDetails('volume')">
-            <div class="info-card-label"><i class="fas fa-tint"></i> Volume</div>
-            <div class="info-card-value">
-              <span id="currentVolume">--</span><span class="info-card-unit">L</span>
+          <div class="measure-box" onclick="showDetails('distance')">
+            <div class="measure-label">📏 Distância</div>
+            <div class="measure-value">
+              <span id="currentDistance">--</span>
+              <span class="measure-unit">cm</span>
             </div>
           </div>
-          <div class="info-card" onclick="showDetails('distance')">
-            <div class="info-card-label"><i class="fas fa-ruler-vertical"></i> Distância</div>
-            <div class="info-card-value">
-              <span id="currentDistance">--</span><span class="info-card-unit">cm</span>
+
+          <div class="measure-box" onclick="showDetails('level')">
+            <div class="measure-label">📊 Altura Água</div>
+            <div class="measure-value">
+              <span id="currentLevel">--</span>
+              <span class="measure-unit">cm</span>
             </div>
           </div>
-          <div class="info-card" onclick="showDetails('level')">
-            <div class="info-card-label"><i class="fas fa-arrows-alt-v"></i> Altura</div>
-            <div class="info-card-value">
-              <span id="currentLevel">--</span><span class="info-card-unit">cm</span>
+
+          <div class="measure-box">
+            <div class="measure-label">🏗️ Capacidade</div>
+            <div class="measure-value">
+              <span id="totalCapacity">-- L</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Chart Card -->
+      <!-- Card 2: Histórico -->
       <div class="card">
         <div class="card-header">
-          <i class="fas fa-chart-line"></i> Histórico (24h)
+          <i class="fas fa-history"></i>
+          Histórico de Leituras
         </div>
-        <canvas id="nivelChart"></canvas>
-      </div>
-    </div>
 
-    <!-- History Table -->
-    <div class="card" style="margin-bottom: 10px;">
-      <div class="card-header">
-        <i class="fas fa-history"></i> Últimas Leituras
-      </div>
-      <div id="historyLoading" class="loading" style="display: none;">
-        <i class="fas fa-spinner fa-spin"></i> Carregando...
-      </div>
-      <div id="historyTableContainer">
-        <div class="table-container">
-          <table>
+        <div id="historyLoading" class="loading">
+          <i class="fas fa-spinner"></i>
+          <p>Carregando histórico...</p>
+        </div>
+
+        <div id="historyTableContainer" style="display: none;">
+          <table class="history-table">
             <thead>
               <tr>
-                <th>Horário</th>
+                <th>Hora</th>
                 <th>Status</th>
                 <th>Nível</th>
                 <th>Volume</th>
                 <th>Dist.</th>
-                <th>LoRa</th>
+                <th>Sinal</th>
               </tr>
             </thead>
             <tbody id="historyBody"></tbody>
           </table>
         </div>
-      </div>
-      <div id="historyMessage" style="display: none;" class="loading">
-        <i class="fas fa-info-circle"></i> Nenhum dado disponível
+
+        <div id="historyMessage" style="display: none; text-align: center; padding: 20px; color: var(--gray);">
+          <i class="fas fa-inbox"></i>
+          <p>Nenhum dado no histórico</p>
+        </div>
+
+        <div class="chart-container">
+          <canvas id="nivelChart"></canvas>
+        </div>
       </div>
     </div>
 
-    <!-- Updates Log -->
+    <!-- Card 3: Log de Atualizações -->
     <div class="card">
       <div class="card-header">
-        <i class="fas fa-bell"></i> Log de Eventos MQTT
+        <i class="fas fa-list-ul"></i>
+        Log de Atualizações
       </div>
-      <div id="updateHistory"></div>
+      <div class="updates-log" id="updateHistory">
+        <div class="update-entry">
+          <span class="update-time">--:--:--</span>
+          <span class="update-text">Sistema iniciado</span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Modal Confirmar Reboot -->
-  <div id="modalReboot" class="modal">
+  <!-- Modal Configuração MQTT -->
+  <div id="modalConfig" class="modal">
     <div class="modal-content">
-      <h3><i class="fas fa-exclamation-triangle"></i> Reiniciar Receptor?</h3>
-      <p>O dispositivo ESP32 será reiniciado remotamente via MQTT.</p>
-      <div style="margin: 15px 0;">
-        <input type="password" id="rebootPassword" placeholder="Senha de comando" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+      <div class="modal-header">
+        <i class="fas fa-cog"></i> Configurar MQTT
       </div>
+
+      <div class="form-group">
+        <label for="mqttBroker">Broker (Host)</label>
+        <input type="text" id="mqttBroker" placeholder="exemplo.s1.eu.hivemq.cloud" value="006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud">
+      </div>
+
+      <div class="form-group">
+        <label for="mqttPort">Porta</label>
+        <input type="number" id="mqttPort" placeholder="8883" value="8883">
+      </div>
+
+      <div class="form-group">
+        <label for="mqttUser">Usuário</label>
+        <input type="text" id="mqttUser" placeholder="usuario" value="esp32-receptor">
+      </div>
+
+      <div class="form-group">
+        <label for="mqttPass">Senha</label>
+        <input type="password" id="mqttPass" placeholder="senha">
+      </div>
+
       <div class="modal-buttons">
-        <button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button>
-        <button class="btn btn-confirm" onclick="executarReboot()">Sim, Reiniciar</button>
+        <button class="btn-modal btn-cancel" onclick="fecharModalConfig()">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button class="btn-modal btn-save" onclick="salvarConfigMQTT()">
+          <i class="fas fa-save"></i> Salvar
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Config Panel -->
-  <div class="overlay" id="configOverlay" onclick="toggleConfig()"></div>
-  <div class="config-panel" id="configPanel">
-    <h3><i class="fas fa-cog"></i> Configuração MQTT</h3>
-    <p style="font-size: 0.8rem; color: var(--gray); margin-bottom: 15px;">
-      Configure as credenciais do HiveMQ Cloud. Use um usuário com permissão de <strong>leitura apenas</strong> para segurança.
-    </p>
-    <input type="text" id="mqttBroker" placeholder="Broker (ex: xxx.s1.eu.hivemq.cloud)">
-    <input type="text" id="mqttUser" placeholder="Usuário MQTT">
-    <input type="password" id="mqttPass" placeholder="Senha MQTT">
-    <input type="password" id="mqttCommandPass" placeholder="Senha para comandos (opcional)">
-    <button class="btn btn-refresh" onclick="salvarConfig()">
-      <i class="fas fa-save"></i> Salvar e Conectar
-    </button>
-    <button class="btn btn-cancel" onclick="toggleConfig()" style="margin-top: 8px;">
-      Cancelar
-    </button>
-  </div>
-
-  <!-- Debug Button -->
-  <button class="debug-btn" onclick="debugData()" title="Debug">
-    <i class="fas fa-bug"></i>
-  </button>
-
-  <script type="module">
-    // ==========================================
-    // CONFIGURAÇÃO MQTT - HIVE MQ CLOUD
-    // ==========================================
-    
-    const DEFAULT_CONFIG = {
-      broker: '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud',
-      port: 8884,
-      user: 'esp32-receptor',
-      pass: '061084Cc@',
-      commandPass: '',
-      clientId: 'dashboard_' + Math.random().toString(16).substr(2, 8)
-    };
-
-    const TOPIC_DADOS = 'caixas/agua/dados';
-    const TOPIC_STATUS = 'caixas/agua/status';
-    const TOPIC_COMANDOS = 'caixas/agua/comandos';
-
-    let mqttClient = null;
+  <script>
+    let currentData = {};
+    let savedCapacityTotal = 0;
     let chart = null;
-    let historico = [];
-    let ultimoDado = null;
-    let caixaConfig = {
-      altura: 0,
-      volumeTotal: 0,
-      distanciaCheia: 0,
-      distanciaVazia: 0,
-      updatedAt: null
-    };
-    let systemStatus = {
-      receptorOnline: false,
-      ultimaMensagem: null,
-      mqttConectado: false
-    };
-    let config = { ...DEFAULT_CONFIG };
 
-    // ==========================================
-    // INICIALIZAÇÃO
-    // ==========================================
-    document.addEventListener('DOMContentLoaded', () => {
-      carregarConfigLocal();
-      conectarMQTT();
-      adicionarLog('Sistema iniciado (Modo WebSocket MQTT)');
-      
-      const histSalvo = localStorage.getItem('historico_caixa');
-      if (histSalvo) {
-        historico = JSON.parse(histSalvo);
-        atualizarHistorico(historico);
-        atualizarGrafico(historico);
-      }
-    });
+    // Auto-atualização a cada 5 segundos
+    setInterval(buscarDados, 5000);
+    buscarDados();
 
-    function carregarConfigLocal() {
-      const saved = localStorage.getItem('mqtt_config');
-      if (saved) {
-        config = { ...config, ...JSON.parse(saved) };
-      }
-      document.getElementById('mqttBroker').value = config.broker;
-      document.getElementById('mqttUser').value = config.user;
-      document.getElementById('mqttPass').value = config.pass;
-      document.getElementById('mqttCommandPass').value = config.commandPass || '';
-    }
-
-    window.salvarConfig = function() {
-      config.broker = document.getElementById('mqttBroker').value || DEFAULT_CONFIG.broker;
-      config.user = document.getElementById('mqttUser').value || DEFAULT_CONFIG.user;
-      config.pass = document.getElementById('mqttPass').value || DEFAULT_CONFIG.pass;
-      config.commandPass = document.getElementById('mqttCommandPass').value || '';
-      
-      localStorage.setItem('mqtt_config', JSON.stringify(config));
-      adicionarLog('💾 Configuração salva');
-      toggleConfig();
-      
-      if (mqttClient) mqttClient.end();
-      conectarMQTT();
-    };
-
-    window.toggleConfig = function() {
-      document.getElementById('configPanel').classList.toggle('show');
-      document.getElementById('configOverlay').classList.toggle('show');
-    };
-
-    // ==========================================
-    // CONEXÃO MQTT
-    // ==========================================
-    function conectarMQTT() {
-      const wsUrl = `wss://${config.broker}:${config.port}/mqtt`;
-      
-      console.log('🔌 Conectando ao HiveMQ:', wsUrl);
-      adicionarLog('🔌 Conectando ao broker MQTT...');
-      
-      mqttClient = mqtt.connect(wsUrl, {
-        username: config.user,
-        password: config.pass,
-        clientId: config.clientId,
-        clean: true,
-        reconnectPeriod: 5000,
-        connectTimeout: 30000
-      });
-
-      mqttClient.on('connect', () => {
-        console.log('✅ Conectado ao HiveMQ!');
-        systemStatus.mqttConectado = true;
-        atualizarStatusMQTT(true);
+    async function buscarDados() {
+      try {
+        const response = await fetch('/api/lora');
+        const data = await response.json();
         
-        mqttClient.subscribe([TOPIC_DADOS, TOPIC_STATUS], (err) => {
-          if (err) {
-            console.error('❌ Erro ao inscrever:', err);
-            adicionarLog('❌ Erro ao inscrever nos tópicos');
-          } else {
-            console.log('📡 Inscrito em:', TOPIC_DADOS, TOPIC_STATUS);
-            adicionarLog('📡 Conectado e inscrito nos tópicos');
-          }
-        });
-      });
-
-      mqttClient.on('message', (topic, message) => {
-        try {
-          const payload = JSON.parse(message.toString());
-          systemStatus.ultimaMensagem = new Date().toISOString();
-          
-          if (topic === TOPIC_DADOS) {
-            processarDadosMQTT(payload);
-          } else if (topic === TOPIC_STATUS) {
-            processarStatusMQTT(payload);
-          }
-        } catch (e) {
-          console.error('❌ Erro ao processar mensagem:', e);
-        }
-      });
-
-      mqttClient.on('error', (err) => {
-        console.error('❌ Erro MQTT:', err);
-        systemStatus.mqttConectado = false;
-        atualizarStatusMQTT(false);
-        adicionarLog('❌ Erro na conexão MQTT');
-      });
-
-      mqttClient.on('disconnect', () => {
-        console.log('⚠️ Desconectado do MQTT');
-        systemStatus.mqttConectado = false;
-        atualizarStatusMQTT(false);
-        adicionarLog('⚠️ Desconectado do broker');
-      });
-
-      mqttClient.on('reconnect', () => {
-        console.log('🔄 Reconectando...');
-        adicionarLog('🔄 Reconectando ao broker...');
-      });
-    }
-
-    function atualizarStatusMQTT(conectado) {
-      const badge = document.getElementById('mqttStatus');
-      const brokerStatus = document.getElementById('brokerStatus');
-      
-      if (conectado) {
-        badge.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span>MQTT Online</span>';
-        badge.classList.remove('disconnected');
-        brokerStatus.textContent = 'Conectado';
-        brokerStatus.className = 'status-value online';
-      } else {
-        badge.innerHTML = '<i class="fas fa-times-circle"></i> <span>MQTT Offline</span>';
-        badge.classList.add('disconnected');
-        brokerStatus.textContent = 'Desconectado';
-        brokerStatus.className = 'status-value offline';
-      }
-    }
-
-    function processarDadosMQTT(payload) {
-      console.log('📥 Dados recebidos:', payload);
-      
-      if (payload.config_volume_total > 0) {
-        caixaConfig = {
-          altura: payload.config_altura,
-          volumeTotal: payload.config_volume_total,
-          distanciaCheia: payload.config_distancia_cheia,
-          distanciaVazia: payload.config_distancia_vazia,
-          updatedAt: new Date().toISOString()
+        currentData = {
+          percentage: data.percentage >= 0 ? data.percentage : 0,
+          liters: data.liters >= 0 ? data.liters : 0,
+          distance: data.distance >= 0 ? data.distance : 0,
+          level: data.level >= 0 ? data.level : 0,
+          quality: data.lora_signal?.quality || 0,
+          timestamp: data.timestamp
         };
-        localStorage.setItem('caixa_config', JSON.stringify(caixaConfig));
-      }
 
-      const registro = {
-        device: payload.device || "TX_CAIXA_01",
-        distance: payload.distance,
-        level: payload.level,
-        percentage: payload.percentage,
-        liters: payload.liters,
-        sensor_ok: payload.sensor_ok,
-        timestamp: new Date().toISOString(),
-        status: payload.sensor_ok ? "normal" : "sensor_error",
-        lora_signal: {
-          rssi: payload.lora_rssi,
-          snr: payload.lora_snr,
-          quality: payload.signal_quality || calcularQualidade(payload.lora_rssi)
+        if (data.caixa_config && data.caixa_config.volumeTotal > 0) {
+          savedCapacityTotal = data.caixa_config.volumeTotal;
         }
-      };
 
-      historico.push(registro);
-      if (historico.length > 500) historico.shift();
-      
-      localStorage.setItem('historico_caixa', JSON.stringify(historico));
-      
-      ultimoDado = registro;
-      systemStatus.receptorOnline = true;
-      
-      atualizarInterface({
-        ...registro,
-        receptor_connected: true,
-        lora_connected: true,
-        caixa_config: caixaConfig,
-        historico: historico
-      });
-      
-      if (registro.status === 'normal') {
-        adicionarLog(`📊 ${payload.percentage}% | ${payload.liters}L | RSSI:${payload.lora_rssi}`);
+        atualizarInterface(data);
+        atualizarHistorico(data.historico || []);
+        atualizarGrafico(data.historico || []);
+        
+        const hora = new Date().toLocaleTimeString('pt-BR');
+        adicionarLog(`Dados atualizados - ${data.percentage >= 0 ? data.percentage + '%' : 'Aguardando...'}`);
+        
+      } catch (error) {
+        console.error('Erro ao buscar dados:', error);
+        adicionarLog('⚠️ Erro na comunicação com servidor');
       }
     }
 
-    function processarStatusMQTT(payload) {
-      if (payload.status === 'online') {
-        systemStatus.receptorOnline = true;
-        adicionarLog('✅ Receptor reportou: ONLINE');
-      } else if (payload.status === 'offline') {
-        systemStatus.receptorOnline = false;
-        adicionarLog('⚠️ Receptor reportou: OFFLINE');
-      }
-    }
-
-    function calcularQualidade(rssi) {
-      if (rssi >= -50) return 100;
-      if (rssi >= -60) return 85;
-      if (rssi >= -70) return 75;
-      if (rssi >= -80) return 65;
-      if (rssi >= -90) return 50;
-      return 20;
-    }
-
-    window.atualizarInterface = function(data) {
+    function atualizarInterface(data) {
       const warning = document.getElementById('connectionWarning');
       warning.className = 'connection-warning';
       warning.innerHTML = '';
 
-      const agora = new Date();
-      const ultima = systemStatus.ultimaMensagem ? new Date(systemStatus.ultimaMensagem) : null;
-      const desatualizado = ultima ? (agora - ultima) > 120000 : true;
+      // Status MQTT/Broker
+      const mqttConnected = data.system_info?.mqtt_connected !== false;
+      document.getElementById('brokerStatus').textContent = mqttConnected ? 'Conectado' : 'Desconectado';
+      document.getElementById('brokerStatus').className = mqttConnected ? 'status-value online' : 'status-value offline';
+      
+      const mqttBadge = document.getElementById('mqttStatus');
+      if (mqttConnected) {
+        mqttBadge.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span>MQTT Online</span>';
+        mqttBadge.classList.remove('disconnected');
+      } else {
+        mqttBadge.innerHTML = '<i class="fas fa-times-circle"></i> <span>MQTT Offline</span>';
+        mqttBadge.classList.add('disconnected');
+      }
 
-      if (!systemStatus.receptorOnline || desatualizado) {
+      // Verificar status receptor
+      if (data.receptor_connected === false || data.status === 'receptor_disconnected') {
         document.getElementById('receptorStatus').textContent = 'Offline';
         document.getElementById('receptorStatus').className = 'status-value offline';
         
-        if (desatualizado && ultima) {
-          warning.className = 'connection-warning receptor-off show';
-          warning.innerHTML = '<i class="fas fa-wifi"></i> SEM DADOS RECENTES - Verifique conexão';
-        }
+        warning.className = 'connection-warning receptor-off show';
+        warning.innerHTML = '<i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO - Verifique alimentação e WiFi';
         
         zerarDisplay();
         return;
@@ -950,7 +817,8 @@
       document.getElementById('receptorStatus').textContent = 'Online';
       document.getElementById('receptorStatus').className = 'status-value online';
 
-      if (!data.lora_signal || data.distance < 0) {
+      // Verificar LoRa
+      if (data.lora_connected === false || data.status === 'waiting_lora') {
         document.getElementById('loraStatus').textContent = 'Sem Sinal';
         document.getElementById('loraStatus').className = 'status-value warning';
         
@@ -964,12 +832,14 @@
       document.getElementById('loraStatus').textContent = 'Conectado';
       document.getElementById('loraStatus').className = 'status-value online';
 
-      if (data.status !== 'sensor_error' && data.percentage >= 0) {
-        const pct = data.percentage;
+      // Se chegou aqui, tudo OK - mostrar dados
+      if (data.status !== 'sensor_error') {
+        const pct = currentData.percentage;
         const water = document.getElementById('waterLevel');
         water.style.height = pct + '%';
         water.textContent = pct + '%';
         
+        // Cor baseada no nível
         water.className = 'water';
         if (pct <= 10) water.classList.add('critical');
         else if (pct <= 25) water.classList.add('low');
@@ -977,17 +847,15 @@
         else if (pct <= 80) water.classList.add('good');
         else water.classList.add('full');
 
-        document.getElementById('currentVolume').textContent = data.liters;
-        document.getElementById('currentDistance').textContent = data.distance.toFixed(1);
-        document.getElementById('currentLevel').textContent = data.level;
-        document.getElementById('totalCapacity').textContent = (caixaConfig.volumeTotal || 0) + ' L';
+        document.getElementById('currentVolume').textContent = currentData.liters;
+        document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1);
+        document.getElementById('currentLevel').textContent = currentData.level;
+        document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
         
-        atualizarSinal(data.lora_signal.quality);
-        
-        document.getElementById('lastUpdate').textContent = 
-          new Date(data.timestamp).toLocaleTimeString('pt-BR');
+        // Sinal
+        atualizarSinal(currentData.quality);
       }
-    };
+    }
 
     function zerarDisplay() {
       document.getElementById('waterLevel').style.height = '0%';
@@ -995,8 +863,7 @@
       document.getElementById('currentVolume').textContent = '--';
       document.getElementById('currentDistance').textContent = '--';
       document.getElementById('currentLevel').textContent = '--';
-      document.getElementById('totalCapacity').textContent = 
-        (caixaConfig.volumeTotal || 0) > 0 ? caixaConfig.volumeTotal + ' L' : '-- L';
+      document.getElementById('totalCapacity').textContent = savedCapacityTotal > 0 ? savedCapacityTotal + ' L' : '-- L';
       atualizarSinal(0);
     }
 
@@ -1011,13 +878,13 @@
       document.getElementById('signalText').textContent = quality + '%';
     }
 
-    window.atualizarHistorico = function(historicoData) {
+    function atualizarHistorico(historico) {
       const loading = document.getElementById('historyLoading');
       const container = document.getElementById('historyTableContainer');
       const message = document.getElementById('historyMessage');
       const tbody = document.getElementById('historyBody');
       
-      if (!historicoData || historicoData.length === 0) {
+      if (!historico || historico.length === 0) {
         loading.style.display = 'none';
         container.style.display = 'none';
         message.style.display = 'block';
@@ -1029,7 +896,7 @@
       message.style.display = 'none';
       
       tbody.innerHTML = '';
-      historicoData.slice().reverse().slice(0, 10).forEach(item => {
+      historico.slice(0, 10).forEach(item => {
         const row = document.createElement('tr');
         const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
         
@@ -1050,13 +917,13 @@
         `;
         tbody.appendChild(row);
       });
-    };
+    }
 
-    window.atualizarGrafico = function(historicoData) {
+    function atualizarGrafico(historico) {
       const ctx = document.getElementById('nivelChart');
-      if (!ctx || !historicoData) return;
+      if (!ctx || !historico) return;
       
-      const dadosValidos = historicoData.filter(i => i.status === 'normal' && i.percentage >= 0);
+      const dadosValidos = historico.filter(i => i.status === 'normal' && i.percentage >= 0);
       
       if (dadosValidos.length === 0) return;
       
@@ -1093,9 +960,9 @@
         chart.data.datasets[0].data = data;
         chart.update();
       }
-    };
+    }
 
-    window.adicionarLog = function(texto) {
+    function adicionarLog(texto) {
       const hora = new Date().toLocaleTimeString('pt-BR');
       const div = document.createElement('div');
       div.className = 'update-entry';
@@ -1104,82 +971,73 @@
       const container = document.getElementById('updateHistory');
       container.insertBefore(div, container.firstChild);
       
+      // Limitar a 20 itens
       while (container.children.length > 20) {
         container.removeChild(container.lastChild);
       }
-    };
+    }
 
-    window.carregarDados = function() {
-      if (ultimoDado) {
-        atualizarInterface({
-          ...ultimoDado,
-          receptor_connected: systemStatus.receptorOnline,
-          lora_connected: true,
-          caixa_config: caixaConfig,
-          historico: historico
-        });
-        atualizarHistorico(historico);
-        atualizarGrafico(historico);
-      }
-      adicionarLog('🔄 Dados atualizados manualmente');
-    };
-
-    window.confirmarReboot = function() {
-      document.getElementById('modalReboot').classList.add('show');
-      document.getElementById('rebootPassword').value = '';
-    };
-
-    window.fecharModal = function() {
-      document.getElementById('modalReboot').classList.remove('show');
-    };
-
-    window.executarReboot = function() {
-      const senha = document.getElementById('rebootPassword').value;
-      
-      if (config.commandPass && senha !== config.commandPass) {
-        alert('Senha incorreta!');
-        return;
-      }
-      
-      if (!mqttClient || !mqttClient.connected) {
-        alert('MQTT não está conectado!');
-        return;
-      }
-      
-      mqttClient.publish(TOPIC_COMANDOS, 'REBOOT');
-      console.log('📤 Comando REBOOT enviado');
-      adicionarLog('🔄 Comando de reinício enviado via MQTT');
-      fecharModal();
-      alert('Comando enviado! O receptor vai reiniciar em alguns segundos.');
-    };
-
-    window.showDetails = function(tipo) {
+    function showDetails(tipo) {
       let msg = '';
       switch(tipo) {
-        case 'volume': 
-          msg = `Volume atual: ${ultimoDado?.liters || '--'}L\nCapacidade: ${caixaConfig.volumeTotal || '--'}L`; 
-          break;
-        case 'distance': 
-          msg = `Distância do sensor até a água: ${ultimoDado?.distance?.toFixed(1) || '--'}cm`; 
-          break;
-        case 'level': 
-          msg = `Altura da coluna de água: ${ultimoDado?.level || '--'}cm`; 
-          break;
+        case 'volume': msg = `Volume atual: ${currentData.liters}L\nCapacidade: ${savedCapacityTotal}L`; break;
+        case 'distance': msg = `Distância do sensor até a água: ${currentData.distance}cm`; break;
+        case 'level': msg = `Altura da coluna de água: ${currentData.level}cm`; break;
       }
       alert(msg);
-    };
+    }
 
-    window.debugData = function() {
-      console.log('Current Data:', ultimoDado);
-      console.log('Config:', caixaConfig);
-      console.log('Status:', systemStatus);
-      console.log('Histórico:', historico);
-      adicionarLog('🐛 Debug: dados impressos no console (F12)');
-    };
+    // Modal Config MQTT
+    function abrirModalConfig() {
+      document.getElementById('modalConfig').classList.add('show');
+    }
 
-    document.getElementById('modalReboot').addEventListener('click', (e) => {
-      if (e.target.id === 'modalReboot') fecharModal();
+    function fecharModalConfig() {
+      document.getElementById('modalConfig').classList.remove('show');
+    }
+
+    async function salvarConfigMQTT() {
+      const broker = document.getElementById('mqttBroker').value;
+      const port = document.getElementById('mqttPort').value;
+      const user = document.getElementById('mqttUser').value;
+      const pass = document.getElementById('mqttPass').value;
+
+      if (!broker || !port || !user || !pass) {
+        alert('Preencha todos os campos!');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/configure-mqtt', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ broker, port, user, pass })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          alert('✅ Configuração salva!\n\n⚠️ ATENÇÃO: Você precisa REINICIAR o servidor para aplicar as mudanças.');
+          fecharModalConfig();
+          adicionarLog('⚙️ Configuração MQTT atualizada (requer reinício)');
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (e) {
+        alert('❌ Erro: ' + e.message);
+      }
+    }
+
+    // Fechar modal ao clicar fora
+    document.getElementById('modalConfig').addEventListener('click', (e) => {
+      if (e.target.id === 'modalConfig') fecharModalConfig();
     });
+
+    function debugData() {
+      console.log('Current Data:', currentData);
+      console.log('Capacity:', savedCapacityTotal);
+      fetch('/api/lora').then(r => r.json()).then(d => console.log('Raw:', d));
+    }
   </script>
 </body>
 </html>
