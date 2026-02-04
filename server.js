@@ -5,7 +5,6 @@ import dotenv from "dotenv";
 import fs from "fs";
 import mqtt from 'mqtt';
 
-// Carrega variáveis do arquivo .env (se existir localmente)
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,10 +12,10 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
-app.use(express.static("public")); // Pasta onde está o HTML
+app.use(express.static("public"));
 
 // ==========================================
-// CONFIGURAÇÃO MQTT - SEUS DADOS HIVE MQ
+// CONFIGURAÇÃO MQTT - HIVE MQ
 // ==========================================
 const MQTT_BROKER = process.env.MQTT_BROKER || "006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud";
 const MQTT_PORT = parseInt(process.env.MQTT_PORT) || 8883;
@@ -28,10 +27,10 @@ const TOPIC_STATUS = "caixas/agua/status";
 const TOPIC_COMANDOS = "caixas/agua/comandos";
 
 // ==========================================
-// VARIÁVEIS GLOBAIS (memória do servidor)
+// VARIÁVEIS GLOBAIS
 // ==========================================
-let historico = []; // Últimas 500 leituras
-let ultimoDado = null; // Dado mais recente
+let historico = [];
+let ultimoDado = null;
 let caixaConfig = {
   altura: 0,
   volumeTotal: 0,
@@ -47,6 +46,34 @@ let systemStatus = {
 };
 
 // ==========================================
+// KEEP-ALIVE AUTOMÁTICO (EVITA SERVIDOR DORMIR)
+// ==========================================
+let lastKeepAlive = Date.now();
+
+function keepServerAlive() {
+  const now = Date.now();
+  const elapsed = now - lastKeepAlive;
+  
+  // Envia heartbeat MQTT a cada 2 minutos
+  if (elapsed > 120000 && client.connected()) {
+    const heartbeat = {
+      server: "render-nodejs",
+      status: "alive",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage().heapUsed / 1024 / 1024
+    };
+    
+    client.publish(TOPIC_STATUS, JSON.stringify(heartbeat));
+    console.log(`💓 Keep-alive enviado (uptime: ${Math.floor(heartbeat.uptime)}s)`);
+    lastKeepAlive = now;
+  }
+}
+
+// Executa keep-alive a cada 1 minuto
+setInterval(keepServerAlive, 60000);
+
+// ==========================================
 // CONEXÃO MQTT COM HIVE MQ
 // ==========================================
 console.log(`🔌 Iniciando conexão MQTT...`);
@@ -56,19 +83,18 @@ console.log(`   User: ${MQTT_USER}`);
 const client = mqtt.connect(`mqtts://${MQTT_BROKER}:${MQTT_PORT}`, {
   username: MQTT_USER,
   password: MQTT_PASS,
-  rejectUnauthorized: true, // Verifica certificado SSL
+  rejectUnauthorized: true,
   clientId: `render-server-${Math.random().toString(16).substr(2, 8)}`,
   clean: true,
   connectTimeout: 4000,
-  reconnectPeriod: 5000, // Tenta reconectar a cada 5s se cair
+  reconnectPeriod: 5000,
+  keepalive: 60
 });
 
-// Evento: Conectou com sucesso
 client.on('connect', () => {
   console.log('✅ CONECTADO AO HIVE MQ!');
   systemStatus.mqttConectado = true;
   
-  // Se inscreve nos tópicos para receber dados
   client.subscribe([TOPIC_DADOS, TOPIC_STATUS], (err) => {
     if (err) {
       console.error('❌ Erro ao se inscrever:', err);
@@ -80,18 +106,15 @@ client.on('connect', () => {
   });
 });
 
-// Evento: Recebeu mensagem do ESP32
 client.on('message', (topic, message) => {
   try {
     const payload = JSON.parse(message.toString());
     systemStatus.ultimaMensagem = new Date().toISOString();
     systemStatus.receptorOnline = true;
     
-    // Se for dados do sensor (tópico dados)
     if (topic === TOPIC_DADOS) {
       console.log(`📥 Recebido: ${payload.percentage}% | ${payload.liters}L | RSSI:${payload.lora_rssi}`);
       
-      // Atualiza config da caixa se vier nos dados
       if (payload.config_volume_total > 0) {
         caixaConfig = {
           altura: payload.config_altura,
@@ -100,11 +123,9 @@ client.on('message', (topic, message) => {
           distanciaVazia: payload.config_distancia_vazia,
           updatedAt: new Date().toISOString()
         };
-        // Salva em arquivo para não perder se servidor reiniciar
         fs.writeFileSync('config.json', JSON.stringify(caixaConfig));
       }
       
-      // Adiciona ao histórico
       const registro = {
         device: payload.device || "TX_CAIXA_01",
         distance: payload.distance,
@@ -124,13 +145,11 @@ client.on('message', (topic, message) => {
       historico.push(registro);
       ultimoDado = registro;
       
-      // Mantém apenas últimos 500 registros
       if (historico.length > 500) {
         historico.shift();
       }
     }
     
-    // Se for status do receptor (online/offline)
     if (topic === TOPIC_STATUS) {
       if (payload.status === "online") {
         console.log("✅ Receptor reportou: ONLINE");
@@ -146,30 +165,25 @@ client.on('message', (topic, message) => {
   }
 });
 
-// Evento: Erro de conexão
 client.on('error', (err) => {
   console.error('❌ Erro MQTT:', err.message);
   systemStatus.mqttConectado = false;
 });
 
-// Evento: Desconectou
 client.on('disconnect', () => {
   console.log('⚠️ Desconectado do HiveMQ');
   systemStatus.mqttConectado = false;
 });
 
 // ==========================================
-// API HTTP (para o Dashboard consultar)
+// API HTTP
 // ==========================================
 
-// Rota principal do Dashboard
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// API que o HTML consulta a cada 5 segundos
 app.get("/api/lora", (req, res) => {
-  // Verifica se está desatualizado (mais de 2 minutos sem dados)
   const agora = new Date();
   const ultima = systemStatus.ultimaMensagem ? new Date(systemStatus.ultimaMensagem) : null;
   const desatualizado = ultima ? (agora - ultima) > 120000 : true;
@@ -190,7 +204,11 @@ app.get("/api/lora", (req, res) => {
       receptor_connected: systemStatus.receptorOnline,
       lora_connected: !desatualizado,
       caixa_config: caixaConfig,
-      historico: historico.slice(-20).reverse() // Últimos 20, mais recentes primeiro
+      historico: historico.slice(-20).reverse(),
+      system_info: {
+        mqtt_connected: systemStatus.mqttConectado,
+        server_uptime: process.uptime()
+      }
     };
   } else {
     resposta = {
@@ -198,11 +216,37 @@ app.get("/api/lora", (req, res) => {
       receptor_connected: true,
       lora_connected: true,
       caixa_config: caixaConfig,
-      historico: historico.slice(-20).reverse()
+      historico: historico.slice(-20).reverse(),
+      system_info: {
+        mqtt_connected: systemStatus.mqttConectado,
+        server_uptime: process.uptime()
+      }
     };
   }
   
   res.json(resposta);
+});
+
+// Rota de keep-alive (chamada pelo bot ou qualquer ping externo)
+app.get("/keep-alive", (req, res) => {
+  res.json({ 
+    status: "alive", 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    mqtt: systemStatus.mqttConectado
+  });
+});
+
+// Rota de health check
+app.get("/health", (req, res) => {
+  res.json({
+    status: "OK",
+    mqtt_conectado: systemStatus.mqttConectado,
+    receptor_online: systemStatus.receptorOnline,
+    ultima_mensagem: systemStatus.ultimaMensagem,
+    total_registros: historico.length,
+    uptime: process.uptime()
+  });
 });
 
 // Rota de teste
@@ -216,7 +260,7 @@ app.get("/api/test", (req, res) => {
   });
 });
 
-// Rota para enviar comandos ao ESP32 (reboot, etc)
+// Rota para enviar comandos ao ESP32
 app.post("/api/comando", express.json(), (req, res) => {
   const { comando } = req.body;
   
@@ -231,6 +275,36 @@ app.post("/api/comando", express.json(), (req, res) => {
 });
 
 // ==========================================
+// CONFIGURAÇÃO MQTT VIA API (NOVO)
+// ==========================================
+app.post("/api/configure-mqtt", express.json(), (req, res) => {
+  const { broker, port, user, pass } = req.body;
+  
+  if (!broker || !port || !user || !pass) {
+    return res.status(400).json({ 
+      error: "Todos os campos são obrigatórios (broker, port, user, pass)" 
+    });
+  }
+  
+  // Salvar em variáveis de ambiente (temporário - reinicia perde)
+  process.env.MQTT_BROKER = broker;
+  process.env.MQTT_PORT = port;
+  process.env.MQTT_USER = user;
+  process.env.MQTT_PASS = pass;
+  
+  console.log(`⚙️ Configuração MQTT atualizada:`);
+  console.log(`   Broker: ${broker}:${port}`);
+  console.log(`   User: ${user}`);
+  console.log(`   ⚠️ Reinicie o servidor para aplicar`);
+  
+  res.json({ 
+    success: true, 
+    message: "Configuração salva. Reinicie o servidor para aplicar.",
+    config: { broker, port, user }
+  });
+});
+
+// ==========================================
 // INICIA SERVIDOR
 // ==========================================
 const PORT = process.env.PORT || 3000;
@@ -238,6 +312,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 SERVIDOR HTTP RODANDO NA PORTA ${PORT}`);
   console.log(`🌐 Dashboard: http://localhost:${PORT}`);
-  console.log(`   ou no Render: https://seu-app.onrender.com`);
+  console.log(`💓 Keep-alive automático: ATIVADO`);
   console.log(`\n⏳ Conectando ao HiveMQ...`);
 });
