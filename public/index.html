@@ -594,7 +594,7 @@
       <div class="card-header">
         <i class="fas fa-history"></i> Últimas Leituras
       </div>
-      <div id="historyLoading" class="loading" style="text-align: center; padding: 20px; color: var(--gray);">
+      <div id="historyLoading" style="text-align: center; padding: 20px; color: var(--gray);">
         <i class="fas fa-spinner fa-spin"></i> Aguardando dados...
       </div>
       <div id="historyTableContainer" style="display: none;">
@@ -646,14 +646,14 @@
     import mqtt from 'https://unpkg.com/mqtt/dist/mqtt.esm.js';
 
     // ==========================================
-    // CONFIGURAÇÕES HIVE MQ
+    // CONFIGURAÇÕES HIVE MQ - ALTERE AQUI SE NECESSÁRIO
     // ==========================================
     const MQTT_CONFIG = {
       host: '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud',
       port: 8884,  // WebSocket SSL port
       username: 'esp32-receptor',
       password: '061084Cc@',
-      clientId: 'dashboard-' + Math.random().toString(16).substr(2, 8)
+      clientId: 'github-dashboard-' + Math.random().toString(16).substr(2, 8)
     };
 
     const TOPICS = {
@@ -665,12 +665,10 @@
     // Variáveis globais
     let client = null;
     let chart = null;
-    let updateHistoryData = [];
     let savedCapacityTotal = 0;
     let currentData = {};
     let historico = [];
     let lastMessageTime = null;
-    let reconnectAttempts = 0;
 
     // ==========================================
     // CONEXÃO MQTT
@@ -691,20 +689,16 @@
 
       client.on('connect', () => {
         console.log('✅ Conectado ao HiveMQ!');
-        reconnectAttempts = 0;
-        
-        // Atualiza UI
         updateConnectionStatus(true);
         document.getElementById('loadingOverlay').classList.add('hidden');
         
-        // Subscreve nos tópicos
         client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
           if (err) {
             console.error('❌ Erro ao subscrever:', err);
-            adicionarLog('❌ Erro ao subscrever nos tópicos');
+            adicionarLog('❌ Erro ao subscrever');
           } else {
             console.log('📡 Subscrito nos tópicos');
-            adicionarLog('✅ Conectado ao HiveMQ');
+            adicionarLog('✅ Dashboard conectado ao HiveMQ');
           }
         });
       });
@@ -712,8 +706,7 @@
       client.on('message', (topic, message) => {
         try {
           const payload = JSON.parse(message.toString());
-          console.log('📥 Mensagem recebida:', topic, payload);
-          
+          console.log('📥 Mensagem:', topic, payload);
           lastMessageTime = Date.now();
           
           if (topic === TOPICS.dados) {
@@ -722,7 +715,7 @@
             processarStatus(payload);
           }
         } catch (e) {
-          console.error('❌ Erro ao processar mensagem:', e);
+          console.error('❌ Erro:', e);
         }
       });
 
@@ -732,22 +725,12 @@
       });
 
       client.on('close', () => {
-        console.log('⚠️ Conexão fechada');
+        console.log('⚠️ Desconectado');
         updateConnectionStatus(false);
-        reconnectAttempts++;
-        
-        if (reconnectAttempts > 5) {
-          adicionarLog('⚠️ Múltiplas falhas de conexão. Verifique credenciais.');
-        }
-      });
-
-      client.on('reconnect', () => {
-        console.log('🔄 Reconectando...');
-        updateConnectionStatus(false, true);
       });
     }
 
-    function updateConnectionStatus(connected, connecting = false) {
+    function updateConnectionStatus(connected) {
       const badge = document.getElementById('mqttStatus');
       const brokerStatus = document.getElementById('brokerStatus');
       
@@ -756,11 +739,6 @@
         badge.className = 'mqtt-badge';
         brokerStatus.textContent = 'Conectado';
         brokerStatus.className = 'status-value online';
-      } else if (connecting) {
-        badge.innerHTML = '<i class="fas fa-sync fa-spin"></i> <span>Reconectando...</span>';
-        badge.className = 'mqtt-badge connecting';
-        brokerStatus.textContent = 'Reconectando...';
-        brokerStatus.className = 'status-value warning';
       } else {
         badge.innerHTML = '<i class="fas fa-times-circle"></i> <span>Offline</span>';
         badge.className = 'mqtt-badge disconnected';
@@ -773,12 +751,10 @@
     // PROCESSAMENTO DE DADOS
     // ==========================================
     function processarDados(payload) {
-      // Guardar capacidade
       if (payload.config_volume_total > 0) {
         savedCapacityTotal = payload.config_volume_total;
       }
       
-      // Atualizar dados atuais
       currentData = {
         percentage: parseInt(payload.percentage) || 0,
         liters: parseInt(payload.liters) || 0,
@@ -790,68 +766,54 @@
         sensorOk: payload.sensor_ok !== false
       };
 
-      // Adicionar ao histórico
       const registro = {
         timestamp: new Date().toISOString(),
         percentage: currentData.percentage,
         liters: currentData.liters,
         distance: currentData.distance,
         status: currentData.sensorOk ? 'normal' : 'sensor_error',
-        lora_signal: {
-          quality: currentData.quality,
-          rssi: currentData.rssi
-        }
+        lora_signal: { quality: currentData.quality, rssi: currentData.rssi }
       };
       
       historico.unshift(registro);
       if (historico.length > 50) historico.pop();
       
-      // Atualizar UI
       atualizarInterface();
       atualizarHistorico();
       atualizarGrafico();
-      
-      // Log
-      adicionarLog(`📊 Dados: ${currentData.percentage}% | ${currentData.liters}L`);
     }
 
     function processarStatus(payload) {
+      const receptorStatus = document.getElementById('receptorStatus');
       if (payload.status === 'online') {
-        document.getElementById('receptorStatus').textContent = 'Online';
-        document.getElementById('receptorStatus').className = 'status-value online';
-        adicionarLog('✅ Receptor online');
+        receptorStatus.textContent = 'Online';
+        receptorStatus.className = 'status-value online';
       } else if (payload.status === 'offline') {
-        document.getElementById('receptorStatus').textContent = 'Offline';
-        document.getElementById('receptorStatus').className = 'status-value offline';
-        adicionarLog('⚠️ Receptor desconectado');
+        receptorStatus.textContent = 'Offline';
+        receptorStatus.className = 'status-value offline';
       }
     }
 
     function atualizarInterface() {
       const warning = document.getElementById('connectionWarning');
       warning.className = 'connection-warning';
-      warning.innerHTML = '';
 
-      // Verificar se dados são válidos
       if (!currentData.sensorOk) {
         document.getElementById('loraStatus').textContent = 'Erro Sensor';
         document.getElementById('loraStatus').className = 'status-value warning';
         warning.className = 'connection-warning lora-off show';
         warning.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ERRO NO SENSOR';
-        zerarDisplay();
         return;
       }
 
       document.getElementById('loraStatus').textContent = 'Conectado';
       document.getElementById('loraStatus').className = 'status-value online';
 
-      // Atualizar tanque
       const pct = currentData.percentage;
       const water = document.getElementById('waterLevel');
       water.style.height = pct + '%';
       water.textContent = pct + '%';
       
-      // Cor baseada no nível
       water.className = 'water';
       if (pct <= 10) water.classList.add('critical');
       else if (pct <= 25) water.classList.add('low');
@@ -859,7 +821,6 @@
       else if (pct <= 80) water.classList.add('good');
       else water.classList.add('full');
 
-      // Atualizar valores
       document.getElementById('currentVolume').textContent = currentData.liters;
       document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1);
       document.getElementById('currentLevel').textContent = currentData.level;
@@ -867,28 +828,11 @@
       document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
       document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
       
-      // Atualizar sinal
-      atualizarSinal(currentData.quality);
-    }
-
-    function zerarDisplay() {
-      document.getElementById('waterLevel').style.height = '0%';
-      document.getElementById('waterLevel').textContent = '--';
-      document.getElementById('currentVolume').textContent = '--';
-      document.getElementById('currentDistance').textContent = '--';
-      document.getElementById('currentLevel').textContent = '--';
-      atualizarSinal(0);
-    }
-
-    function atualizarSinal(quality) {
+      // Sinal
       const bars = document.querySelectorAll('.signal-bar-item');
-      const activeBars = Math.ceil((quality / 100) * 5);
-      
-      bars.forEach((bar, idx) => {
-        bar.classList.toggle('active', idx < activeBars);
-      });
-      
-      document.getElementById('signalText').textContent = quality + '%';
+      const activeBars = Math.ceil((currentData.quality / 100) * 5);
+      bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
+      document.getElementById('signalText').textContent = currentData.quality + '%';
     }
 
     function atualizarHistorico() {
@@ -908,18 +852,15 @@
         
         let classeBadge = 'badge-normal';
         let textoStatus = 'Normal';
-        
-        if (item.status === 'waiting_lora') { classeBadge = 'badge-waiting'; textoStatus = 'Aguardando'; }
-        else if (item.status === 'receptor_disconnected') { classeBadge = 'badge-offline'; textoStatus = 'Offline'; }
-        else if (item.status === 'sensor_error') { classeBadge = 'badge-error'; textoStatus = 'Erro'; }
+        if (item.status === 'sensor_error') { classeBadge = 'badge-error'; textoStatus = 'Erro'; }
         
         row.innerHTML = `
           <td>${hora}</td>
           <td><span class="status-badge ${classeBadge}">${textoStatus}</span></td>
-          <td>${item.percentage >= 0 ? item.percentage + '%' : '--'}</td>
-          <td>${item.liters >= 0 ? item.liters + 'L' : '--'}</td>
-          <td>${item.distance >= 0 ? item.distance.toFixed(1) + 'cm' : '--'}</td>
-          <td>${item.lora_signal?.quality || 0}%</td>
+          <td>${item.percentage}%</td>
+          <td>${item.liters}L</td>
+          <td>${item.distance.toFixed(1)}cm</td>
+          <td>${item.lora_signal.quality}%</td>
         `;
         tbody.appendChild(row);
       });
@@ -929,8 +870,7 @@
       const ctx = document.getElementById('nivelChart');
       if (!ctx) return;
       
-      const dadosValidos = historico.filter(i => i.status === 'normal' && i.percentage >= 0).reverse();
-      
+      const dadosValidos = historico.filter(i => i.status === 'normal').reverse();
       if (dadosValidos.length === 0) return;
       
       const labels = dadosValidos.map(i => new Date(i.timestamp));
@@ -983,7 +923,7 @@
     }
 
     // ==========================================
-    // COMANDOS
+    // COMANDOS GLOBAIS
     // ==========================================
     window.confirmarReboot = function() {
       document.getElementById('modalReboot').classList.add('show');
@@ -998,34 +938,32 @@
       if (client && client.connected) {
         client.publish(TOPICS.comandos, 'REBOOT');
         adicionarLog('🔄 Comando REBOOT enviado');
-        alert('Comando de reinício enviado!');
+        alert('Comando enviado! Aguarde 30 segundos...');
       } else {
-        alert('MQTT não está conectado!');
+        alert('MQTT não conectado!');
       }
     };
 
     window.showDetails = function(tipo) {
       let msg = '';
       switch(tipo) {
-        case 'volume': msg = `Volume atual: ${currentData.liters}L\nCapacidade: ${savedCapacityTotal}L`; break;
-        case 'distance': msg = `Distância do sensor até a água: ${currentData.distance}cm`; break;
-        case 'level': msg = `Altura da coluna de água: ${currentData.level}cm`; break;
+        case 'volume': msg = `Volume: ${currentData.liters}L / ${savedCapacityTotal}L`; break;
+        case 'distance': msg = `Distância: ${currentData.distance}cm`; break;
+        case 'level': msg = `Altura: ${currentData.level}cm`; break;
       }
       alert(msg);
     };
 
     window.debugData = function() {
-      console.log('Current Data:', currentData);
+      console.log('Dados:', currentData);
       console.log('Histórico:', historico);
-      console.log('MQTT Client:', client);
     };
 
-    // Fechar modal ao clicar fora
     document.getElementById('modalReboot').addEventListener('click', (e) => {
       if (e.target.id === 'modalReboot') fecharModal();
     });
 
-    // Verificar timeout de dados (2 minutos)
+    // Verificar timeout
     setInterval(() => {
       if (lastMessageTime && (Date.now() - lastMessageTime > 120000)) {
         document.getElementById('loraStatus').textContent = 'Sem Dados';
@@ -1036,7 +974,7 @@
       }
     }, 10000);
 
-    // Iniciar conexão
+    // Iniciar
     connectMQTT();
   </script>
 </body>
