@@ -550,14 +550,6 @@
       0%, 100% { border-width: 2px; }
       50% { border-width: 4px; }
     }
-
-    .transmitter-timeout {
-      animation: pulse-warning 1s infinite;
-    }
-    @keyframes pulse-warning {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
-    }
   </style>
 </head>
 <body>
@@ -769,11 +761,13 @@
     let savedCapacityTotal = 0;
     let currentData = {};
     let historico = [];
-    let lastMessageTime = null;
+    let lastDataMessageTime = null; // SÓ atualiza quando recebe dados do transmissor (tópico dados)
+    let lastStatusMessageTime = null; // Para heartbeat do receptor
     let receptorOnline = false;
     let transmitterActive = false;
     let timeoutCheckInterval = null;
     let secondsWithoutData = 0;
+    let alertAlreadyShown = false; // Evita múltiplos logs do mesmo alerta
 
     // ==========================================
     // CONEXÃO MQTT
@@ -814,27 +808,36 @@
       client.on('message', (topic, message) => {
         try {
           const payload = JSON.parse(message.toString());
-          console.log('📥 Mensagem:', topic, payload);
+          console.log('📥 Mensagem recebida no tópico:', topic);
           
-          // Atualizar timestamp da última mensagem
-          lastMessageTime = Date.now();
-          secondsWithoutData = 0;
-          
-          // Se estava inativo, agora está ativo
-          if (!transmitterActive) {
-            transmitterActive = true;
-            adicionarLog('✅ Sinal do transmissor restaurado');
-            esconderAlertaTransmitter();
-          }
-          
+          // SEPARAÇÃO CLARA: Só dados do transmissor contam como sinal válido
           if (topic === TOPICS.dados) {
+            // SÓ AQUI atualiza o timestamp do transmissor!
+            lastDataMessageTime = Date.now();
+            secondsWithoutData = 0;
+            
+            console.log('📊 Dados do transmissor recebidos:', payload.percentage + '%');
+            
+            // Se estava inativo, agora está ativo
+            if (!transmitterActive) {
+              transmitterActive = true;
+              alertAlreadyShown = false;
+              adicionarLog('✅ Sinal do transmissor restaurado');
+              esconderAlertaTransmitter();
+              restaurarInterface();
+            }
+            
             processarDados(payload);
+            
           } else if (topic === TOPICS.status) {
+            // Status do receptor NÃO conta como dados do transmissor
+            lastStatusMessageTime = Date.now();
+            console.log('📡 Status do receptor:', payload.status);
             processarStatus(payload);
           }
           
         } catch (e) {
-          console.error('❌ Erro:', e);
+          console.error('❌ Erro ao processar mensagem:', e);
         }
       });
 
@@ -844,7 +847,7 @@
       });
 
       client.on('close', () => {
-        console.log('⚠️ Desconectado');
+        console.log('⚠️ Desconectado do MQTT');
         updateConnectionStatus(false);
       });
     }
@@ -870,7 +873,6 @@
     // VERIFICAÇÃO DE TIMEOUT DO TRANSMISSOR
     // ==========================================
     function iniciarVerificacaoTimeout() {
-      // Limpar interval anterior se existir
       if (timeoutCheckInterval) {
         clearInterval(timeoutCheckInterval);
       }
@@ -878,26 +880,34 @@
       timeoutCheckInterval = setInterval(() => {
         const agora = Date.now();
         
-        if (lastMessageTime) {
-          const tempoSemDados = agora - lastMessageTime;
+        // Só verifica se já recebeu alguma mensagem de dados
+        if (lastDataMessageTime) {
+          const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
           
           // Atualizar contador no banner
-          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+          const timeoutSpan = document.getElementById('timeoutSeconds');
+          if (timeoutSpan) {
+            timeoutSpan.textContent = secondsWithoutData;
+          }
           
-          // Se passou de 15 segundos sem dados
+          // Se passou de 15 segundos sem dados do transmissor
           if (tempoSemDados > TRANSMITTER_TIMEOUT) {
             if (transmitterActive) {
               transmitterActive = false;
-              adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
+              console.log('⏱️ Timeout! Sem dados do transmissor por', secondsWithoutData, 'segundos');
+              adicionarLog('⚠️ Perda de sinal do transmissor (' + secondsWithoutData + 's)', 'alert');
               mostrarAlertaTransmitter();
               atualizarInterfaceTimeout();
             }
           }
         } else {
-          // Nunca recebeu dados
-          secondsWithoutData += 1;
-          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+          // Nunca recebeu dados - conta desde o início
+          secondsWithoutData++;
+          const timeoutSpan = document.getElementById('timeoutSeconds');
+          if (timeoutSpan) {
+            timeoutSpan.textContent = secondsWithoutData;
+          }
           
           if (secondsWithoutData > 15 && transmitterActive) {
             transmitterActive = false;
@@ -927,14 +937,21 @@
       document.getElementById('currentDistance').textContent = '--';
       document.getElementById('currentLevel').textContent = '--';
       document.getElementById('signalText').textContent = '0%';
+      document.getElementById('lastUpdate').textContent = '--:--:--';
       
       // Resetar barras de sinal
       const bars = document.querySelectorAll('.signal-bar-item');
       bars.forEach(bar => bar.classList.remove('active'));
     }
 
+    function restaurarInterface() {
+      // Restaura status visual quando volta o sinal
+      document.getElementById('loraStatus').textContent = 'Conectado';
+      document.getElementById('loraStatus').className = 'status-value online';
+    }
+
     // ==========================================
-    // PROCESSAMENTO DE DADOS
+    // PROCESSAMENTO DE DADOS (SÓ DO TRANSMISSOR)
     // ==========================================
     function processarDados(payload) {
       if (payload.config_volume_total > 0) {
@@ -970,21 +987,29 @@
       
       // Log de falha de sensor
       if (!currentData.sensorOk) {
-        adicionarLog('⚠️ Falha no sensor detectada', 'alert');
+        if (!alertAlreadyShown) {
+          adicionarLog('⚠️ Falha no sensor detectada', 'alert');
+          alertAlreadyShown = true;
+        }
         document.getElementById('alertSensor').classList.add('show');
       } else {
+        alertAlreadyShown = false;
         document.getElementById('alertSensor').classList.remove('show');
       }
     }
 
+    // ==========================================
+    // PROCESSAMENTO DE STATUS (DO RECEPTOR - NÃO CONTA COMO DADOS)
+    // ==========================================
     function processarStatus(payload) {
       const receptorStatus = document.getElementById('receptorStatus');
+      
       if (payload.status === 'online') {
         receptorOnline = true;
         receptorStatus.textContent = 'Online';
         receptorStatus.className = 'status-value online';
         document.getElementById('alertReceptor').classList.remove('show');
-        adicionarLog('✅ Receptor online');
+        // NÃO chama adicionarLog aqui para evitar spam
       } else if (payload.status === 'offline') {
         receptorOnline = false;
         receptorStatus.textContent = 'Offline';
@@ -1156,11 +1181,13 @@
     };
 
     window.debugData = function() {
-      console.log('Dados:', currentData);
+      console.log('=== DEBUG ===');
+      console.log('Transmitter Active:', transmitterActive);
+      console.log('Last Data Message:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : 'Nunca');
+      console.log('Last Status Message:', lastStatusMessageTime ? new Date(lastStatusMessageTime).toLocaleTimeString() : 'Nunca');
+      console.log('Seconds Without Data:', secondsWithoutData);
+      console.log('Current Data:', currentData);
       console.log('Histórico:', historico);
-      console.log('Última mensagem:', lastMessageTime);
-      console.log('Segundos sem dados:', secondsWithoutData);
-      console.log('Transmissor ativo:', transmitterActive);
     };
 
     document.getElementById('modalReboot').addEventListener('click', (e) => {
