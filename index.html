@@ -550,6 +550,14 @@
       0%, 100% { border-width: 2px; }
       50% { border-width: 4px; }
     }
+
+    .transmitter-timeout {
+      animation: pulse-warning 1s infinite;
+    }
+    @keyframes pulse-warning {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
   </style>
 </head>
 <body>
@@ -570,7 +578,7 @@
 
     <!-- Alert Banners -->
     <div id="alertTransmitter" class="alert-banner alert-transmitter">
-      <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR
+      <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR (<span id="timeoutSeconds">0</span>s)
     </div>
     <div id="alertReceptor" class="alert-banner alert-receptor">
       <i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO
@@ -750,6 +758,11 @@
       comandos: 'caixas/agua/comandos'
     };
 
+    // ==========================================
+    // CONFIGURAÇÕES DE TIMEOUT
+    // ==========================================
+    const TRANSMITTER_TIMEOUT = 15000; // 15 segundos
+
     // Variáveis globais
     let client = null;
     let chart = null;
@@ -759,6 +772,8 @@
     let lastMessageTime = null;
     let receptorOnline = false;
     let transmitterActive = false;
+    let timeoutCheckInterval = null;
+    let secondsWithoutData = 0;
 
     // ==========================================
     // CONEXÃO MQTT
@@ -782,6 +797,9 @@
         updateConnectionStatus(true);
         document.getElementById('loadingOverlay').classList.add('hidden');
         
+        // Iniciar verificação de timeout
+        iniciarVerificacaoTimeout();
+        
         client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
           if (err) {
             console.error('❌ Erro ao subscrever:', err);
@@ -797,8 +815,17 @@
         try {
           const payload = JSON.parse(message.toString());
           console.log('📥 Mensagem:', topic, payload);
+          
+          // Atualizar timestamp da última mensagem
           lastMessageTime = Date.now();
-          transmitterActive = true;
+          secondsWithoutData = 0;
+          
+          // Se estava inativo, agora está ativo
+          if (!transmitterActive) {
+            transmitterActive = true;
+            adicionarLog('✅ Sinal do transmissor restaurado');
+            esconderAlertaTransmitter();
+          }
           
           if (topic === TOPICS.dados) {
             processarDados(payload);
@@ -806,7 +833,6 @@
             processarStatus(payload);
           }
           
-          verificarAlertas();
         } catch (e) {
           console.error('❌ Erro:', e);
         }
@@ -838,6 +864,73 @@
         brokerStatus.textContent = 'Desconectado';
         brokerStatus.className = 'status-value offline';
       }
+    }
+
+    // ==========================================
+    // VERIFICAÇÃO DE TIMEOUT DO TRANSMISSOR
+    // ==========================================
+    function iniciarVerificacaoTimeout() {
+      // Limpar interval anterior se existir
+      if (timeoutCheckInterval) {
+        clearInterval(timeoutCheckInterval);
+      }
+      
+      timeoutCheckInterval = setInterval(() => {
+        const agora = Date.now();
+        
+        if (lastMessageTime) {
+          const tempoSemDados = agora - lastMessageTime;
+          secondsWithoutData = Math.floor(tempoSemDados / 1000);
+          
+          // Atualizar contador no banner
+          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+          
+          // Se passou de 15 segundos sem dados
+          if (tempoSemDados > TRANSMITTER_TIMEOUT) {
+            if (transmitterActive) {
+              transmitterActive = false;
+              adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
+              mostrarAlertaTransmitter();
+              atualizarInterfaceTimeout();
+            }
+          }
+        } else {
+          // Nunca recebeu dados
+          secondsWithoutData += 1;
+          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+          
+          if (secondsWithoutData > 15 && transmitterActive) {
+            transmitterActive = false;
+            mostrarAlertaTransmitter();
+          }
+        }
+      }, 1000); // Verificar a cada 1 segundo
+    }
+
+    function mostrarAlertaTransmitter() {
+      document.getElementById('alertTransmitter').classList.add('show');
+      document.getElementById('loraStatus').textContent = 'Sem Sinal';
+      document.getElementById('loraStatus').className = 'status-value offline';
+    }
+
+    function esconderAlertaTransmitter() {
+      document.getElementById('alertTransmitter').classList.remove('show');
+      document.getElementById('loraStatus').textContent = 'Conectado';
+      document.getElementById('loraStatus').className = 'status-value online';
+    }
+
+    function atualizarInterfaceTimeout() {
+      // Zerar display quando perde sinal
+      document.getElementById('waterLevel').style.height = '0%';
+      document.getElementById('waterLevel').textContent = '--';
+      document.getElementById('currentVolume').textContent = '--';
+      document.getElementById('currentDistance').textContent = '--';
+      document.getElementById('currentLevel').textContent = '--';
+      document.getElementById('signalText').textContent = '0%';
+      
+      // Resetar barras de sinal
+      const bars = document.querySelectorAll('.signal-bar-item');
+      bars.forEach(bar => bar.classList.remove('active'));
     }
 
     // ==========================================
@@ -878,6 +971,9 @@
       // Log de falha de sensor
       if (!currentData.sensorOk) {
         adicionarLog('⚠️ Falha no sensor detectada', 'alert');
+        document.getElementById('alertSensor').classList.add('show');
+      } else {
+        document.getElementById('alertSensor').classList.remove('show');
       }
     }
 
@@ -887,44 +983,14 @@
         receptorOnline = true;
         receptorStatus.textContent = 'Online';
         receptorStatus.className = 'status-value online';
+        document.getElementById('alertReceptor').classList.remove('show');
         adicionarLog('✅ Receptor online');
       } else if (payload.status === 'offline') {
         receptorOnline = false;
         receptorStatus.textContent = 'Offline';
         receptorStatus.className = 'status-value offline';
+        document.getElementById('alertReceptor').classList.add('show');
         adicionarLog('⚠️ Receptor offline', 'warning');
-      }
-      verificarAlertas();
-    }
-
-    function verificarAlertas() {
-      const agora = Date.now();
-      const tempoSemDados = lastMessageTime ? (agora - lastMessageTime) : 999999;
-      
-      // Alerta transmissor (sem dados por 2 minutos)
-      const alertTransmitter = document.getElementById('alertTransmitter');
-      if (tempoSemDados > 120000) {
-        alertTransmitter.classList.add('show');
-        transmitterActive = false;
-      } else {
-        alertTransmitter.classList.remove('show');
-        transmitterActive = true;
-      }
-      
-      // Alerta receptor
-      const alertReceptor = document.getElementById('alertReceptor');
-      if (!receptorOnline) {
-        alertReceptor.classList.add('show');
-      } else {
-        alertReceptor.classList.remove('show');
-      }
-      
-      // Alerta sensor
-      const alertSensor = document.getElementById('alertSensor');
-      if (currentData.sensorOk === false) {
-        alertSensor.classList.add('show');
-      } else {
-        alertSensor.classList.remove('show');
       }
     }
 
@@ -934,9 +1000,6 @@
         document.getElementById('loraStatus').className = 'status-value warning';
         return;
       }
-
-      document.getElementById('loraStatus').textContent = 'Conectado';
-      document.getElementById('loraStatus').className = 'status-value online';
 
       const pct = currentData.percentage;
       const water = document.getElementById('waterLevel');
@@ -1095,16 +1158,14 @@
     window.debugData = function() {
       console.log('Dados:', currentData);
       console.log('Histórico:', historico);
+      console.log('Última mensagem:', lastMessageTime);
+      console.log('Segundos sem dados:', secondsWithoutData);
+      console.log('Transmissor ativo:', transmitterActive);
     };
 
     document.getElementById('modalReboot').addEventListener('click', (e) => {
       if (e.target.id === 'modalReboot') fecharModal();
     });
-
-    // Verificações periódicas
-    setInterval(() => {
-      verificarAlertas();
-    }, 5000);
 
     // Iniciar
     connectMQTT();
