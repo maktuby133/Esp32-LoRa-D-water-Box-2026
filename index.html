@@ -95,7 +95,7 @@
 
     .controls-top {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
       margin-bottom: 10px;
       flex-wrap: wrap;
@@ -195,6 +195,9 @@
     .lora-off {
       background: #fef3c7; color: #92400e; border: 2px solid #fbbf24;
     }
+    .sensor-error {
+      background: #fecaca; color: #7f1d1d; border: 2px solid #ef4444;
+    }
 
     @keyframes slideInDown {
       from { opacity: 0; transform: translateY(-20px); }
@@ -277,30 +280,44 @@
       text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
       border-radius: 0 0 8px 8px;
       min-height: 20px;
+      overflow: hidden;
     }
 
     .water::before {
       content: '';
       position: absolute;
-      top: -6px; left: -50%;
+      top: -8px; left: -50%;
+      width: 200%; height: 16px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 40%;
+      animation: wave 2s infinite linear;
+    }
+
+    .water::after {
+      content: '';
+      position: absolute;
+      top: -6px; left: -30%;
       width: 200%; height: 12px;
-      background: rgba(255,255,255,0.3);
-      border-radius: 50%;
-      animation: wave 3s infinite linear;
+      background: rgba(255,255,255,0.2);
+      border-radius: 40%;
+      animation: wave 3s infinite linear reverse;
     }
 
     @keyframes wave {
       0% { transform: translateX(0) rotate(0deg); }
-      100% { transform: translateX(-25%) rotate(360deg); }
+      100% { transform: translateX(-50%) rotate(360deg); }
     }
 
-    .water.critical { background: linear-gradient(to top, #dc2626, #ef4444); animation: pulse 1s infinite; }
+    .water.critical { background: linear-gradient(to top, #dc2626, #ef4444); animation: pulse-red 1s infinite; }
     .water.low { background: linear-gradient(to top, #ea580c, #fb923c); }
     .water.medium { background: linear-gradient(to top, #ca8a04, #fbbf24); }
     .water.good { background: linear-gradient(to top, #0284c7, #38bdf8); }
     .water.full { background: linear-gradient(to top, #0369a1, #0ea5e9); }
 
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
+    @keyframes pulse-red { 
+      0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(220, 38, 38, 0.5); } 
+      50% { opacity: 0.8; box-shadow: 0 0 20px rgba(220, 38, 38, 0.8); } 
+    }
 
     .tank-marks {
       position: absolute;
@@ -390,6 +407,23 @@
     .badge-error { background: #f8d7da; color: #721c24; }
     .badge-offline { background: #fee2e2; color: #991b1b; }
 
+    .signal-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .signal-dbm {
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--primary-dark);
+      min-width: 45px;
+    }
+    .signal-percent {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--gray);
+    }
+
     .update-entry {
       padding: 8px 12px;
       margin-bottom: 6px;
@@ -401,10 +435,33 @@
       font-size: 0.8rem;
       animation: slideIn 0.3s ease;
     }
+    .update-entry.alert {
+      background: #fee2e2;
+      border-left-color: var(--danger);
+      animation: pulse-alert 2s infinite;
+    }
+    .update-entry.warning {
+      background: #fef3c7;
+      border-left-color: var(--warning);
+    }
     @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes pulse-alert { 
+      0%, 100% { background: #fee2e2; } 
+      50% { background: #fecaca; } 
+    }
     .update-time { color: var(--primary); font-weight: 600; min-width: 60px; font-size: 0.75rem; }
+    .update-entry.alert .update-time { color: var(--danger); }
+    .update-entry.warning .update-time { color: #92400e; }
     .update-text { color: var(--dark); flex: 1; }
-    #updateHistory { max-height: 150px; overflow-y: auto; }
+
+    #updateHistory { max-height: 200px; overflow-y: auto; }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
 
     .debug-btn {
       position: fixed;
@@ -468,6 +525,31 @@
       animation: spin 1s linear infinite;
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    .alert-banner {
+      display: none;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.9rem;
+      animation: slideInDown 0.5s ease, pulse-border 2s infinite;
+    }
+    .alert-banner.show { display: block; }
+    .alert-transmitter {
+      background: #fecaca; color: #7f1d1d; border: 2px solid #ef4444;
+    }
+    .alert-receptor {
+      background: #fee2e2; color: #991b1b; border: 2px solid #f87171;
+    }
+    .alert-sensor {
+      background: #fef3c7; color: #92400e; border: 2px solid #fbbf24;
+    }
+    @keyframes pulse-border {
+      0%, 100% { border-width: 2px; }
+      50% { border-width: 4px; }
+    }
   </style>
 </head>
 <body>
@@ -486,15 +568,16 @@
       </div>
     </div>
 
-    <!-- Controles -->
-    <div class="controls-top">
-      <button class="btn btn-reboot" onclick="confirmarReboot()">
-        <i class="fas fa-power-off"></i> Reiniciar Receptor
-      </button>
+    <!-- Alert Banners -->
+    <div id="alertTransmitter" class="alert-banner alert-transmitter">
+      <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR
     </div>
-
-    <!-- Warning Banner -->
-    <div id="connectionWarning" class="connection-warning"></div>
+    <div id="alertReceptor" class="alert-banner alert-receptor">
+      <i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO
+    </div>
+    <div id="alertSensor" class="alert-banner alert-sensor">
+      <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR
+    </div>
 
     <!-- Status Panel -->
     <div class="status-panel">
@@ -607,7 +690,7 @@
                 <th>Nível</th>
                 <th>Volume</th>
                 <th>Dist.</th>
-                <th>LoRa</th>
+                <th>Sinal LoRa</th>
               </tr>
             </thead>
             <tbody id="historyBody"></tbody>
@@ -618,8 +701,13 @@
 
     <!-- Updates Log -->
     <div class="card">
-      <div class="card-header">
-        <i class="fas fa-bell"></i> Log de Eventos MQTT
+      <div class="log-header">
+        <div class="card-header" style="margin: 0;">
+          <i class="fas fa-bell"></i> Log de Eventos MQTT
+        </div>
+        <button class="btn btn-reboot" onclick="confirmarReboot()">
+          <i class="fas fa-power-off"></i> Reiniciar Receptor
+        </button>
       </div>
       <div id="updateHistory"></div>
     </div>
@@ -646,11 +734,11 @@
     import mqtt from 'https://unpkg.com/mqtt/dist/mqtt.esm.js';
 
     // ==========================================
-    // CONFIGURAÇÕES HIVE MQ - ALTERE AQUI SE NECESSÁRIO
+    // CONFIGURAÇÕES HIVE MQ
     // ==========================================
     const MQTT_CONFIG = {
       host: '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud',
-      port: 8884,  // WebSocket SSL port
+      port: 8884,
       username: 'esp32-receptor',
       password: '061084Cc@',
       clientId: 'github-dashboard-' + Math.random().toString(16).substr(2, 8)
@@ -669,6 +757,8 @@
     let currentData = {};
     let historico = [];
     let lastMessageTime = null;
+    let receptorOnline = false;
+    let transmitterActive = false;
 
     // ==========================================
     // CONEXÃO MQTT
@@ -695,10 +785,10 @@
         client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
           if (err) {
             console.error('❌ Erro ao subscrever:', err);
-            adicionarLog('❌ Erro ao subscrever');
+            adicionarLog('❌ Erro ao subscrever', 'error');
           } else {
             console.log('📡 Subscrito nos tópicos');
-            adicionarLog('✅ Dashboard conectado ao HiveMQ');
+            adicionarLog('✅ Dashboard conectado');
           }
         });
       });
@@ -708,12 +798,15 @@
           const payload = JSON.parse(message.toString());
           console.log('📥 Mensagem:', topic, payload);
           lastMessageTime = Date.now();
+          transmitterActive = true;
           
           if (topic === TOPICS.dados) {
             processarDados(payload);
           } else if (topic === TOPICS.status) {
             processarStatus(payload);
           }
+          
+          verificarAlertas();
         } catch (e) {
           console.error('❌ Erro:', e);
         }
@@ -781,28 +874,64 @@
       atualizarInterface();
       atualizarHistorico();
       atualizarGrafico();
+      
+      // Log de falha de sensor
+      if (!currentData.sensorOk) {
+        adicionarLog('⚠️ Falha no sensor detectada', 'alert');
+      }
     }
 
     function processarStatus(payload) {
       const receptorStatus = document.getElementById('receptorStatus');
       if (payload.status === 'online') {
+        receptorOnline = true;
         receptorStatus.textContent = 'Online';
         receptorStatus.className = 'status-value online';
+        adicionarLog('✅ Receptor online');
       } else if (payload.status === 'offline') {
+        receptorOnline = false;
         receptorStatus.textContent = 'Offline';
         receptorStatus.className = 'status-value offline';
+        adicionarLog('⚠️ Receptor offline', 'warning');
+      }
+      verificarAlertas();
+    }
+
+    function verificarAlertas() {
+      const agora = Date.now();
+      const tempoSemDados = lastMessageTime ? (agora - lastMessageTime) : 999999;
+      
+      // Alerta transmissor (sem dados por 2 minutos)
+      const alertTransmitter = document.getElementById('alertTransmitter');
+      if (tempoSemDados > 120000) {
+        alertTransmitter.classList.add('show');
+        transmitterActive = false;
+      } else {
+        alertTransmitter.classList.remove('show');
+        transmitterActive = true;
+      }
+      
+      // Alerta receptor
+      const alertReceptor = document.getElementById('alertReceptor');
+      if (!receptorOnline) {
+        alertReceptor.classList.add('show');
+      } else {
+        alertReceptor.classList.remove('show');
+      }
+      
+      // Alerta sensor
+      const alertSensor = document.getElementById('alertSensor');
+      if (currentData.sensorOk === false) {
+        alertSensor.classList.add('show');
+      } else {
+        alertSensor.classList.remove('show');
       }
     }
 
     function atualizarInterface() {
-      const warning = document.getElementById('connectionWarning');
-      warning.className = 'connection-warning';
-
       if (!currentData.sensorOk) {
         document.getElementById('loraStatus').textContent = 'Erro Sensor';
         document.getElementById('loraStatus').className = 'status-value warning';
-        warning.className = 'connection-warning lora-off show';
-        warning.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ERRO NO SENSOR';
         return;
       }
 
@@ -846,7 +975,8 @@
       container.style.display = 'block';
       
       tbody.innerHTML = '';
-      historico.slice(0, 10).forEach(item => {
+      // Mostrar apenas 4 leituras
+      historico.slice(0, 4).forEach(item => {
         const row = document.createElement('tr');
         const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
         
@@ -860,7 +990,12 @@
           <td>${item.percentage}%</td>
           <td>${item.liters}L</td>
           <td>${item.distance.toFixed(1)}cm</td>
-          <td>${item.lora_signal.quality}%</td>
+          <td>
+            <div class="signal-cell">
+              <span class="signal-dbm">${item.lora_signal.rssi} dBm</span>
+              <span class="signal-percent">(${item.lora_signal.quality}%)</span>
+            </div>
+          </td>
         `;
         tbody.appendChild(row);
       });
@@ -908,10 +1043,13 @@
       }
     }
 
-    function adicionarLog(texto) {
+    function adicionarLog(texto, tipo = 'normal') {
       const hora = new Date().toLocaleTimeString('pt-BR');
       const div = document.createElement('div');
       div.className = 'update-entry';
+      if (tipo === 'alert') div.classList.add('alert');
+      if (tipo === 'warning') div.classList.add('warning');
+      
       div.innerHTML = `<span class="update-time">${hora}</span><span class="update-text">${texto}</span>`;
       
       const container = document.getElementById('updateHistory');
@@ -963,16 +1101,10 @@
       if (e.target.id === 'modalReboot') fecharModal();
     });
 
-    // Verificar timeout
+    // Verificações periódicas
     setInterval(() => {
-      if (lastMessageTime && (Date.now() - lastMessageTime > 120000)) {
-        document.getElementById('loraStatus').textContent = 'Sem Dados';
-        document.getElementById('loraStatus').className = 'status-value warning';
-        const warning = document.getElementById('connectionWarning');
-        warning.className = 'connection-warning lora-off show';
-        warning.innerHTML = '<i class="fas fa-satellite-dish"></i> SEM DADOS HÁ 2 MINUTOS';
-      }
-    }, 10000);
+      verificarAlertas();
+    }, 5000);
 
     // Iniciar
     connectMQTT();
