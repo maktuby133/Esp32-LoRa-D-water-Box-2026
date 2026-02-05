@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+html_corrigido = '''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -754,6 +754,7 @@
     // CONFIGURAÇÕES DE TIMEOUT
     // ==========================================
     const TRANSMITTER_TIMEOUT = 15000; // 15 segundos
+    const STORAGE_KEY = 'transmitter_timeout_state';
 
     // Variáveis globais
     let client = null;
@@ -761,13 +762,56 @@
     let savedCapacityTotal = 0;
     let currentData = {};
     let historico = [];
-    let lastDataMessageTime = null; // SÓ atualiza quando recebe dados do transmissor (tópico dados)
-    let lastStatusMessageTime = null; // Para heartbeat do receptor
+    let lastDataMessageTime = null;
+    let lastStatusMessageTime = null;
     let receptorOnline = false;
     let transmitterActive = false;
     let timeoutCheckInterval = null;
     let secondsWithoutData = 0;
-    let alertAlreadyShown = false; // Evita múltiplos logs do mesmo alerta
+    let alertAlreadyShown = false;
+
+    // ==========================================
+    // PERSISTÊNCIA DO ESTADO DE TIMEOUT
+    // ==========================================
+    function salvarEstadoTimeout() {
+      const estado = {
+        lastDataMessageTime: lastDataMessageTime,
+        transmitterActive: transmitterActive,
+        secondsWithoutData: secondsWithoutData,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+    }
+
+    function carregarEstadoTimeout() {
+      try {
+        const estadoSalvo = localStorage.getItem(STORAGE_KEY);
+        if (estadoSalvo) {
+          const estado = JSON.parse(estadoSalvo);
+          const agora = Date.now();
+          const tempoDecorrido = agora - estado.timestamp;
+          
+          // Se havia um timeout ativo, ajusta o tempo decorrido
+          if (estado.lastDataMessageTime && !estado.transmitterActive) {
+            lastDataMessageTime = estado.lastDataMessageTime;
+            // Adiciona o tempo que passou desde a última atualização
+            const tempoSemDados = agora - estado.lastDataMessageTime;
+            secondsWithoutData = Math.floor(tempoSemDados / 1000);
+            transmitterActive = false;
+            
+            console.log('📦 Estado restaurado - Sem sinal há:', secondsWithoutData, 's');
+            return true; // Indica que havia um estado de timeout
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao carregar estado:', e);
+      }
+      return false;
+    }
+
+    function limparEstadoTimeout() {
+      localStorage.removeItem(STORAGE_KEY);
+    }
 
     // ==========================================
     // CONEXÃO MQTT
@@ -801,6 +845,15 @@
           } else {
             console.log('📡 Subscrito nos tópicos');
             adicionarLog('✅ Dashboard conectado');
+            
+            // Verifica se havia um estado de timeout salvo
+            const haviaTimeout = carregarEstadoTimeout();
+            if (haviaTimeout) {
+              // Mostra o alerta imediatamente se havia timeout
+              mostrarAlertaTransmitter();
+              atualizarInterfaceTimeout();
+              adicionarLog('⚠️ Transmissor ainda sem sinal (' + secondsWithoutData + 's)', 'alert');
+            }
           }
         });
       });
@@ -810,18 +863,16 @@
           const payload = JSON.parse(message.toString());
           console.log('📥 Mensagem recebida no tópico:', topic);
           
-          // SEPARAÇÃO CLARA: Só dados do transmissor contam como sinal válido
           if (topic === TOPICS.dados) {
-            // SÓ AQUI atualiza o timestamp do transmissor!
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
             
             console.log('📊 Dados do transmissor recebidos:', payload.percentage + '%');
             
-            // Se estava inativo, agora está ativo
             if (!transmitterActive) {
               transmitterActive = true;
               alertAlreadyShown = false;
+              limparEstadoTimeout(); // Limpa o estado salvo quando volta o sinal
               adicionarLog('✅ Sinal do transmissor restaurado');
               esconderAlertaTransmitter();
               restaurarInterface();
@@ -830,7 +881,6 @@
             processarDados(payload);
             
           } else if (topic === TOPICS.status) {
-            // Status do receptor NÃO conta como dados do transmissor
             lastStatusMessageTime = Date.now();
             console.log('📡 Status do receptor:', payload.status);
             processarStatus(payload);
@@ -849,6 +899,8 @@
       client.on('close', () => {
         console.log('⚠️ Desconectado do MQTT');
         updateConnectionStatus(false);
+        // Salva o estado atual antes de fechar
+        salvarEstadoTimeout();
       });
     }
 
@@ -880,7 +932,6 @@
       timeoutCheckInterval = setInterval(() => {
         const agora = Date.now();
         
-        // Só verifica se já recebeu alguma mensagem de dados
         if (lastDataMessageTime) {
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
@@ -900,6 +951,9 @@
               mostrarAlertaTransmitter();
               atualizarInterfaceTimeout();
             }
+            
+            // Salva o estado a cada verificação durante o timeout
+            salvarEstadoTimeout();
           }
         } else {
           // Nunca recebeu dados - conta desde o início
@@ -912,9 +966,10 @@
           if (secondsWithoutData > 15 && transmitterActive) {
             transmitterActive = false;
             mostrarAlertaTransmitter();
+            salvarEstadoTimeout();
           }
         }
-      }, 1000); // Verificar a cada 1 segundo
+      }, 1000);
     }
 
     function mostrarAlertaTransmitter() {
@@ -930,7 +985,6 @@
     }
 
     function atualizarInterfaceTimeout() {
-      // Zerar display quando perde sinal
       document.getElementById('waterLevel').style.height = '0%';
       document.getElementById('waterLevel').textContent = '--';
       document.getElementById('currentVolume').textContent = '--';
@@ -939,19 +993,17 @@
       document.getElementById('signalText').textContent = '0%';
       document.getElementById('lastUpdate').textContent = '--:--:--';
       
-      // Resetar barras de sinal
       const bars = document.querySelectorAll('.signal-bar-item');
       bars.forEach(bar => bar.classList.remove('active'));
     }
 
     function restaurarInterface() {
-      // Restaura status visual quando volta o sinal
       document.getElementById('loraStatus').textContent = 'Conectado';
       document.getElementById('loraStatus').className = 'status-value online';
     }
 
     // ==========================================
-    // PROCESSAMENTO DE DADOS (SÓ DO TRANSMISSOR)
+    // PROCESSAMENTO DE DADOS
     // ==========================================
     function processarDados(payload) {
       if (payload.config_volume_total > 0) {
@@ -985,7 +1037,6 @@
       atualizarHistorico();
       atualizarGrafico();
       
-      // Log de falha de sensor
       if (!currentData.sensorOk) {
         if (!alertAlreadyShown) {
           adicionarLog('⚠️ Falha no sensor detectada', 'alert');
@@ -998,9 +1049,6 @@
       }
     }
 
-    // ==========================================
-    // PROCESSAMENTO DE STATUS (DO RECEPTOR - NÃO CONTA COMO DADOS)
-    // ==========================================
     function processarStatus(payload) {
       const receptorStatus = document.getElementById('receptorStatus');
       
@@ -1009,7 +1057,6 @@
         receptorStatus.textContent = 'Online';
         receptorStatus.className = 'status-value online';
         document.getElementById('alertReceptor').classList.remove('show');
-        // NÃO chama adicionarLog aqui para evitar spam
       } else if (payload.status === 'offline') {
         receptorOnline = false;
         receptorStatus.textContent = 'Offline';
@@ -1045,7 +1092,6 @@
       document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
       document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
       
-      // Sinal
       const bars = document.querySelectorAll('.signal-bar-item');
       const activeBars = Math.ceil((currentData.quality / 100) * 5);
       bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
@@ -1063,7 +1109,6 @@
       container.style.display = 'block';
       
       tbody.innerHTML = '';
-      // Mostrar apenas 4 leituras
       historico.slice(0, 4).forEach(item => {
         const row = document.createElement('tr');
         const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
@@ -1188,6 +1233,7 @@
       console.log('Seconds Without Data:', secondsWithoutData);
       console.log('Current Data:', currentData);
       console.log('Histórico:', historico);
+      console.log('Estado salvo:', localStorage.getItem(STORAGE_KEY));
     };
 
     document.getElementById('modalReboot').addEventListener('click', (e) => {
@@ -1198,4 +1244,16 @@
     connectMQTT();
   </script>
 </body>
-</html>
+</html>'''
+
+# Salvar o arquivo corrigido
+with open('/mnt/kimi/output/index_corrigido.html', 'w', encoding='utf-8') as f:
+    f.write(html_corrigido)
+
+print("✅ Arquivo corrigido salvo em: /mnt/kimi/output/index_corrigido.html")
+print("\n📝 Resumo das alterações:")
+print("1. Adicionada função salvarEstadoTimeout() - salva no localStorage quando perde sinal")
+print("2. Adicionada função carregarEstadoTimeout() - recupera o estado ao carregar a página")
+print("3. Adicionada função limparEstadoTimeout() - remove o estado quando o sinal volta")
+print("4. O estado é salvo a cada segundo durante o timeout e ao fechar a conexão")
+print("5. Ao conectar, verifica se havia um timeout ativo e restaura o alerta imediatamente")
