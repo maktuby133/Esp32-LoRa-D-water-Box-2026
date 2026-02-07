@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -6,7 +5,7 @@
   <title>🌊 Monitor Caixa d'Água - HiveMQ</title>
   
   <!-- MQTT.js via CDN -->
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.esm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
@@ -590,10 +589,6 @@
         <span class="status-value" id="receptorStatus">Verificando...</span>
       </div>
       <div class="status-item">
-        <span class="status-label">Sensor Ultrassônico:</span>
-        <span class="status-value online" id="sensorStatus">OK</span>
-      </div>
-      <div class="status-item">
         <span class="status-label">LoRa:</span>
         <span class="status-value" id="loraStatus">Verificando...</span>
       </div>
@@ -1014,24 +1009,15 @@
         savedCapacityTotal = payload.config_volume_total;
       }
       
-      // DETECÇÃO APRIMORADA DE FALHA DO SENSOR
-      // O transmissor envia: distance=-1, percentage=-1, liters=-1, sensor_ok=false quando há falha
-      const sensorComFalha = (
-        payload.sensor_ok === false || 
-        payload.distance < 0 ||
-        payload.percentage < 0 ||
-        payload.liters < 0
-      );
-      
       currentData = {
-        percentage: sensorComFalha ? 0 : (parseInt(payload.percentage) || 0),
-        liters: sensorComFalha ? 0 : (parseInt(payload.liters) || 0),
-        distance: sensorComFalha ? 0 : (parseFloat(payload.distance) || 0),
-        level: sensorComFalha ? 0 : (parseInt(payload.level) || 0),
+        percentage: parseInt(payload.percentage) || 0,
+        liters: parseInt(payload.liters) || 0,
+        distance: parseFloat(payload.distance) || 0,
+        level: parseInt(payload.level) || 0,
         rssi: payload.lora_rssi || -100,
         quality: payload.signal_quality || 0,
         wifiRssi: payload.wifi_rssi || 0,
-        sensorOk: !sensorComFalha
+        sensorOk: payload.sensor_ok !== false
       };
 
       const registro = {
@@ -1050,10 +1036,9 @@
       atualizarHistorico();
       atualizarGrafico();
       
-      // MOSTRAR ALERTA DE FALHA DO SENSOR
       if (!currentData.sensorOk) {
         if (!alertAlreadyShown) {
-          adicionarLog('🚨 FALHA NO SENSOR ULTRASSÔNICO DETECTADA!', 'alert');
+          adicionarLog('⚠️ Falha no sensor detectada', 'alert');
           alertAlreadyShown = true;
         }
         document.getElementById('alertSensor').classList.add('show');
@@ -1081,34 +1066,19 @@
     }
 
     function atualizarInterface() {
-      // ATUALIZAR STATUS DO SENSOR NA BARRA SUPERIOR
-      const sensorStatusElement = document.getElementById('sensorStatus');
-      
       if (!currentData.sensorOk) {
-        // SENSOR COM FALHA - Atualizar status e zerar visualização
-        sensorStatusElement.textContent = 'FALHA';
-        sensorStatusElement.className = 'status-value offline';
+        const water = document.getElementById('waterLevel');
+        water.style.height = '0%';
+        water.textContent = '0%';
+        water.className = 'water';
         
         document.getElementById('loraStatus').textContent = 'Erro Sensor';
         document.getElementById('loraStatus').className = 'status-value warning';
-        
-        // ZERAR NÍVEL VISUAL DA CAIXA
-        const water = document.getElementById('waterLevel');
-        water.style.height = '0%';
-        water.textContent = 'ERRO';
-        water.className = 'water critical';
-        
-        // ZERAR VALORES EXIBIDOS
-        document.getElementById('currentVolume').textContent = '---';
-        document.getElementById('currentDistance').textContent = '---';
-        document.getElementById('currentLevel').textContent = '---';
-        
+        document.getElementById('alertSensor').classList.add('show');
         return;
       }
       
-      // SENSOR OK - Atualizar normalmente
-      sensorStatusElement.textContent = 'OK';
-      sensorStatusElement.className = 'status-value online';
+      document.getElementById('alertSensor').classList.remove('show');
 
       const pct = currentData.percentage;
       const water = document.getElementById('waterLevel');
@@ -1281,4 +1251,4 @@
     connectMQTT();
   </script>
 </body>
-</html>
+</html>'''
