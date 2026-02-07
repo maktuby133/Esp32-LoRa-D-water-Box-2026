@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -182,15 +181,23 @@
       grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin-bottom: 10px;
+      align-items: start; /* CORREÇÃO: Evita que os cards estiquem */
     }
 
-    @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { 
+      .main-content { grid-template-columns: 1fr; } 
+    }
 
     .card {
       background: white;
       padding: 15px;
       border-radius: 15px;
       box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+      /* CORREÇÃO: Altura máxima e scroll */
+      max-height: 500px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
     }
 
     .card-header {
@@ -203,8 +210,10 @@
       color: var(--primary-dark);
       font-size: 1rem;
       font-weight: 600;
+      flex-shrink: 0; /* Não encolhe */
     }
 
+    /* CORREÇÃO: Container do tanque com altura fixa */
     .tank-wrapper {
       position: relative;
       width: 240px;
@@ -213,6 +222,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
 
     .tank-image {
@@ -323,15 +333,18 @@
       background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
       border-radius: 10px;
       border: 2px solid var(--primary);
+      flex-shrink: 0;
     }
     .tank-capacity-label { font-size: 0.7rem; color: var(--gray); font-weight: 600; text-transform: uppercase; }
     .tank-capacity-value { font-size: 1.2rem; font-weight: 700; color: var(--primary-dark); }
 
+    /* CORREÇÃO: Grid com altura controlada */
     .info-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 8px;
       margin-top: 10px;
+      flex-shrink: 0;
     }
     @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; } }
 
@@ -343,6 +356,10 @@
       cursor: pointer;
       transition: all 0.3s;
       border: 2px solid transparent;
+      min-height: 80px; /* Altura mínima */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
     .info-card:hover {
       transform: translateY(-3px);
@@ -361,11 +378,20 @@
     .info-card.error .info-card-value { color: var(--danger); }
     .info-card.error .info-card-label { color: var(--danger); }
 
+    /* CORREÇÃO: Canvas do gráfico com altura máxima */
+    #nivelChart { 
+      max-height: 250px !important; 
+      height: 250px !important;
+      width: 100% !important;
+    }
+
     .table-container {
       overflow-x: auto;
       margin-top: 10px;
       border-radius: 8px;
       border: 1px solid #e9ecef;
+      max-height: 200px; /* CORREÇÃO: Altura máxima */
+      overflow-y: auto;
     }
     table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
@@ -388,6 +414,12 @@
     .signal-dbm { font-weight: 700; font-size: 0.85rem; color: var(--primary-dark); min-width: 45px; }
     .signal-percent { font-weight: 600; font-size: 0.85rem; color: var(--gray); }
 
+    /* CORREÇÃO: Log de eventos com altura máxima */
+    #updateHistory { 
+      max-height: 150px; 
+      overflow-y: auto;
+    }
+
     .update-entry {
       padding: 8px 12px;
       margin-bottom: 6px;
@@ -407,13 +439,12 @@
     .update-entry.alert .update-time { color: var(--danger); }
     .update-text { color: var(--dark); flex: 1; }
 
-    #updateHistory { max-height: 200px; overflow-y: auto; }
-
     .log-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 15px;
+      flex-shrink: 0;
     }
 
     .debug-btn {
@@ -604,7 +635,7 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom: 10px;">
+    <div class="card" style="margin-bottom: 10px; max-height: 300px;">
       <div class="card-header">
         <i class="fas fa-history"></i> Últimas Leituras
       </div>
@@ -630,7 +661,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" style="max-height: 250px;">
       <div class="log-header">
         <div class="card-header" style="margin: 0;">
           <i class="fas fa-bell"></i> Log de Eventos MQTT
@@ -676,6 +707,7 @@
     };
 
     const TRANSMITTER_TIMEOUT = 15000;
+    const RECEPTOR_TIMEOUT = 60000; // 60 segundos sem heartbeat = offline
     const STORAGE_KEY = 'transmitter_timeout_state';
 
     let client = null;
@@ -684,6 +716,7 @@
     let currentData = {};
     let historico = [];
     let lastDataMessageTime = null;
+    let lastReceptorStatusTime = null; // NOVO: Track do último status do receptor
     let receptorOnline = false;
     let transmitterActive = false;
     let timeoutCheckInterval = null;
@@ -715,6 +748,8 @@
         client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
           if (!err) {
             adicionarLog('✅ Dashboard conectado');
+            // CORREÇÃO: Considera receptor online ao conectar se já recebe dados
+            lastReceptorStatusTime = Date.now();
           }
         });
       });
@@ -722,52 +757,36 @@
       client.on('message', (topic, message) => {
         try {
           const payload = JSON.parse(message.toString());
-          console.log('📥 Payload recebido:', payload);
+          console.log('📥 Payload:', payload);
           
           if (topic === TOPICS.dados) {
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
             
-            // Verificação PRIMÁRIA: flag sensor_ok do transmissor
-            let sensorOK = payload.sensor_ok;
+            // CORREÇÃO: Se recebeu dados, receptor está online!
+            // Atualiza status do receptor baseado em receber dados
+            if (!receptorOnline) {
+              receptorOnline = true;
+              atualizarStatusReceptor(true, 'Online (recebendo dados)');
+            }
+            lastReceptorStatusTime = Date.now();
             
-            // Verificação SECUNDÁRIA: valores impossíveis
+            // Verificação do sensor
+            let sensorOK = payload.sensor_ok;
             const distancia = parseFloat(payload.distance);
             const percentual = parseInt(payload.percentage);
             
-            console.log('🔍 Verificação - sensor_ok:', sensorOK, '| distancia:', distancia, '| percentual:', percentual);
-            
-            // Se o transmissor disse que está OK mas valores são suspeitos, verifica
             if (sensorOK !== false) {
-              // DISTÂNCIA NEGATIVA = ERRO DO SENSOR (-1 é retornado pelo transmissor em caso de falha)
-              if (distancia < 0) {
-                console.log('⚠️ Distância negativa detectada:', distancia);
+              if (distancia < 0 || distancia === 0 || percentual < 0) {
                 sensorOK = false;
               }
               
-              // DISTÂNCIA ZERO = SENSOR DESCONECTADO
-              if (distancia === 0) {
-                console.log('⚠️ Distância zero detectada');
-                sensorOK = false;
-              }
-              
-              // PERCENTUAL NEGATIVO = ERRO
-              if (percentual < 0) {
-                console.log('⚠️ Percentual negativo detectado:', percentual);
-                sensorOK = false;
-              }
-              
-              // VARIAÇÃO BRUSCA PARA BAIXO (queda de mais de 50% em uma leitura)
               if (ultimoValorValido !== null) {
                 const variacao = percentual - ultimoValorValido.percentage;
-                if (variacao < -50) {
-                  console.log('⚠️ Queda brusca detectada:', variacao + '%');
-                  sensorOK = false;
-                }
+                if (variacao < -50) sensorOK = false;
               }
             }
             
-            // Se sensor está OK, salva como último valor válido
             if (sensorOK) {
               ultimoValorValido = {
                 percentage: percentual,
@@ -778,20 +797,19 @@
               leiturasConsecutivasErradas = 0;
             } else {
               leiturasConsecutivasErradas++;
-              console.log('⚠️ Leitura errada #' + leiturasConsecutivasErradas);
             }
             
-            // Atualiza estado do transmissor
             if (!transmitterActive) {
               transmitterActive = true;
               adicionarLog('✅ Sinal do transmissor restaurado');
               esconderAlertaTransmitter();
             }
             
-            // Processa dados com status do sensor
             processarDados(payload, sensorOK);
             
           } else if (topic === TOPICS.status) {
+            // Mensagem explícita de status do receptor
+            lastReceptorStatusTime = Date.now();
             processarStatus(payload);
           }
         } catch (e) {
@@ -800,13 +818,79 @@
       });
     }
 
+    // CORREÇÃO: Função unificada para atualizar status do receptor
+    function atualizarStatusReceptor(online, texto) {
+      const receptorStatus = document.getElementById('receptorStatus');
+      receptorOnline = online;
+      
+      if (online) {
+        receptorStatus.textContent = texto || 'Online';
+        receptorStatus.className = 'status-value online';
+        document.getElementById('alertReceptor').classList.remove('show');
+      } else {
+        receptorStatus.textContent = 'Offline';
+        receptorStatus.className = 'status-value offline';
+        document.getElementById('alertReceptor').classList.add('show');
+      }
+    }
+
+    function processarStatus(payload) {
+      // Processa mensagem explícita de status do tópico status
+      if (payload.status === 'online' || payload.heartbeat === true) {
+        atualizarStatusReceptor(true, payload.status === 'online' ? 'Online' : 'Online (heartbeat)');
+        
+        // Se tem heartbeat, receptor está definitivamente online
+        if (payload.heartbeat) {
+          console.log('💓 Heartbeat do receptor recebido');
+        }
+      } else if (payload.status === 'offline') {
+        atualizarStatusReceptor(false);
+        adicionarLog('⚠️ Receptor reportou offline', 'warning');
+      }
+    }
+
+    function iniciarVerificacaoTimeout() {
+      if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
+      
+      timeoutCheckInterval = setInterval(() => {
+        const agora = Date.now();
+        
+        // Verifica timeout do transmissor (dados)
+        if (lastDataMessageTime) {
+          const tempoSemDados = agora - lastDataMessageTime;
+          secondsWithoutData = Math.floor(tempoSemDados / 1000);
+          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+          
+          if (tempoSemDados > TRANSMITTER_TIMEOUT && transmitterActive) {
+            transmitterActive = false;
+            adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
+            document.getElementById('alertTransmitter').classList.add('show');
+            document.getElementById('loraStatus').textContent = 'Sem Sinal';
+            document.getElementById('loraStatus').className = 'status-value offline';
+          }
+        }
+        
+        // CORREÇÃO: Verifica timeout do receptor (status/heartbeat)
+        // Se não recebeu nada (dados OU status) por 60s, receptor está offline
+        const ultimoContato = Math.max(lastDataMessageTime || 0, lastReceptorStatusTime || 0);
+        if (ultimoContato > 0) {
+          const tempoSemContato = agora - ultimoContato;
+          
+          if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
+            console.log('⏱️ Timeout do receptor:', tempoSemContato, 'ms sem contato');
+            atualizarStatusReceptor(false);
+            adicionarLog('⚠️ Receptor sem resposta (>60s)', 'warning');
+          }
+        }
+        
+      }, 1000);
+    }
+
     function processarDados(payload, sensorOK) {
-      // Se capacidade veio no payload, salva
       if (payload.config_volume_total > 0) {
         savedCapacityTotal = payload.config_volume_total;
       }
       
-      // Se sensor com erro, usa último valor válido ou zeros
       if (!sensorOK) {
         currentData = {
           percentage: ultimoValorValido ? ultimoValorValido.percentage : 0,
@@ -820,14 +904,12 @@
           erro: true
         };
         
-        // Ativa alerta de erro se ainda não estiver ativo
         if (!sensorErrorActive && leiturasConsecutivasErradas >= 1) {
           sensorErrorActive = true;
           adicionarLog('🚨 Falha no sensor detectada!', 'alert');
           mostrarAlertaSensor();
         }
       } else {
-        // Sensor OK - atualiza dados normalmente
         currentData = {
           percentage: parseInt(payload.percentage) || 0,
           liters: parseInt(payload.liters) || 0,
@@ -840,7 +922,6 @@
           erro: false
         };
         
-        // Se estava em erro e voltou, limpa alerta
         if (sensorErrorActive) {
           sensorErrorActive = false;
           leiturasConsecutivasErradas = 0;
@@ -849,7 +930,6 @@
         }
       }
 
-      // Adiciona ao histórico
       const registro = {
         timestamp: new Date().toISOString(),
         percentage: currentData.percentage,
@@ -871,7 +951,6 @@
       const pct = currentData.percentage;
       const water = document.getElementById('waterLevel');
       
-      // Se tem erro de sensor, mostra visual de erro
       if (currentData.erro) {
         water.className = 'water sensor-error';
         water.textContent = 'ERRO';
@@ -885,12 +964,10 @@
         document.getElementById('distanceCard').classList.add('error');
         document.getElementById('levelCard').classList.add('error');
         
-        // Mostra últimos valores válidos nos cards (com indicador de erro)
         document.getElementById('currentVolume').textContent = currentData.liters + '*';
         document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1) + '*';
         document.getElementById('currentLevel').textContent = currentData.level + '*';
       } else {
-        // Normal
         water.style.height = pct + '%';
         water.textContent = pct + '%';
         
@@ -932,43 +1009,10 @@
       document.getElementById('alertSensor').classList.remove('show');
     }
 
-    function iniciarVerificacaoTimeout() {
-      if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
-      
-      timeoutCheckInterval = setInterval(() => {
-        if (lastDataMessageTime) {
-          const tempoSemDados = Date.now() - lastDataMessageTime;
-          secondsWithoutData = Math.floor(tempoSemDados / 1000);
-          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
-          
-          if (tempoSemDados > TRANSMITTER_TIMEOUT && transmitterActive) {
-            transmitterActive = false;
-            adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
-            document.getElementById('alertTransmitter').classList.add('show');
-            document.getElementById('loraStatus').textContent = 'Sem Sinal';
-            document.getElementById('loraStatus').className = 'status-value offline';
-          }
-        }
-      }, 1000);
-    }
-
     function esconderAlertaTransmitter() {
       document.getElementById('alertTransmitter').classList.remove('show');
       document.getElementById('loraStatus').textContent = 'Conectado';
       document.getElementById('loraStatus').className = 'status-value online';
-    }
-
-    function processarStatus(payload) {
-      const receptorStatus = document.getElementById('receptorStatus');
-      if (payload.status === 'online') {
-        receptorStatus.textContent = 'Online';
-        receptorStatus.className = 'status-value online';
-        document.getElementById('alertReceptor').classList.remove('show');
-      } else {
-        receptorStatus.textContent = 'Offline';
-        receptorStatus.className = 'status-value offline';
-        document.getElementById('alertReceptor').classList.add('show');
-      }
     }
 
     function updateConnectionStatus(connected) {
@@ -1041,7 +1085,15 @@
         chart = new Chart(ctx, {
           type: 'line',
           data: { labels, datasets: [{ label: 'Nível %', data, borderColor: '#0077b6', backgroundColor: 'rgba(0, 119, 182, 0.1)', borderWidth: 2, fill: true, tension: 0.4 }] },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 }, x: { display: false } } }
+          options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { 
+              y: { beginAtZero: true, max: 100 },
+              x: { display: false }
+            }
+          }
         });
       } else {
         chart.data.labels = labels;
@@ -1082,14 +1134,13 @@
     };
     window.debugData = function() {
       console.log('=== DEBUG ===');
+      console.log('receptorOnline:', receptorOnline);
+      console.log('lastDataMessageTime:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : null);
+      console.log('lastReceptorStatusTime:', lastReceptorStatusTime ? new Date(lastReceptorStatusTime).toLocaleTimeString() : null);
       console.log('currentData:', currentData);
-      console.log('ultimoValorValido:', ultimoValorValido);
-      console.log('leiturasConsecutivasErradas:', leiturasConsecutivasErradas);
-      console.log('sensorErrorActive:', sensorErrorActive);
     };
 
     connectMQTT();
   </script>
 </body>
 </html>
-
