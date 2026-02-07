@@ -1074,11 +1074,8 @@
         
         document.getElementById('loraStatus').textContent = 'Erro Sensor';
         document.getElementById('loraStatus').className = 'status-value warning';
-        document.getElementById('alertSensor').classList.add('show');
         return;
       }
-      
-      document.getElementById('alertSensor').classList.remove('show');
 
       const pct = currentData.percentage;
       const water = document.getElementById('waterLevel');
