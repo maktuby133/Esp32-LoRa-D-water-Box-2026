@@ -785,10 +785,19 @@
     };
 
     // ==========================================
-    // CONFIGURAÇÕES DE TIMEOUT
+    // CONFIGURAÇÕES DE TIMEOUT E DETECÇÃO
     // ==========================================
     const TRANSMITTER_TIMEOUT = 15000; // 15 segundos
     const STORAGE_KEY = 'transmitter_timeout_state';
+    
+    // LIMITES FÍSICOS PARA DETECÇÃO DE ANOMALIAS
+    const LIMITS = {
+      MAX_VARIACAO_NIVEL: 30,        // Máx 30% de variação entre leituras (evita quedas abruptas)
+      MIN_DISTANCIA_VALIDA: 2,       // HC-SR04 não mede abaixo de 2cm
+      MAX_DISTANCIA_VALIDA: 400,     // HC-SR04 não mede acima de 400cm
+      MAX_LITROS_VARIACAO: 500,      // Máx 500L de diferença entre leituras
+      SENSOR_REPETIDO_MAX: 5         // Máx 5 leituras idênticas (sensor travado)
+    };
 
     // Variáveis globais
     let client = null;
@@ -805,10 +814,12 @@
     let alertAlreadyShown = false;
     let sensorErrorActive = false;
     let sensorErrorCount = 0;
-    const SENSOR_ERROR_THRESHOLD = 2; // Número de leituras consecutivas com erro para confirmar
+    let ultimoValorDistancia = null;
+    let contadorValoresRepetidos = 0;
+    let ultimoTimestamp = null;
 
     // ==========================================
-    // PERSISTÊNCIA DO ESTADO DE TIMEOUT
+    // PERSISTÊNCIA DO ESTADO
     // ==========================================
     function salvarEstadoTimeout() {
       const estado = {
@@ -827,9 +838,7 @@
         if (estadoSalvo) {
           const estado = JSON.parse(estadoSalvo);
           const agora = Date.now();
-          const tempoDecorrido = agora - estado.timestamp;
           
-          // Se havia um timeout ativo, ajusta o tempo decorrido
           if (estado.lastDataMessageTime && !estado.transmitterActive) {
             lastDataMessageTime = estado.lastDataMessageTime;
             const tempoSemDados = agora - estado.lastDataMessageTime;
@@ -902,10 +911,9 @@
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
             
-            console.log('📊 Dados do transmissor recebidos:', payload.percentage + '%');
-            console.log('🔍 Status do sensor:', payload.sensor_ok);
+            console.log('📊 Dados brutos:', JSON.stringify(payload));
             
-            // Verifica falha no sensor
+            // Verifica falha no sensor com análise de anomalias
             const sensorOK = verificarStatusSensor(payload);
             
             if (!transmitterActive) {
@@ -960,65 +968,123 @@
     }
 
     // ==========================================
-    // VERIFICAÇÃO DE STATUS DO SENSOR
+    // VERIFICAÇÃO AVANÇADA DE STATUS DO SENSOR
     // ==========================================
     function verificarStatusSensor(payload) {
-      // Verifica múltiplas condições de erro do sensor
       let sensorError = false;
       let errorReason = '';
       
-      // 1. Verifica flag sensor_ok explicitamente
+      const agora = Date.now();
+      const distancia = parseFloat(payload.distance);
+      const percentual = parseInt(payload.percentage);
+      const litros = parseInt(payload.liters);
+      const nivel = parseInt(payload.level);
+      
+      console.log('🔍 Análise do sensor:');
+      console.log('   Distância:', distancia, 'cm');
+      console.log('   Percentual:', percentual, '%');
+      console.log('   Litros:', litros, 'L');
+      console.log('   Nível:', nivel, 'cm');
+      console.log('   sensor_ok:', payload.sensor_ok);
+      
+      // 1. VERIFICA FLAG EXPLICITA DE ERRO
       if (payload.sensor_ok === false) {
         sensorError = true;
-        errorReason = 'sensor_ok = false';
+        errorReason = 'sensor_ok = false (erro reportado pelo transmissor)';
       }
       
-      // 2. Verifica valores inválidos
-      if (payload.distance < 0 || payload.distance > 400) {
+      // 2. VERIFICA VALORES IMPOSSÍVEIS (sensor desconectado geralmente retorna 0 ou valores fixos)
+      if (distancia === 0) {
         sensorError = true;
-        errorReason = 'distância inválida: ' + payload.distance;
+        errorReason = 'distância = 0 (sensor desconectado ou sem resposta)';
       }
       
-      // 3. Verifica percentage negativo ou inválido
-      if (payload.percentage < 0 || payload.percentage > 100) {
+      // 3. VERIFICA RANGE DO SENSOR HC-SR04
+      if (distancia < LIMITS.MIN_DISTANCIA_VALIDA || distancia > LIMITS.MAX_DISTANCIA_VALIDA) {
         sensorError = true;
-        errorReason = 'percentual inválido: ' + payload.percentage;
+        errorReason = `distância fora do range (${distancia}cm, válido: 2-400cm)`;
       }
       
-      // 4. Verifica se liters é negativo
-      if (payload.liters < 0) {
+      // 4. VERIFICA VARIAÇÃO BRUSCA (queda/absorção impossível)
+      if (ultimoValorDistancia !== null && !sensorError) {
+        const variacaoDistancia = Math.abs(distancia - ultimoValorDistancia);
+        const variacaoPercentual = Math.abs(percentual - (currentData.percentage || 0));
+        
+        // Se a distância mudou mais de 50cm em 10 segundos, é suspeito
+        if (variacaoDistancia > 50 && variacaoPercentual > LIMITS.MAX_VARIACAO_NIVEL) {
+          // Mas só considera erro se for para 0 ou valor muito baixo de repente
+          if (distancia < 10 || percentual === 0) {
+            sensorError = true;
+            errorReason = `variação suspeita: ${variacaoDistancia}cm em poucos segundos (possível desconexão)`;
+          }
+        }
+        
+        // 5. VERIFICA SE O SENSOR ESTÁ REPETINDO VALOR (TRAVADO)
+        if (distancia === ultimoValorDistancia) {
+          contadorValoresRepetidos++;
+          if (contadorValoresRepetidos >= LIMITS.SENSOR_REPETIDO_MAX) {
+            sensorError = true;
+            errorReason = `sensor travado no mesmo valor por ${contadorValoresRepetidos} leituras`;
+          }
+        } else {
+          contadorValoresRepetidos = 0;
+        }
+      }
+      
+      // 6. VERIFICA VALORES NEGATIVOS
+      if (percentual < 0 || litros < 0 || nivel < 0) {
         sensorError = true;
-        errorReason = 'litros negativos: ' + payload.liters;
+        errorReason = `valores negativos detectados (pct:${percentual}, L:${litros}, lvl:${nivel})`;
       }
       
-      // 5. Verifica level negativo
-      if (payload.level < 0) {
-        sensorError = true;
-        errorReason = 'nível negativo: ' + payload.level;
+      // 7. VERIFICA SE VOLUME MUDOU DRASTICAMENTE SEM SENTIDO
+      if (ultimoValorDistancia !== null && savedCapacityTotal > 0) {
+        const variacaoLitros = Math.abs(litros - (currentData.liters || 0));
+        if (variacaoLitros > LIMITS.MAX_LITROS_VARIACAO) {
+          sensorError = true;
+          errorReason = `variação de volume impossível: ${variacaoLitros}L`;
+        }
       }
       
-      // Contador de erros consecutivos
+      // 8. VERIFICA SE A DISTÂNCIA É EXATAMENTE IGUAL À CONFIGURAÇÃO (VALOR PADRÃO)
+      if (payload.config_distancia_vazia && Math.abs(distancia - payload.config_distancia_vazia) < 0.1) {
+        // Se a distância é exatamente igual à distância de "vazio" configurada, pode ser valor padrão
+        // Mas só considera erro se repetir várias vezes
+        if (contadorValoresRepetidos >= 3) {
+          sensorError = true;
+          errorReason = 'sensor retornando valor padrão/configurado (possível falha)';
+        }
+      }
+      
+      // Atualiza último valor válido
+      if (!sensorError) {
+        ultimoValorDistancia = distancia;
+        ultimoTimestamp = agora;
+      }
+      
+      // Contador de erros consecutivos (evita alarmes falsos)
       if (sensorError) {
         sensorErrorCount++;
-        console.log('⚠️ Erro detectado no sensor (' + sensorErrorCount + '/' + SENSOR_ERROR_THRESHOLD + '):', errorReason);
+        console.log(`⚠️ Erro detectado (${sensorErrorCount}/2): ${errorReason}`);
       } else {
         if (sensorErrorCount > 0) {
-          console.log('✅ Sensor OK após ' + sensorErrorCount + ' erros');
+          console.log('✅ Sensor OK após', sensorErrorCount, 'erros');
         }
         sensorErrorCount = 0;
       }
       
-      // Só considera erro se houver múltiplas leituras consecutivas com erro
-      const confirmadoErro = sensorErrorCount >= SENSOR_ERROR_THRESHOLD;
+      // Só confirma erro após 2 leituras consecutivas com problema
+      const confirmadoErro = sensorErrorCount >= 2;
       
       if (confirmadoErro && !sensorErrorActive) {
         sensorErrorActive = true;
-        console.log('🚨 FALHA NO SENSOR CONFIRMADA!');
-        adicionarLog('🚨 Falha no sensor confirmada: ' + errorReason, 'alert');
+        console.log('🚨 FALHA NO SENSOR CONFIRMADA:', errorReason);
+        adicionarLog('🚨 Falha no sensor: ' + errorReason, 'alert');
         mostrarAlertaSensor();
       } else if (!confirmadoErro && sensorErrorActive) {
         sensorErrorActive = false;
         sensorErrorCount = 0;
+        contadorValoresRepetidos = 0;
         console.log('✅ Sensor restaurado');
         adicionarLog('✅ Sensor restaurado');
         esconderAlertaSensor();
@@ -1033,12 +1099,10 @@
       document.getElementById('sensorStatus').className = 'status-value sensor-error';
       document.getElementById('sensorStatusItem').classList.add('sensor-error');
       
-      // Atualiza cards para mostrar erro
       document.getElementById('volumeCard').classList.add('error');
       document.getElementById('distanceCard').classList.add('error');
       document.getElementById('levelCard').classList.add('error');
       
-      // Atualiza água do tanque
       const water = document.getElementById('waterLevel');
       water.className = 'water sensor-error';
       water.textContent = 'ERRO';
@@ -1050,7 +1114,6 @@
       document.getElementById('sensorStatus').className = 'status-value online';
       document.getElementById('sensorStatusItem').classList.remove('sensor-error');
       
-      // Remove erro dos cards
       document.getElementById('volumeCard').classList.remove('error');
       document.getElementById('distanceCard').classList.remove('error');
       document.getElementById('levelCard').classList.remove('error');
@@ -1141,6 +1204,7 @@
         savedCapacityTotal = payload.config_volume_total;
       }
       
+      // Se sensor com erro, mantém últimos valores válidos ou mostra 0
       currentData = {
         percentage: sensorOK ? (parseInt(payload.percentage) || 0) : 0,
         liters: sensorOK ? (parseInt(payload.liters) || 0) : 0,
@@ -1187,7 +1251,6 @@
     }
 
     function atualizarInterface() {
-      // Se sensor com erro, não atualiza valores (mantém estado de erro)
       if (sensorErrorActive) {
         return;
       }
@@ -1211,7 +1274,6 @@
       document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
       document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
       
-      // Atualiza status do sensor no painel
       document.getElementById('sensorStatus').textContent = 'OK';
       document.getElementById('sensorStatus').className = 'status-value online';
       document.getElementById('sensorStatusItem').classList.remove('sensor-error');
@@ -1357,6 +1419,8 @@
       console.log('Transmitter Active:', transmitterActive);
       console.log('Sensor Error Active:', sensorErrorActive);
       console.log('Sensor Error Count:', sensorErrorCount);
+      console.log('Valores Repetidos:', contadorValoresRepetidos);
+      console.log('Última Distância:', ultimoValorDistancia);
       console.log('Last Data Message:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : 'Nunca');
       console.log('Last Status Message:', lastStatusMessageTime ? new Date(lastStatusMessageTime).toLocaleTimeString() : 'Nunca');
       console.log('Seconds Without Data:', secondsWithoutData);
