@@ -1,3 +1,4 @@
+
 html_corrigido = '''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -163,6 +164,7 @@ html_corrigido = '''<!DOCTYPE html>
     .online { color: var(--success); }
     .offline { color: var(--danger); animation: blink 1.5s infinite; }
     .warning { color: var(--warning); }
+    .sensor-error { color: var(--danger); animation: blink 1.5s infinite; }
 
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
@@ -313,6 +315,10 @@ html_corrigido = '''<!DOCTYPE html>
     .water.medium { background: linear-gradient(to top, #ca8a04, #fbbf24); }
     .water.good { background: linear-gradient(to top, #0284c7, #38bdf8); }
     .water.full { background: linear-gradient(to top, #0369a1, #0ea5e9); }
+    .water.sensor-error { 
+      background: linear-gradient(to top, #7f1d1d, #dc2626) !important; 
+      animation: pulse-red 0.5s infinite; 
+    }
 
     @keyframes pulse-red { 
       0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(220, 38, 38, 0.5); } 
@@ -376,9 +382,21 @@ html_corrigido = '''<!DOCTYPE html>
       border-color: var(--primary);
       background: white;
     }
+    .info-card.error {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      border-color: var(--danger);
+      animation: pulse-border 1.5s infinite;
+    }
     .info-card-label { font-size: 0.65rem; color: var(--gray); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
     .info-card-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-dark); }
     .info-card-unit { font-size: 0.75rem; color: var(--gray); }
+    .info-card.error .info-card-value { color: var(--danger); }
+    .info-card.error .info-card-label { color: var(--danger); }
+
+    @keyframes pulse-border {
+      0%, 100% { border-width: 2px; }
+      50% { border-width: 4px; }
+    }
 
     #nivelChart { max-height: 250px; width: 100% !important; }
 
@@ -550,6 +568,17 @@ html_corrigido = '''<!DOCTYPE html>
       0%, 100% { border-width: 2px; }
       50% { border-width: 4px; }
     }
+
+    /* Status item específico para sensor */
+    .status-item.sensor-error {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      border: 2px solid var(--danger);
+      animation: pulse-border 1.5s infinite;
+    }
+    .status-item.sensor-error .status-label,
+    .status-item.sensor-error .status-value {
+      color: var(--danger);
+    }
   </style>
 </head>
 <body>
@@ -576,7 +605,7 @@ html_corrigido = '''<!DOCTYPE html>
       <i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO
     </div>
     <div id="alertSensor" class="alert-banner alert-sensor">
-      <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR
+      <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR ULTRASSÔNICO
     </div>
 
     <!-- Status Panel -->
@@ -612,6 +641,11 @@ html_corrigido = '''<!DOCTYPE html>
         <span class="status-label">WiFi Receptor:</span>
         <span class="status-value" id="wifiRssi">-- dBm</span>
       </div>
+      <!-- NOVO: Status do Sensor -->
+      <div class="status-item" id="sensorStatusItem">
+        <span class="status-label"><i class="fas fa-microchip"></i> Sensor:</span>
+        <span class="status-value" id="sensorStatus">Verificando...</span>
+      </div>
     </div>
 
     <!-- Main Content -->
@@ -642,19 +676,19 @@ html_corrigido = '''<!DOCTYPE html>
         </div>
 
         <div class="info-grid">
-          <div class="info-card" onclick="showDetails('volume')">
+          <div class="info-card" id="volumeCard" onclick="showDetails('volume')">
             <div class="info-card-label"><i class="fas fa-tint"></i> Volume</div>
             <div class="info-card-value">
               <span id="currentVolume">--</span><span class="info-card-unit">L</span>
             </div>
           </div>
-          <div class="info-card" onclick="showDetails('distance')">
+          <div class="info-card" id="distanceCard" onclick="showDetails('distance')">
             <div class="info-card-label"><i class="fas fa-ruler-vertical"></i> Distância</div>
             <div class="info-card-value">
               <span id="currentDistance">--</span><span class="info-card-unit">cm</span>
             </div>
           </div>
-          <div class="info-card" onclick="showDetails('level')">
+          <div class="info-card" id="levelCard" onclick="showDetails('level')">
             <div class="info-card-label"><i class="fas fa-arrows-alt-v"></i> Altura</div>
             <div class="info-card-value">
               <span id="currentLevel">--</span><span class="info-card-unit">cm</span>
@@ -686,7 +720,7 @@ html_corrigido = '''<!DOCTYPE html>
             <thead>
               <tr>
                 <th>Horário</th>
-                <th>Status</th>
+                <th>Status Sensor</th>
                 <th>Nível</th>
                 <th>Volume</th>
                 <th>Dist.</th>
@@ -769,6 +803,9 @@ html_corrigido = '''<!DOCTYPE html>
     let timeoutCheckInterval = null;
     let secondsWithoutData = 0;
     let alertAlreadyShown = false;
+    let sensorErrorActive = false;
+    let sensorErrorCount = 0;
+    const SENSOR_ERROR_THRESHOLD = 2; // Número de leituras consecutivas com erro para confirmar
 
     // ==========================================
     // PERSISTÊNCIA DO ESTADO DE TIMEOUT
@@ -778,6 +815,7 @@ html_corrigido = '''<!DOCTYPE html>
         lastDataMessageTime: lastDataMessageTime,
         transmitterActive: transmitterActive,
         secondsWithoutData: secondsWithoutData,
+        sensorErrorActive: sensorErrorActive,
         timestamp: Date.now()
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
@@ -794,13 +832,13 @@ html_corrigido = '''<!DOCTYPE html>
           // Se havia um timeout ativo, ajusta o tempo decorrido
           if (estado.lastDataMessageTime && !estado.transmitterActive) {
             lastDataMessageTime = estado.lastDataMessageTime;
-            // Adiciona o tempo que passou desde a última atualização
             const tempoSemDados = agora - estado.lastDataMessageTime;
             secondsWithoutData = Math.floor(tempoSemDados / 1000);
             transmitterActive = false;
+            sensorErrorActive = estado.sensorErrorActive || false;
             
             console.log('📦 Estado restaurado - Sem sinal há:', secondsWithoutData, 's');
-            return true; // Indica que havia um estado de timeout
+            return true;
           }
         }
       } catch (e) {
@@ -835,7 +873,6 @@ html_corrigido = '''<!DOCTYPE html>
         updateConnectionStatus(true);
         document.getElementById('loadingOverlay').classList.add('hidden');
         
-        // Iniciar verificação de timeout
         iniciarVerificacaoTimeout();
         
         client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
@@ -846,10 +883,8 @@ html_corrigido = '''<!DOCTYPE html>
             console.log('📡 Subscrito nos tópicos');
             adicionarLog('✅ Dashboard conectado');
             
-            // Verifica se havia um estado de timeout salvo
             const haviaTimeout = carregarEstadoTimeout();
             if (haviaTimeout) {
-              // Mostra o alerta imediatamente se havia timeout
               mostrarAlertaTransmitter();
               atualizarInterfaceTimeout();
               adicionarLog('⚠️ Transmissor ainda sem sinal (' + secondsWithoutData + 's)', 'alert');
@@ -868,17 +903,21 @@ html_corrigido = '''<!DOCTYPE html>
             secondsWithoutData = 0;
             
             console.log('📊 Dados do transmissor recebidos:', payload.percentage + '%');
+            console.log('🔍 Status do sensor:', payload.sensor_ok);
+            
+            // Verifica falha no sensor
+            const sensorOK = verificarStatusSensor(payload);
             
             if (!transmitterActive) {
               transmitterActive = true;
               alertAlreadyShown = false;
-              limparEstadoTimeout(); // Limpa o estado salvo quando volta o sinal
+              limparEstadoTimeout();
               adicionarLog('✅ Sinal do transmissor restaurado');
               esconderAlertaTransmitter();
               restaurarInterface();
             }
             
-            processarDados(payload);
+            processarDados(payload, sensorOK);
             
           } else if (topic === TOPICS.status) {
             lastStatusMessageTime = Date.now();
@@ -899,7 +938,6 @@ html_corrigido = '''<!DOCTYPE html>
       client.on('close', () => {
         console.log('⚠️ Desconectado do MQTT');
         updateConnectionStatus(false);
-        // Salva o estado atual antes de fechar
         salvarEstadoTimeout();
       });
     }
@@ -922,6 +960,103 @@ html_corrigido = '''<!DOCTYPE html>
     }
 
     // ==========================================
+    // VERIFICAÇÃO DE STATUS DO SENSOR
+    // ==========================================
+    function verificarStatusSensor(payload) {
+      // Verifica múltiplas condições de erro do sensor
+      let sensorError = false;
+      let errorReason = '';
+      
+      // 1. Verifica flag sensor_ok explicitamente
+      if (payload.sensor_ok === false) {
+        sensorError = true;
+        errorReason = 'sensor_ok = false';
+      }
+      
+      // 2. Verifica valores inválidos
+      if (payload.distance < 0 || payload.distance > 400) {
+        sensorError = true;
+        errorReason = 'distância inválida: ' + payload.distance;
+      }
+      
+      // 3. Verifica percentage negativo ou inválido
+      if (payload.percentage < 0 || payload.percentage > 100) {
+        sensorError = true;
+        errorReason = 'percentual inválido: ' + payload.percentage;
+      }
+      
+      // 4. Verifica se liters é negativo
+      if (payload.liters < 0) {
+        sensorError = true;
+        errorReason = 'litros negativos: ' + payload.liters;
+      }
+      
+      // 5. Verifica level negativo
+      if (payload.level < 0) {
+        sensorError = true;
+        errorReason = 'nível negativo: ' + payload.level;
+      }
+      
+      // Contador de erros consecutivos
+      if (sensorError) {
+        sensorErrorCount++;
+        console.log('⚠️ Erro detectado no sensor (' + sensorErrorCount + '/' + SENSOR_ERROR_THRESHOLD + '):', errorReason);
+      } else {
+        if (sensorErrorCount > 0) {
+          console.log('✅ Sensor OK após ' + sensorErrorCount + ' erros');
+        }
+        sensorErrorCount = 0;
+      }
+      
+      // Só considera erro se houver múltiplas leituras consecutivas com erro
+      const confirmadoErro = sensorErrorCount >= SENSOR_ERROR_THRESHOLD;
+      
+      if (confirmadoErro && !sensorErrorActive) {
+        sensorErrorActive = true;
+        console.log('🚨 FALHA NO SENSOR CONFIRMADA!');
+        adicionarLog('🚨 Falha no sensor confirmada: ' + errorReason, 'alert');
+        mostrarAlertaSensor();
+      } else if (!confirmadoErro && sensorErrorActive) {
+        sensorErrorActive = false;
+        sensorErrorCount = 0;
+        console.log('✅ Sensor restaurado');
+        adicionarLog('✅ Sensor restaurado');
+        esconderAlertaSensor();
+      }
+      
+      return !confirmadoErro;
+    }
+
+    function mostrarAlertaSensor() {
+      document.getElementById('alertSensor').classList.add('show');
+      document.getElementById('sensorStatus').textContent = 'FALHA';
+      document.getElementById('sensorStatus').className = 'status-value sensor-error';
+      document.getElementById('sensorStatusItem').classList.add('sensor-error');
+      
+      // Atualiza cards para mostrar erro
+      document.getElementById('volumeCard').classList.add('error');
+      document.getElementById('distanceCard').classList.add('error');
+      document.getElementById('levelCard').classList.add('error');
+      
+      // Atualiza água do tanque
+      const water = document.getElementById('waterLevel');
+      water.className = 'water sensor-error';
+      water.textContent = 'ERRO';
+    }
+
+    function esconderAlertaSensor() {
+      document.getElementById('alertSensor').classList.remove('show');
+      document.getElementById('sensorStatus').textContent = 'OK';
+      document.getElementById('sensorStatus').className = 'status-value online';
+      document.getElementById('sensorStatusItem').classList.remove('sensor-error');
+      
+      // Remove erro dos cards
+      document.getElementById('volumeCard').classList.remove('error');
+      document.getElementById('distanceCard').classList.remove('error');
+      document.getElementById('levelCard').classList.remove('error');
+    }
+
+    // ==========================================
     // VERIFICAÇÃO DE TIMEOUT DO TRANSMISSOR
     // ==========================================
     function iniciarVerificacaoTimeout() {
@@ -936,13 +1071,11 @@ html_corrigido = '''<!DOCTYPE html>
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
           
-          // Atualizar contador no banner
           const timeoutSpan = document.getElementById('timeoutSeconds');
           if (timeoutSpan) {
             timeoutSpan.textContent = secondsWithoutData;
           }
           
-          // Se passou de 15 segundos sem dados do transmissor
           if (tempoSemDados > TRANSMITTER_TIMEOUT) {
             if (transmitterActive) {
               transmitterActive = false;
@@ -952,11 +1085,9 @@ html_corrigido = '''<!DOCTYPE html>
               atualizarInterfaceTimeout();
             }
             
-            // Salva o estado a cada verificação durante o timeout
             salvarEstadoTimeout();
           }
         } else {
-          // Nunca recebeu dados - conta desde o início
           secondsWithoutData++;
           const timeoutSpan = document.getElementById('timeoutSeconds');
           if (timeoutSpan) {
@@ -1005,20 +1136,20 @@ html_corrigido = '''<!DOCTYPE html>
     // ==========================================
     // PROCESSAMENTO DE DADOS
     // ==========================================
-    function processarDados(payload) {
+    function processarDados(payload, sensorOK) {
       if (payload.config_volume_total > 0) {
         savedCapacityTotal = payload.config_volume_total;
       }
       
       currentData = {
-        percentage: parseInt(payload.percentage) || 0,
-        liters: parseInt(payload.liters) || 0,
-        distance: parseFloat(payload.distance) || 0,
-        level: parseInt(payload.level) || 0,
+        percentage: sensorOK ? (parseInt(payload.percentage) || 0) : 0,
+        liters: sensorOK ? (parseInt(payload.liters) || 0) : 0,
+        distance: sensorOK ? (parseFloat(payload.distance) || 0) : 0,
+        level: sensorOK ? (parseInt(payload.level) || 0) : 0,
         rssi: payload.lora_rssi || -100,
         quality: payload.signal_quality || 0,
         wifiRssi: payload.wifi_rssi || 0,
-        sensorOk: payload.sensor_ok !== false
+        sensorOk: sensorOK
       };
 
       const registro = {
@@ -1026,7 +1157,7 @@ html_corrigido = '''<!DOCTYPE html>
         percentage: currentData.percentage,
         liters: currentData.liters,
         distance: currentData.distance,
-        status: currentData.sensorOk ? 'normal' : 'sensor_error',
+        status: sensorOK ? 'normal' : 'sensor_error',
         lora_signal: { quality: currentData.quality, rssi: currentData.rssi }
       };
       
@@ -1036,17 +1167,6 @@ html_corrigido = '''<!DOCTYPE html>
       atualizarInterface();
       atualizarHistorico();
       atualizarGrafico();
-      
-      if (!currentData.sensorOk) {
-        if (!alertAlreadyShown) {
-          adicionarLog('⚠️ Falha no sensor detectada', 'alert');
-          alertAlreadyShown = true;
-        }
-        document.getElementById('alertSensor').classList.add('show');
-      } else {
-        alertAlreadyShown = false;
-        document.getElementById('alertSensor').classList.remove('show');
-      }
     }
 
     function processarStatus(payload) {
@@ -1067,9 +1187,8 @@ html_corrigido = '''<!DOCTYPE html>
     }
 
     function atualizarInterface() {
-      if (!currentData.sensorOk) {
-        document.getElementById('loraStatus').textContent = 'Erro Sensor';
-        document.getElementById('loraStatus').className = 'status-value warning';
+      // Se sensor com erro, não atualiza valores (mantém estado de erro)
+      if (sensorErrorActive) {
         return;
       }
 
@@ -1091,6 +1210,11 @@ html_corrigido = '''<!DOCTYPE html>
       document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
       document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
       document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
+      
+      // Atualiza status do sensor no painel
+      document.getElementById('sensorStatus').textContent = 'OK';
+      document.getElementById('sensorStatus').className = 'status-value online';
+      document.getElementById('sensorStatusItem').classList.remove('sensor-error');
       
       const bars = document.querySelectorAll('.signal-bar-item');
       const activeBars = Math.ceil((currentData.quality / 100) * 5);
@@ -1114,8 +1238,11 @@ html_corrigido = '''<!DOCTYPE html>
         const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
         
         let classeBadge = 'badge-normal';
-        let textoStatus = 'Normal';
-        if (item.status === 'sensor_error') { classeBadge = 'badge-error'; textoStatus = 'Erro'; }
+        let textoStatus = 'OK';
+        if (item.status === 'sensor_error') { 
+          classeBadge = 'badge-error'; 
+          textoStatus = 'FALHA'; 
+        }
         
         row.innerHTML = `
           <td>${hora}</td>
@@ -1228,6 +1355,8 @@ html_corrigido = '''<!DOCTYPE html>
     window.debugData = function() {
       console.log('=== DEBUG ===');
       console.log('Transmitter Active:', transmitterActive);
+      console.log('Sensor Error Active:', sensorErrorActive);
+      console.log('Sensor Error Count:', sensorErrorCount);
       console.log('Last Data Message:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : 'Nunca');
       console.log('Last Status Message:', lastStatusMessageTime ? new Date(lastStatusMessageTime).toLocaleTimeString() : 'Nunca');
       console.log('Seconds Without Data:', secondsWithoutData);
@@ -1244,4 +1373,4 @@ html_corrigido = '''<!DOCTYPE html>
     connectMQTT();
   </script>
 </body>
-</html>'''
+</html>
