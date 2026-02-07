@@ -1009,15 +1009,17 @@
         savedCapacityTotal = payload.config_volume_total;
       }
       
+      const sensorOk = payload.sensor_ok !== false;
+      
       currentData = {
-        percentage: parseInt(payload.percentage) || 0,
-        liters: parseInt(payload.liters) || 0,
-        distance: parseFloat(payload.distance) || 0,
-        level: parseInt(payload.level) || 0,
+        percentage: sensorOk ? (parseInt(payload.percentage) || 0) : 0,
+        liters: sensorOk ? (parseInt(payload.liters) || 0) : 0,
+        distance: sensorOk ? (parseFloat(payload.distance) || 0) : 0,
+        level: sensorOk ? (parseInt(payload.level) || 0) : 0,
         rssi: payload.lora_rssi || -100,
         quality: payload.signal_quality || 0,
         wifiRssi: payload.wifi_rssi || 0,
-        sensorOk: payload.sensor_ok !== false
+        sensorOk: sensorOk
       };
 
       const registro = {
