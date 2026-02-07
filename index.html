@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -7,7 +6,7 @@
   <title>🌊 Monitor Caixa d'Água - HiveMQ</title>
   
   <!-- MQTT.js via CDN -->
-  <script src="https://unpkg.com/mqtt/dist/mqtt.esm.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
@@ -164,7 +163,6 @@
     .online { color: var(--success); }
     .offline { color: var(--danger); animation: blink 1.5s infinite; }
     .warning { color: var(--warning); }
-    .error { color: var(--danger); }
 
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
@@ -315,7 +313,6 @@
     .water.medium { background: linear-gradient(to top, #ca8a04, #fbbf24); }
     .water.good { background: linear-gradient(to top, #0284c7, #38bdf8); }
     .water.full { background: linear-gradient(to top, #0369a1, #0ea5e9); }
-    .water.error { background: linear-gradient(to top, #7f1d1d, #dc2626); animation: pulse-red 0.5s infinite; }
 
     @keyframes pulse-red { 
       0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(220, 38, 38, 0.5); } 
@@ -379,20 +376,9 @@
       border-color: var(--primary);
       background: white;
     }
-    .info-card.error {
-      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-      border-color: var(--danger);
-      animation: pulse-border 2s infinite;
-    }
     .info-card-label { font-size: 0.65rem; color: var(--gray); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
     .info-card-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-dark); }
-    .info-card-value.error { color: var(--danger); }
     .info-card-unit { font-size: 0.75rem; color: var(--gray); }
-
-    @keyframes pulse-border {
-      0%, 100% { border-width: 2px; }
-      50% { border-width: 4px; }
-    }
 
     #nivelChart { max-height: 250px; width: 100% !important; }
 
@@ -560,10 +546,6 @@
     .alert-sensor {
       background: #fef3c7; color: #92400e; border: 2px solid #fbbf24;
     }
-    .alert-sensor.critical {
-      background: #fee2e2; color: #7f1d1d; border: 2px solid #ef4444;
-      animation: pulse-border 1s infinite;
-    }
     @keyframes pulse-border {
       0%, 100% { border-width: 2px; }
       50% { border-width: 4px; }
@@ -594,7 +576,7 @@
       <i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO
     </div>
     <div id="alertSensor" class="alert-banner alert-sensor">
-      <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR ULTRASSÔNICO
+      <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR
     </div>
 
     <!-- Status Panel -->
@@ -608,8 +590,12 @@
         <span class="status-value" id="receptorStatus">Verificando...</span>
       </div>
       <div class="status-item">
-        <span class="status-label">Sensor Status:</span>
-        <span class="status-value" id="sensorStatus">Verificando...</span>
+        <span class="status-label">Sensor Ultrassônico:</span>
+        <span class="status-value online" id="sensorStatus">OK</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">LoRa:</span>
+        <span class="status-value" id="loraStatus">Verificando...</span>
       </div>
       <div class="status-item">
         <span class="status-label">Sinal LoRa:</span>
@@ -660,20 +646,23 @@
         </div>
 
         <div class="info-grid">
-          <div class="info-card" id="cardVolume" onclick="showDetails('volume')">
+          <div class="info-card" onclick="showDetails('volume')">
             <div class="info-card-label"><i class="fas fa-tint"></i> Volume</div>
-            <div class="info-card-value" id="currentVolume">--</div>
-            <span class="info-card-unit">L</span>
+            <div class="info-card-value">
+              <span id="currentVolume">--</span><span class="info-card-unit">L</span>
+            </div>
           </div>
-          <div class="info-card" id="cardDistance" onclick="showDetails('distance')">
+          <div class="info-card" onclick="showDetails('distance')">
             <div class="info-card-label"><i class="fas fa-ruler-vertical"></i> Distância</div>
-            <div class="info-card-value" id="currentDistance">--</div>
-            <span class="info-card-unit">cm</span>
+            <div class="info-card-value">
+              <span id="currentDistance">--</span><span class="info-card-unit">cm</span>
+            </div>
           </div>
-          <div class="info-card" id="cardLevel" onclick="showDetails('level')">
+          <div class="info-card" onclick="showDetails('level')">
             <div class="info-card-label"><i class="fas fa-arrows-alt-v"></i> Altura</div>
-            <div class="info-card-value" id="currentLevel">--</div>
-            <span class="info-card-unit">cm</span>
+            <div class="info-card-value">
+              <span id="currentLevel">--</span><span class="info-card-unit">cm</span>
+            </div>
           </div>
         </div>
       </div>
@@ -784,8 +773,6 @@
     let timeoutCheckInterval = null;
     let secondsWithoutData = 0;
     let alertAlreadyShown = false;
-    let sensorErrorActive = false;
-    let lastSensorOk = true;
 
     // ==========================================
     // PERSISTÊNCIA DO ESTADO DE TIMEOUT
@@ -795,7 +782,6 @@
         lastDataMessageTime: lastDataMessageTime,
         transmitterActive: transmitterActive,
         secondsWithoutData: secondsWithoutData,
-        sensorErrorActive: sensorErrorActive,
         timestamp: Date.now()
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
@@ -807,21 +793,18 @@
         if (estadoSalvo) {
           const estado = JSON.parse(estadoSalvo);
           const agora = Date.now();
+          const tempoDecorrido = agora - estado.timestamp;
           
           // Se havia um timeout ativo, ajusta o tempo decorrido
           if (estado.lastDataMessageTime && !estado.transmitterActive) {
             lastDataMessageTime = estado.lastDataMessageTime;
+            // Adiciona o tempo que passou desde a última atualização
             const tempoSemDados = agora - estado.lastDataMessageTime;
             secondsWithoutData = Math.floor(tempoSemDados / 1000);
             transmitterActive = false;
             
-            // Restaurar estado do sensor também
-            if (estado.sensorErrorActive) {
-              sensorErrorActive = true;
-            }
-            
             console.log('📦 Estado restaurado - Sem sinal há:', secondsWithoutData, 's');
-            return true;
+            return true; // Indica que havia um estado de timeout
           }
         }
       } catch (e) {
@@ -856,6 +839,7 @@
         updateConnectionStatus(true);
         document.getElementById('loadingOverlay').classList.add('hidden');
         
+        // Iniciar verificação de timeout
         iniciarVerificacaoTimeout();
         
         client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
@@ -866,15 +850,13 @@
             console.log('📡 Subscrito nos tópicos');
             adicionarLog('✅ Dashboard conectado');
             
+            // Verifica se havia um estado de timeout salvo
             const haviaTimeout = carregarEstadoTimeout();
             if (haviaTimeout) {
+              // Mostra o alerta imediatamente se havia timeout
               mostrarAlertaTransmitter();
               atualizarInterfaceTimeout();
               adicionarLog('⚠️ Transmissor ainda sem sinal (' + secondsWithoutData + 's)', 'alert');
-              
-              if (sensorErrorActive) {
-                mostrarAlertaSensor();
-              }
             }
           }
         });
@@ -883,29 +865,24 @@
       client.on('message', (topic, message) => {
         try {
           const payload = JSON.parse(message.toString());
-          console.log('📥 Mensagem recebida no tópico:', topic, 'Payload:', payload);
+          console.log('📥 Mensagem recebida no tópico:', topic);
           
           if (topic === TOPICS.dados) {
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
             
-            console.log('📊 Dados do transmissor recebidos:', payload);
-            
-            // VERIFICAÇÃO MELHORADA DE ERRO DO SENSOR
-            // Verifica múltiplas condições de erro
-            const sensorError = detectarErroSensor(payload);
+            console.log('📊 Dados do transmissor recebidos:', payload.percentage + '%');
             
             if (!transmitterActive) {
               transmitterActive = true;
               alertAlreadyShown = false;
-              limparEstadoTimeout();
+              limparEstadoTimeout(); // Limpa o estado salvo quando volta o sinal
               adicionarLog('✅ Sinal do transmissor restaurado');
               esconderAlertaTransmitter();
               restaurarInterface();
             }
             
-            // Processa dados mesmo com erro de sensor (para mostrar o erro)
-            processarDados(payload, sensorError);
+            processarDados(payload);
             
           } else if (topic === TOPICS.status) {
             lastStatusMessageTime = Date.now();
@@ -926,54 +903,9 @@
       client.on('close', () => {
         console.log('⚠️ Desconectado do MQTT');
         updateConnectionStatus(false);
+        // Salva o estado atual antes de fechar
         salvarEstadoTimeout();
       });
-    }
-
-    // ==========================================
-    // DETECÇÃO MELHORADA DE ERRO DO SENSOR
-    // ==========================================
-    function detectarErroSensor(payload) {
-      // Verifica explicitamente o campo sensor_ok
-      if (payload.sensor_ok === false) {
-        console.log('❌ Erro detectado: sensor_ok = false');
-        return true;
-      }
-      
-      // Verifica se sensor_ok existe (se não existir, pode ser mensagem antiga)
-      if (payload.sensor_ok === undefined) {
-        // Verifica valores inválidos como indicadores de erro
-        if (payload.distance === -1 || payload.distance < 0) {
-          console.log('❌ Erro detectado: distância negativa (-1)');
-          return true;
-        }
-        if (payload.percentage === -1 || payload.percentage < 0) {
-          console.log('❌ Erro detectado: percentual negativo (-1)');
-          return true;
-        }
-        if (payload.liters === -1 || payload.liters < 0) {
-          console.log('❌ Erro detectado: litros negativo (-1)');
-          return true;
-        }
-        if (payload.level === -1 || payload.level < 0) {
-          console.log('❌ Erro detectado: nível negativo (-1)');
-          return true;
-        }
-      }
-      
-      // Verifica se a distância é um valor válido (não NaN, não null)
-      if (payload.distance === null || isNaN(payload.distance)) {
-        console.log('❌ Erro detectado: distância inválida (null/NaN)');
-        return true;
-      }
-      
-      // Verifica se percentual é um valor válido
-      if (payload.percentage === null || isNaN(payload.percentage)) {
-        console.log('❌ Erro detectado: percentual inválido (null/NaN)');
-        return true;
-      }
-      
-      return false;
     }
 
     function updateConnectionStatus(connected) {
@@ -1008,11 +940,13 @@
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
           
+          // Atualizar contador no banner
           const timeoutSpan = document.getElementById('timeoutSeconds');
           if (timeoutSpan) {
             timeoutSpan.textContent = secondsWithoutData;
           }
           
+          // Se passou de 15 segundos sem dados do transmissor
           if (tempoSemDados > TRANSMITTER_TIMEOUT) {
             if (transmitterActive) {
               transmitterActive = false;
@@ -1022,9 +956,11 @@
               atualizarInterfaceTimeout();
             }
             
+            // Salva o estado a cada verificação durante o timeout
             salvarEstadoTimeout();
           }
         } else {
+          // Nunca recebeu dados - conta desde o início
           secondsWithoutData++;
           const timeoutSpan = document.getElementById('timeoutSeconds');
           if (timeoutSpan) {
@@ -1052,59 +988,6 @@
       document.getElementById('loraStatus').className = 'status-value online';
     }
 
-    function mostrarAlertaSensor() {
-      const alertSensor = document.getElementById('alertSensor');
-      alertSensor.classList.add('show');
-      alertSensor.classList.add('critical');
-      sensorErrorActive = true;
-      
-      // Atualiza status do sensor
-      document.getElementById('sensorStatus').textContent = 'FALHA';
-      document.getElementById('sensorStatus').className = 'status-value error';
-      
-      // Adiciona classe de erro nos cards
-      document.getElementById('cardVolume').classList.add('error');
-      document.getElementById('cardDistance').classList.add('error');
-      document.getElementById('cardLevel').classList.add('error');
-      
-      // Atualiza valores para indicar erro
-      document.getElementById('currentVolume').textContent = 'ERR';
-      document.getElementById('currentVolume').classList.add('error');
-      document.getElementById('currentDistance').textContent = 'ERR';
-      document.getElementById('currentDistance').classList.add('error');
-      document.getElementById('currentLevel').textContent = 'ERR';
-      document.getElementById('currentLevel').classList.add('error');
-      
-      // Atualiza tanque para indicar erro
-      const water = document.getElementById('waterLevel');
-      water.style.height = '100%';
-      water.textContent = 'ERR';
-      water.className = 'water error';
-      
-      salvarEstadoTimeout();
-    }
-
-    function esconderAlertaSensor() {
-      const alertSensor = document.getElementById('alertSensor');
-      alertSensor.classList.remove('show');
-      alertSensor.classList.remove('critical');
-      sensorErrorActive = false;
-      
-      // Restaura status do sensor
-      document.getElementById('sensorStatus').textContent = 'OK';
-      document.getElementById('sensorStatus').className = 'status-value online';
-      
-      // Remove classe de erro dos cards
-      document.getElementById('cardVolume').classList.remove('error');
-      document.getElementById('cardDistance').classList.remove('error');
-      document.getElementById('cardLevel').classList.remove('error');
-      
-      // Remove classe de erro dos valores
-      document.getElementById('currentVolume').classList.remove('error');
-      document.getElementById('currentDistance').classList.remove('error');
-      document.getElementById('currentLevel').classList.remove('error');
-    }
-
     function atualizarInterfaceTimeout() {
       document.getElementById('waterLevel').style.height = '0%';
       document.getElementById('waterLevel').textContent = '--';
@@ -1121,61 +1004,34 @@
     function restaurarInterface() {
       document.getElementById('loraStatus').textContent = 'Conectado';
       document.getElementById('loraStatus').className = 'status-value online';
-      document.getElementById('sensorStatus').textContent = 'OK';
-      document.getElementById('sensorStatus').className = 'status-value online';
     }
 
     // ==========================================
     // PROCESSAMENTO DE DADOS
     // ==========================================
-    function processarDados(payload, sensorError) {
-      // Se tem erro de sensor, mostra alerta e não processa valores
-      if (sensorError) {
-        if (!sensorErrorActive) {
-          console.log('🚨 ERRO DE SENSOR DETECTADO - Mostrando alerta');
-          mostrarAlertaSensor();
-          adicionarLog('🚨 FALHA NO SENSOR ULTRASSÔNICO DETECTADA!', 'alert');
-        }
-        
-        // Ainda salva no histórico como erro
-        const registroErro = {
-          timestamp: new Date().toISOString(),
-          percentage: -1,
-          liters: -1,
-          distance: -1,
-          level: -1,
-          status: 'sensor_error',
-          lora_signal: { quality: payload.signal_quality || 0, rssi: payload.lora_rssi || -100 }
-        };
-        
-        historico.unshift(registroErro);
-        if (historico.length > 50) historico.pop();
-        
-        atualizarHistorico();
-        return;
-      }
-      
-      // Se não tem erro mas havia erro antes, limpa
-      if (sensorErrorActive && !sensorError) {
-        console.log('✅ Sensor restaurado - Limpando alerta de erro');
-        esconderAlertaSensor();
-        adicionarLog('✅ Sensor ultrassônico restaurado');
-      }
-      
-      // Processa dados normais
+    function processarDados(payload) {
       if (payload.config_volume_total > 0) {
         savedCapacityTotal = payload.config_volume_total;
       }
       
+      // DETECÇÃO APRIMORADA DE FALHA DO SENSOR
+      // O transmissor envia: distance=-1, percentage=-1, liters=-1, sensor_ok=false quando há falha
+      const sensorComFalha = (
+        payload.sensor_ok === false || 
+        payload.distance < 0 ||
+        payload.percentage < 0 ||
+        payload.liters < 0
+      );
+      
       currentData = {
-        percentage: parseInt(payload.percentage) || 0,
-        liters: parseInt(payload.liters) || 0,
-        distance: parseFloat(payload.distance) || 0,
-        level: parseInt(payload.level) || 0,
+        percentage: sensorComFalha ? 0 : (parseInt(payload.percentage) || 0),
+        liters: sensorComFalha ? 0 : (parseInt(payload.liters) || 0),
+        distance: sensorComFalha ? 0 : (parseFloat(payload.distance) || 0),
+        level: sensorComFalha ? 0 : (parseInt(payload.level) || 0),
         rssi: payload.lora_rssi || -100,
         quality: payload.signal_quality || 0,
         wifiRssi: payload.wifi_rssi || 0,
-        sensorOk: true
+        sensorOk: !sensorComFalha
       };
 
       const registro = {
@@ -1183,8 +1039,7 @@
         percentage: currentData.percentage,
         liters: currentData.liters,
         distance: currentData.distance,
-        level: currentData.level,
-        status: 'normal',
+        status: currentData.sensorOk ? 'normal' : 'sensor_error',
         lora_signal: { quality: currentData.quality, rssi: currentData.rssi }
       };
       
@@ -1194,6 +1049,18 @@
       atualizarInterface();
       atualizarHistorico();
       atualizarGrafico();
+      
+      // MOSTRAR ALERTA DE FALHA DO SENSOR
+      if (!currentData.sensorOk) {
+        if (!alertAlreadyShown) {
+          adicionarLog('🚨 FALHA NO SENSOR ULTRASSÔNICO DETECTADA!', 'alert');
+          alertAlreadyShown = true;
+        }
+        document.getElementById('alertSensor').classList.add('show');
+      } else {
+        alertAlreadyShown = false;
+        document.getElementById('alertSensor').classList.remove('show');
+      }
     }
 
     function processarStatus(payload) {
@@ -1214,6 +1081,35 @@
     }
 
     function atualizarInterface() {
+      // ATUALIZAR STATUS DO SENSOR NA BARRA SUPERIOR
+      const sensorStatusElement = document.getElementById('sensorStatus');
+      
+      if (!currentData.sensorOk) {
+        // SENSOR COM FALHA - Atualizar status e zerar visualização
+        sensorStatusElement.textContent = 'FALHA';
+        sensorStatusElement.className = 'status-value offline';
+        
+        document.getElementById('loraStatus').textContent = 'Erro Sensor';
+        document.getElementById('loraStatus').className = 'status-value warning';
+        
+        // ZERAR NÍVEL VISUAL DA CAIXA
+        const water = document.getElementById('waterLevel');
+        water.style.height = '0%';
+        water.textContent = 'ERRO';
+        water.className = 'water critical';
+        
+        // ZERAR VALORES EXIBIDOS
+        document.getElementById('currentVolume').textContent = '---';
+        document.getElementById('currentDistance').textContent = '---';
+        document.getElementById('currentLevel').textContent = '---';
+        
+        return;
+      }
+      
+      // SENSOR OK - Atualizar normalmente
+      sensorStatusElement.textContent = 'OK';
+      sensorStatusElement.className = 'status-value online';
+
       const pct = currentData.percentage;
       const water = document.getElementById('waterLevel');
       water.style.height = pct + '%';
@@ -1256,17 +1152,14 @@
         
         let classeBadge = 'badge-normal';
         let textoStatus = 'Normal';
-        if (item.status === 'sensor_error') { 
-          classeBadge = 'badge-error'; 
-          textoStatus = 'Erro Sensor'; 
-        }
+        if (item.status === 'sensor_error') { classeBadge = 'badge-error'; textoStatus = 'Erro'; }
         
         row.innerHTML = `
           <td>${hora}</td>
           <td><span class="status-badge ${classeBadge}">${textoStatus}</span></td>
-          <td>${item.percentage >= 0 ? item.percentage + '%' : 'ERR'}</td>
-          <td>${item.liters >= 0 ? item.liters + 'L' : 'ERR'}</td>
-          <td>${item.distance >= 0 ? item.distance.toFixed(1) + 'cm' : 'ERR'}</td>
+          <td>${item.percentage}%</td>
+          <td>${item.liters}L</td>
+          <td>${item.distance.toFixed(1)}cm</td>
           <td>
             <div class="signal-cell">
               <span class="signal-dbm">${item.lora_signal.rssi} dBm</span>
@@ -1372,7 +1265,6 @@
     window.debugData = function() {
       console.log('=== DEBUG ===');
       console.log('Transmitter Active:', transmitterActive);
-      console.log('Sensor Error Active:', sensorErrorActive);
       console.log('Last Data Message:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : 'Nunca');
       console.log('Last Status Message:', lastStatusMessageTime ? new Date(lastStatusMessageTime).toLocaleTimeString() : 'Nunca');
       console.log('Seconds Without Data:', secondsWithoutData);
@@ -1389,24 +1281,4 @@
     connectMQTT();
   </script>
 </body>
-</html>'''
-
-# Salvar o arquivo corrigido
-with open('/mnt/kimi/output/index_corrigido.html', 'w', encoding='utf-8') as f:
-    f.write(html_corrigido)
-
-print("✅ Arquivo corrigido salvo em: /mnt/kimi/output/index_corrigido.html")
-print("\n📝 Principais correções na detecção de falha do sensor:")
-print("1. Função detectarErroSensor() - Verifica múltiplas condições de erro:")
-print("   • sensor_ok === false (explícito)")
-print("   • distance === -1 ou negativa")
-print("   • percentage === -1 ou negativa")
-print("   • liters === -1 ou negativa")
-print("   • level === -1 ou negativa")
-print("   • Valores null ou NaN")
-print("\n2. Status do sensor agora aparece no painel superior")
-print("3. Cards ficam vermelhos e piscam quando há erro")
-print("4. Tanque mostra 'ERR' em vermelho quando sensor falha")
-print("5. Alerta visual mais evidente com banner crítico")
-print("6. Persistência do estado de erro do sensor no localStorage")
-print("7. Log de eventos mostra quando sensor falha e quando volta")
+</html>
