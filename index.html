@@ -1245,15 +1245,3 @@ html_corrigido = '''<!DOCTYPE html>
   </script>
 </body>
 </html>'''
-
-# Salvar o arquivo corrigido
-with open('/mnt/kimi/output/index_corrigido.html', 'w', encoding='utf-8') as f:
-    f.write(html_corrigido)
-
-print("✅ Arquivo corrigido salvo em: /mnt/kimi/output/index_corrigido.html")
-print("\n📝 Resumo das alterações:")
-print("1. Adicionada função salvarEstadoTimeout() - salva no localStorage quando perde sinal")
-print("2. Adicionada função carregarEstadoTimeout() - recupera o estado ao carregar a página")
-print("3. Adicionada função limparEstadoTimeout() - remove o estado quando o sinal volta")
-print("4. O estado é salvo a cada segundo durante o timeout e ao fechar a conexão")
-print("5. Ao conectar, verifica se havia um timeout ativo e restaura o alerta imediatamente")
