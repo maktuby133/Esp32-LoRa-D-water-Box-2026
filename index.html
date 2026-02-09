@@ -297,6 +297,12 @@
       background: linear-gradient(to top, #7f1d1d, #dc2626) !important; 
       animation: pulse-red 0.5s infinite; 
     }
+    /* NOVO: Estilo para quando estiver offline */
+    .water.offline { 
+      background: linear-gradient(to top, #374151, #6b7280) !important; 
+      height: 0% !important;
+      animation: none;
+    }
 
     @keyframes pulse-red { 
       0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(220, 38, 38, 0.5); } 
@@ -372,11 +378,18 @@
       border-color: var(--danger);
       animation: pulse-border 1.5s infinite;
     }
+    /* NOVO: Estilo para quando estiver offline */
+    .info-card.offline {
+      background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+      border-color: var(--gray);
+      opacity: 0.7;
+    }
     .info-card-label { font-size: 0.65rem; color: var(--gray); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
     .info-card-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-dark); }
     .info-card-unit { font-size: 0.75rem; color: var(--gray); }
     .info-card.error .info-card-value { color: var(--danger); }
     .info-card.error .info-card-label { color: var(--danger); }
+    .info-card.offline .info-card-value { color: var(--gray); }
 
     /* CORREÇÃO: Canvas do gráfico com altura máxima */
     #nivelChart { 
@@ -706,8 +719,10 @@
       comandos: 'caixas/agua/comandos'
     };
 
-    const TRANSMITTER_TIMEOUT = 15000;
-    const RECEPTOR_TIMEOUT = 60000; // 60 segundos sem heartbeat = offline
+    // MODIFICADO: Aumentado de 15000 para 45000 (45 segundos) para evitar falsos positivos
+    const TRANSMITTER_TIMEOUT = 45000;
+    // MODIFICADO: Aumentado de 60000 para 90000 (90 segundos) para maior tolerância
+    const RECEPTOR_TIMEOUT = 90000;
     const STORAGE_KEY = 'transmitter_timeout_state';
 
     let client = null;
@@ -716,7 +731,7 @@
     let currentData = {};
     let historico = [];
     let lastDataMessageTime = null;
-    let lastReceptorStatusTime = null; // NOVO: Track do último status do receptor
+    let lastReceptorStatusTime = null;
     let receptorOnline = false;
     let transmitterActive = false;
     let timeoutCheckInterval = null;
@@ -725,6 +740,25 @@
     let sensorErrorCount = 0;
     let ultimoValorValido = null;
     let leiturasConsecutivasErradas = 0;
+
+    // NOVO: Função para calcular qualidade do sinal com faixas mais largas
+    // Isso evita que a porcentagem mude com pequenas variações de dBm
+    function calcularQualidadeSinal(rssi) {
+      // Faixas mais largas para evitar oscilações:
+      // -50 dBm ou melhor: 100% (Excelente)
+      // -50 a -70 dBm: 80% (Muito bom) - faixa de 20dB
+      // -70 a -90 dBm: 60% (Bom) - faixa de 20dB  
+      // -90 a -100 dBm: 40% (Regular) - faixa de 10dB
+      // -100 a -110 dBm: 20% (Fraco) - faixa de 10dB
+      // Abaixo de -110 dBm: 10% (Muito fraco)
+      
+      if (rssi >= -50) return 100;
+      if (rssi >= -70) return 80;
+      if (rssi >= -90) return 60;
+      if (rssi >= -100) return 40;
+      if (rssi >= -110) return 20;
+      return 10;
+    }
 
     function connectMQTT() {
       const url = `wss://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}/mqtt`;
@@ -748,10 +782,23 @@
         client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
           if (!err) {
             adicionarLog('✅ Dashboard conectado');
-            // CORREÇÃO: Considera receptor online ao conectar se já recebe dados
             lastReceptorStatusTime = Date.now();
           }
         });
+      });
+
+      client.on('disconnect', () => {
+        console.log('❌ Desconectado do MQTT');
+        updateConnectionStatus(false);
+        // NOVO: Zerar interface quando desconectar
+        zerarInterfaceOffline();
+      });
+
+      client.on('error', (err) => {
+        console.error('❌ Erro MQTT:', err);
+        updateConnectionStatus(false);
+        // NOVO: Zerar interface em caso de erro
+        zerarInterfaceOffline();
       });
 
       client.on('message', (topic, message) => {
@@ -763,15 +810,12 @@
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
             
-            // CORREÇÃO: Se recebeu dados, receptor está online!
-            // Atualiza status do receptor baseado em receber dados
             if (!receptorOnline) {
               receptorOnline = true;
               atualizarStatusReceptor(true, 'Online (recebendo dados)');
             }
             lastReceptorStatusTime = Date.now();
             
-            // Verificação do sensor
             let sensorOK = payload.sensor_ok;
             const distancia = parseFloat(payload.distance);
             const percentual = parseInt(payload.percentage);
@@ -805,10 +849,16 @@
               esconderAlertaTransmitter();
             }
             
+            // MODIFICADO: Usar nova função de cálculo de qualidade
+            const rssi = payload.lora_rssi || -100;
+            const quality = calcularQualidadeSinal(rssi);
+            
+            // Atualizar payload com qualidade calculada
+            payload.signal_quality = quality;
+            
             processarDados(payload, sensorOK);
             
           } else if (topic === TOPICS.status) {
-            // Mensagem explícita de status do receptor
             lastReceptorStatusTime = Date.now();
             processarStatus(payload);
           }
@@ -818,7 +868,38 @@
       });
     }
 
-    // CORREÇÃO: Função unificada para atualizar status do receptor
+    // NOVO: Função para zerar interface quando offline
+    function zerarInterfaceOffline() {
+      const water = document.getElementById('waterLevel');
+      water.className = 'water offline';
+      water.style.height = '0%';
+      water.textContent = 'OFF';
+      
+      document.getElementById('currentVolume').textContent = '--';
+      document.getElementById('currentDistance').textContent = '--';
+      document.getElementById('currentLevel').textContent = '--';
+      
+      document.getElementById('volumeCard').classList.add('offline');
+      document.getElementById('distanceCard').classList.add('offline');
+      document.getElementById('levelCard').classList.add('offline');
+      
+      // Zerar barras de sinal
+      const bars = document.querySelectorAll('.signal-bar-item');
+      bars.forEach(bar => bar.classList.remove('active'));
+      document.getElementById('signalText').textContent = '0%';
+      
+      document.getElementById('loraStatus').textContent = 'Offline';
+      document.getElementById('loraStatus').className = 'status-value offline';
+      
+      document.getElementById('wifiRssi').textContent = '-- dBm';
+      document.getElementById('sensorStatus').textContent = 'Offline';
+      document.getElementById('sensorStatus').className = 'status-value offline';
+      
+      // Mostrar alertas
+      document.getElementById('alertReceptor').classList.add('show');
+      document.getElementById('alertTransmitter').classList.add('show');
+    }
+
     function atualizarStatusReceptor(online, texto) {
       const receptorStatus = document.getElementById('receptorStatus');
       receptorOnline = online;
@@ -827,19 +908,23 @@
         receptorStatus.textContent = texto || 'Online';
         receptorStatus.className = 'status-value online';
         document.getElementById('alertReceptor').classList.remove('show');
+        // NOVO: Remover classe offline dos cards quando voltar
+        document.getElementById('volumeCard').classList.remove('offline');
+        document.getElementById('distanceCard').classList.remove('offline');
+        document.getElementById('levelCard').classList.remove('offline');
       } else {
         receptorStatus.textContent = 'Offline';
         receptorStatus.className = 'status-value offline';
         document.getElementById('alertReceptor').classList.add('show');
+        // NOVO: Zerar interface quando receptor ficar offline
+        zerarInterfaceOffline();
       }
     }
 
     function processarStatus(payload) {
-      // Processa mensagem explícita de status do tópico status
       if (payload.status === 'online' || payload.heartbeat === true) {
         atualizarStatusReceptor(true, payload.status === 'online' ? 'Online' : 'Online (heartbeat)');
         
-        // Se tem heartbeat, receptor está definitivamente online
         if (payload.heartbeat) {
           console.log('💓 Heartbeat do receptor recebido');
         }
@@ -867,11 +952,12 @@
             document.getElementById('alertTransmitter').classList.add('show');
             document.getElementById('loraStatus').textContent = 'Sem Sinal';
             document.getElementById('loraStatus').className = 'status-value offline';
+            // NOVO: Zerar interface quando perder sinal do transmissor
+            zerarInterfaceOffline();
           }
         }
         
-        // CORREÇÃO: Verifica timeout do receptor (status/heartbeat)
-        // Se não recebeu nada (dados OU status) por 60s, receptor está offline
+        // Verifica timeout do receptor
         const ultimoContato = Math.max(lastDataMessageTime || 0, lastReceptorStatusTime || 0);
         if (ultimoContato > 0) {
           const tempoSemContato = agora - ultimoContato;
@@ -879,7 +965,7 @@
           if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
             console.log('⏱️ Timeout do receptor:', tempoSemContato, 'ms sem contato');
             atualizarStatusReceptor(false);
-            adicionarLog('⚠️ Receptor sem resposta (>60s)', 'warning');
+            adicionarLog('⚠️ Receptor sem resposta (>90s)', 'warning');
           }
         }
         
@@ -1138,6 +1224,9 @@
       console.log('lastDataMessageTime:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : null);
       console.log('lastReceptorStatusTime:', lastReceptorStatusTime ? new Date(lastReceptorStatusTime).toLocaleTimeString() : null);
       console.log('currentData:', currentData);
+      console.log('transmitterActive:', transmitterActive);
+      console.log('TRANSMITTER_TIMEOUT:', TRANSMITTER_TIMEOUT);
+      console.log('RECEPTOR_TIMEOUT:', RECEPTOR_TIMEOUT);
     };
 
     connectMQTT();
