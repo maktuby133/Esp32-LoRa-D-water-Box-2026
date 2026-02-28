@@ -565,7 +565,7 @@
         <span class="status-value" id="lastUpdate">--:--:--</span>
       </div>
       <div class="status-item">
-        <span class="status-label">WiFi Receptor:</span>
+        <span class="status-label">WiFi :</span>
         <span class="status-value" id="wifiRssi">-- dBm</span>
       </div>
       <div class="status-item" id="sensorStatusItem">
@@ -927,7 +927,7 @@
 
     function processarStatus(payload) {
       if (payload.status === 'online' || payload.heartbeat === true) {
-        atualizarStatusReceptor(true, payload.status === 'online' ? 'Online' : 'Online (heartbeat)');
+        atualizarStatusReceptor(true, payload.status === 'online' ? 'Online' : 'Online ');
         
         if (payload.heartbeat) {
           console.log('💓 Heartbeat do receptor recebido');
