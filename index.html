@@ -780,8 +780,8 @@
       });
 
       client.on('reconnect', () => {
-        adicionarLog('🔄 Reconectando...', 'warning');
-        updateConnectionStatus(false);
+        // Só loga, não muda status dos dispositivos — evita flash de offline
+        adicionarLog('🔄 Reconectando ao broker...', 'warning');
       });
 
       client.on('disconnect', () => {
@@ -896,9 +896,11 @@
       document.getElementById('sensorStatus').textContent = 'Offline';
       document.getElementById('sensorStatus').className = 'status-value offline';
       
-      // Mostrar alertas
-      document.getElementById('alertReceptor').classList.add('show');
-      document.getElementById('alertTransmitter').classList.add('show');
+      // Mostrar alertas só se já havia dados (evita flash no carregamento)
+      if (lastDataMessageTime) {
+        document.getElementById('alertReceptor').classList.add('show');
+        document.getElementById('alertTransmitter').classList.add('show');
+      }
     }
 
     function atualizarStatusReceptor(online, texto) {
@@ -909,16 +911,17 @@
         receptorStatus.textContent = texto || 'Online';
         receptorStatus.className = 'status-value online';
         document.getElementById('alertReceptor').classList.remove('show');
-        // NOVO: Remover classe offline dos cards quando voltar
         document.getElementById('volumeCard').classList.remove('offline');
         document.getElementById('distanceCard').classList.remove('offline');
         document.getElementById('levelCard').classList.remove('offline');
       } else {
-        receptorStatus.textContent = 'Offline';
-        receptorStatus.className = 'status-value offline';
-        document.getElementById('alertReceptor').classList.add('show');
-        // NOVO: Zerar interface quando receptor ficar offline
-        zerarInterfaceOffline();
+        // Só mostra offline se já recebeu dados antes — evita flash no carregamento
+        if (lastDataMessageTime) {
+          receptorStatus.textContent = 'Offline';
+          receptorStatus.className = 'status-value offline';
+          document.getElementById('alertReceptor').classList.add('show');
+          zerarInterfaceOffline();
+        }
       }
     }
 
