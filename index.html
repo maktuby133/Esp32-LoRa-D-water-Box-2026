@@ -510,6 +510,46 @@
     .status-item.sensor-error .status-value {
       color: var(--danger);
     }
+
+    /* ===== BATERIA ===== */
+    .bat-icon-wrap {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .bat-body {
+      position: relative;
+      width: 32px;
+      height: 16px;
+      border: 2px solid #555;
+      border-radius: 3px;
+      background: #f0f0f0;
+      overflow: hidden;
+    }
+    .bat-body::after {
+      content: '';
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 8px;
+      background: #555;
+      border-radius: 0 2px 2px 0;
+    }
+    .bat-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      border-radius: 1px;
+      transition: width 0.6s ease, background 0.6s ease;
+    }
+    .bat-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--dark);
+      min-width: 34px;
+      text-align: right;
+    }
   </style>
 </head>
 <body>
@@ -571,6 +611,15 @@
       <div class="status-item" id="sensorStatusItem">
         <span class="status-label"><i class="fas fa-microchip"></i> Sensor:</span>
         <span class="status-value" id="sensorStatus">Aguardando...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label"><i class="fas fa-battery-half"></i> Bateria TX:</span>
+        <div class="bat-icon-wrap">
+          <div class="bat-body">
+            <div class="bat-fill" id="batFill" style="width:0%; background:#38b000;"></div>
+          </div>
+          <span class="bat-label" id="batPercLabel">--%</span>
+        </div>
       </div>
     </div>
 
@@ -991,7 +1040,9 @@
           quality: payload.signal_quality || 0,
           wifiRssi: payload.wifi_rssi || 0,
           sensorOk: false,
-          erro: true
+          erro: true,
+          batVoltage: parseFloat(payload.bat_voltage) || 0,
+          batPercent: parseInt(payload.bat_percent) || 0
         };
         
         if (!sensorErrorActive && leiturasConsecutivasErradas >= 1) {
@@ -1009,7 +1060,9 @@
           quality: payload.signal_quality || 0,
           wifiRssi: payload.wifi_rssi || 0,
           sensorOk: true,
-          erro: false
+          erro: false,
+          batVoltage: parseFloat(payload.bat_voltage) || 0,
+          batPercent: parseInt(payload.bat_percent) || 0
         };
         
         if (sensorErrorActive) {
@@ -1089,6 +1142,20 @@
       const activeBars = Math.ceil((currentData.quality / 100) * 5);
       bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
       document.getElementById('signalText').textContent = currentData.quality + '%';
+
+      // Atualizar ícone de bateria do transmissor
+      const pctBat = currentData.batPercent || 0;
+      const vBat   = currentData.batVoltage || 0;
+      const fill   = document.getElementById('batFill');
+      const lbl    = document.getElementById('batPercLabel');
+      if (fill && lbl) {
+        fill.style.width = pctBat + '%';
+        if      (pctBat <= 15) fill.style.background = '#e63946';
+        else if (pctBat <= 35) fill.style.background = '#ff9e00';
+        else                   fill.style.background = '#38b000';
+        lbl.textContent = pctBat + '%';
+        lbl.title = vBat.toFixed(2) + 'V';
+      }
     }
 
     function mostrarAlertaSensor() {
