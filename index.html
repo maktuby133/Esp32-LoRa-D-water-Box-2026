@@ -521,6 +521,11 @@
       </div>
     </div>
 
+    <div id="mqttDiagBanner" style="display:none; background:#fff3cd; border:2px solid #ffc107; border-radius:8px; padding:10px 14px; margin-bottom:8px; font-size:0.82rem; color:#856404;">
+      <strong>⚠️ Erro MQTT:</strong> <span id="mqttDiagMsg">—</span><br>
+      <small>Broker: <code>71a5889f36334b82b820b780b8409341.s1.eu.hivemq.cloud:8884</code> | Usuário: <code id="mqttDiagUser">—</code></small>
+    </div>
+
     <div id="alertTransmitter" class="alert-banner alert-transmitter">
       <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR (<span id="timeoutSeconds">0</span>s)
     </div>
@@ -682,9 +687,9 @@
     // mqtt carregado via CDN global
 
     const MQTT_CONFIG = {
-      host: '71a5889f36334b82b820b780b8409341.s1.eu.hivemq.cloud',
+      host: '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud',
       port: 8884,
-      username: 'esp32-GsM',
+      username: 'esp32-receptor',
       password: '061084Cc@',
       clientId: 'lora-dashboard-' + Math.random().toString(16).substr(2, 8)
     };
@@ -763,6 +768,7 @@
         console.log('✅ Conectado ao HiveMQ!');
         updateConnectionStatus(true);
         adicionarLog('✅ Dashboard conectado');
+        document.getElementById('mqttDiagBanner').style.display = 'none';
         
         iniciarVerificacaoTimeout();
         
@@ -787,9 +793,12 @@
 
       client.on('error', (err) => {
         console.error('❌ Erro MQTT:', err);
-        adicionarLog('❌ Erro MQTT: ' + (err.message || err));
+        const msg = err.message || String(err);
+        adicionarLog('❌ Erro MQTT: ' + msg);
         updateConnectionStatus(false);
-        // Só zera interface se já tinha recebido dados antes
+        document.getElementById('mqttDiagBanner').style.display = 'block';
+        document.getElementById('mqttDiagMsg').textContent = msg;
+        document.getElementById('mqttDiagUser').textContent = MQTT_CONFIG.username;
         if (lastDataMessageTime) zerarInterfaceOffline();
       });
 
