@@ -29,17 +29,22 @@
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-      min-height: 100vh;
-      padding: 8px;
+      height: 100vh;
+      overflow: hidden;
+      padding: 6px;
       color: var(--dark);
     }
 
-    .container { max-width: 1400px; margin: 0 auto; }
+    .container {
+      max-width: 1400px; margin: 0 auto;
+      height: 100vh;
+      display: flex; flex-direction: column; gap: 5px;
+    }
 
     .header {
       text-align: center;
-      margin-bottom: 8px;
-      padding: 12px;
+      flex-shrink: 0;
+      padding: 7px 14px;
       background: white;
       border-radius: 12px;
       box-shadow: 0 4px 15px rgba(0,0,0,0.06);
@@ -107,9 +112,9 @@
 
     .status-panel {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 8px;
-      margin-bottom: 10px;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      flex-shrink: 0;
     }
 
     .status-item {
@@ -118,26 +123,17 @@
       justify-content: space-between;
       gap: 8px;
       background: white;
-      padding: 10px;
-      border-radius: 10px;
+      padding: 5px 8px;
+      border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       transition: transform 0.2s;
     }
 
     .status-item:hover { transform: translateY(-2px); }
 
-    .status-label {
-      font-weight: 600;
-      color: var(--gray);
-      font-size: 0.7rem;
-      text-transform: uppercase;
-    }
+    .status-label { font-weight:600; color:var(--gray); font-size:0.6rem; text-transform:uppercase; }
 
-    .status-value {
-      font-weight: 700;
-      font-size: 0.85rem;
-      text-align: right;
-    }
+    .status-value { font-weight:700; font-size:0.75rem; text-align:right; }
 
     .online { color: var(--success); }
     .offline { color: var(--danger); animation: blink 1.5s infinite; }
@@ -160,8 +156,7 @@
 
     .alert-banner {
       display: none;
-      padding: 12px;
-      margin-bottom: 10px;
+      padding: 5px 12px;
       border-radius: 8px;
       text-align: center;
       font-weight: 600;
@@ -179,9 +174,10 @@
     .main-content {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 10px;
-      align-items: start; /* CORREÇÃO: Evita que os cards estiquem */
+      gap: 8px;
+      flex: 1;
+      min-height: 0;
+      align-items: stretch;
     }
 
     @media (max-width: 768px) { 
@@ -193,16 +189,14 @@
       padding: 15px;
       border-radius: 15px;
       box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-      /* CORREÇÃO: Altura máxima e scroll */
-      max-height: 500px;
-      overflow-y: auto;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
     }
 
     .card-header {
       text-align: center;
-      margin-bottom: 15px;
+      margin-bottom: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -218,7 +212,8 @@
       position: relative;
       width: 240px;
       height: 220px;
-      margin: 10px auto;
+      margin: 4px auto;
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -239,12 +234,12 @@
     .tank {
       position: absolute;
       left: 50%; transform: translateX(-50%);
-      width: 44px;
-      top: 38px; bottom: 42px;
-      border-radius: 8px;
+      width: 52px;
+      top: 30px; bottom: 36px;
+      border-radius: 10px;
       overflow: hidden;
       z-index: 2;
-      background: rgba(20, 40, 60, 0.35);
+      background: rgba(20, 40, 60, 0.30);
       backdrop-filter: blur(1px);
       box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
     }
@@ -334,8 +329,8 @@
 
     .tank-capacity {
       text-align: center;
-      margin: 10px 0;
-      padding: 10px;
+      margin: 5px 0;
+      padding: 6px;
       background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
       border-radius: 10px;
       border: 2px solid var(--primary);
@@ -349,20 +344,19 @@
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 0;
       flex-shrink: 0;
     }
     @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; } }
 
     .info-card {
       background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-      padding: 12px 8px;
+      padding: 5px 4px;
       border-radius: 10px;
       text-align: center;
       cursor: pointer;
       transition: all 0.3s;
       border: 2px solid transparent;
-      min-height: 80px; /* Altura mínima */
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -384,32 +378,27 @@
       border-color: var(--gray);
       opacity: 0.7;
     }
-    .info-card-label { font-size: 0.65rem; color: var(--gray); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
-    .info-card-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-dark); }
-    .info-card-unit { font-size: 0.75rem; color: var(--gray); }
+    .info-card-label { font-size: 0.58rem; color: var(--gray); font-weight: 600; text-transform: uppercase; margin-bottom: 1px; }
+    .info-card-value { font-size: 0.9rem; font-weight: 700; color: var(--primary-dark); }
+    .info-card-unit { font-size: 0.65rem; color: var(--gray); }
     .info-card.error .info-card-value { color: var(--danger); }
     .info-card.error .info-card-label { color: var(--danger); }
     .info-card.offline .info-card-value { color: var(--gray); }
 
-    /* CORREÇÃO: Canvas do gráfico com altura máxima */
-    #nivelChart { 
-      max-height: 250px !important; 
-      height: 250px !important;
-      width: 100% !important;
-    }
+    #nivelChart { flex: 1; min-height: 0; width: 100% !important; }
 
     .table-container {
       overflow-x: auto;
-      margin-top: 10px;
+      margin-top: 6px;
       border-radius: 8px;
       border: 1px solid #e9ecef;
       max-height: 200px; /* CORREÇÃO: Altura máxima */
       overflow-y: auto;
     }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
     thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
-    th { padding: 10px 8px; text-align: left; font-weight: 600; white-space: nowrap; }
-    td { padding: 8px; border-bottom: 1px solid #e9ecef; }
+    th { padding: 5px 7px; text-align: left; font-weight: 600; white-space: nowrap; }
+    td { padding: 4px 7px; border-bottom: 1px solid #e9ecef; }
     tbody tr:hover { background: #f8f9fa; }
     tbody tr:last-child td { border-bottom: none; }
 
@@ -427,22 +416,17 @@
     .signal-dbm { font-weight: 700; font-size: 0.85rem; color: var(--primary-dark); min-width: 45px; }
     .signal-percent { font-weight: 600; font-size: 0.85rem; color: var(--gray); }
 
-    /* CORREÇÃO: Log de eventos com altura máxima */
-    #updateHistory { 
-      max-height: 150px; 
-      overflow-y: auto;
-    }
+    #updateHistory { flex:1; overflow-y:auto; min-height:0; }
 
     .update-entry {
-      padding: 8px 12px;
-      margin-bottom: 6px;
+      padding: 4px 10px;
+      margin-bottom: 3px;
       background: #f8f9fa;
       border-left: 3px solid var(--primary);
       border-radius: 5px;
       display: flex;
       gap: 10px;
-      font-size: 0.8rem;
-      animation: slideIn 0.3s ease;
+      font-size: 0.72rem;
     }
     .update-entry.alert { background: #fee2e2; border-left-color: var(--danger); animation: pulse-alert 2s infinite; }
     .update-entry.warning { background: #fef3c7; border-left-color: var(--warning); }
@@ -456,7 +440,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 15px;
+      margin-bottom: 8px;
       flex-shrink: 0;
     }
 
@@ -576,47 +560,43 @@
       <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR ULTRASSÔNICO
     </div>
 
+    <!-- IDs mantidos ocultos para compatibilidade JS -->
+    <span id="brokerStatus" style="display:none"></span>
+    <span id="loraStatus" style="display:none"></span>
+
     <div class="status-panel">
       <div class="status-item">
-        <span class="status-label">MQTT Broker:</span>
-        <span class="status-value" id="brokerStatus">Conectando...</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Receptor WiFi:</span>
+        <span class="status-label">Receptor WiFi</span>
         <span class="status-value" id="receptorStatus">Aguardando...</span>
       </div>
       <div class="status-item">
-        <span class="status-label">LoRa:</span>
-        <span class="status-value" id="loraStatus">Aguardando...</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Sinal LoRa:</span>
-        <div style="text-align: right;">
-          <div class="signal-bar" id="signalBar">
+        <span class="status-label">Sinal LoRa</span>
+        <div style="text-align:right;">
+          <div class="signal-bar" id="signalBar" style="justify-content:flex-end;">
             <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
             <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
             <div class="signal-bar-item"></div>
           </div>
-          <div style="font-size: 0.7rem; margin-top: 2px;" id="signalText">0%</div>
+          <div style="font-size:0.65rem;margin-top:1px;color:var(--gray);" id="signalText">0%</div>
         </div>
       </div>
       <div class="status-item">
-        <span class="status-label">Último Dado:</span>
+        <span class="status-label">Último Dado</span>
         <span class="status-value" id="lastUpdate">--:--:--</span>
       </div>
       <div class="status-item">
-        <span class="status-label">WiFi :</span>
+        <span class="status-label">WiFi RSSI</span>
         <span class="status-value" id="wifiRssi">-- dBm</span>
       </div>
       <div class="status-item" id="sensorStatusItem">
-        <span class="status-label"><i class="fas fa-microchip"></i> Sensor:</span>
+        <span class="status-label"><i class="fas fa-microchip"></i> Sensor</span>
         <span class="status-value" id="sensorStatus">Aguardando...</span>
       </div>
       <div class="status-item">
-        <span class="status-label"><i class="fas fa-battery-half"></i> Bateria TX:</span>
+        <span class="status-label"><i class="fas fa-battery-half"></i> Bateria TX</span>
         <div class="bat-icon-wrap">
           <div class="bat-body">
-            <div class="bat-fill" id="batFill" style="width:0%; background:#38b000;"></div>
+            <div class="bat-fill" id="batFill" style="width:0%;background:#38b000;"></div>
           </div>
           <span class="bat-label" id="batPercLabel">--%</span>
         </div>
@@ -625,16 +605,16 @@
 
     <div class="main-content">
       <div class="card">
-        <div class="card-header">
-          <i class="fas fa-tint"></i> Status da Caixa
+        <div class="card-header" style="margin-bottom:4px;text-align:center;justify-content:center;">
+          Status da Caixa d'Água
         </div>
-        
+        <!-- Imagem grande ocupa quase tudo -->
         <div class="tank-wrapper">
-          <img class="tank-image" 
-               src="https://ik.imagekit.io/o7q7lmyva/Caixa-5000-frontal-sl-1024x762.png?updatedAt=1763608669534" 
+          <img class="tank-image"
+               src="https://ik.imagekit.io/o7q7lmyva/caixa_d_agua_1000_litros.png?updatedAt=1769916384477"
                alt="Caixa d'água">
           <div class="tank">
-            <div class="water" id="waterLevel" style="height: 0%;">0%</div>
+            <div class="water" id="waterLevel" style="height:0%;">0%</div>
           </div>
           <div class="tank-marks">
             <div class="tank-mark top">100%</div>
@@ -643,28 +623,28 @@
           </div>
         </div>
 
-        <div class="tank-capacity">
-          <div class="tank-capacity-label">Capacidade Total</div>
-          <div class="tank-capacity-value" id="totalCapacity">-- L</div>
-        </div>
-
-        <div class="info-grid">
-          <div class="info-card" id="volumeCard" onclick="showDetails('volume')">
-            <div class="info-card-label"><i class="fas fa-tint"></i> Volume</div>
-            <div class="info-card-value">
-              <span id="currentVolume">--</span><span class="info-card-unit">L</span>
+        <!-- Rodapé do card: volume + distância + nível -->
+        <div style="flex-shrink:0;padding-top:6px;border-top:1px solid #e9ecef;margin-top:4px;">
+          <!-- Volume centralizado -->
+          <div style="text-align:center;margin-bottom:5px;">
+            <span style="font-size:0.6rem;color:var(--gray);font-weight:600;text-transform:uppercase;">Capacidade Total</span>
+            <span style="font-size:1rem;font-weight:700;color:var(--primary-dark);margin-left:6px;" id="totalCapacity">-- L</span>
+          </div>
+          <div class="info-grid" style="grid-template-columns:1fr;">
+            <div class="info-card" id="volumeCard" onclick="showDetails('volume')" style="flex-direction:row;justify-content:space-between;align-items:center;padding:5px 10px;">
+              <div class="info-card-label" style="margin-bottom:0;">Volume</div>
+              <div class="info-card-value"><span id="currentVolume">--</span><span class="info-card-unit"> L</span></div>
             </div>
           </div>
-          <div class="info-card" id="distanceCard" onclick="showDetails('distance')">
-            <div class="info-card-label"><i class="fas fa-ruler-vertical"></i> Distância</div>
-            <div class="info-card-value">
-              <span id="currentDistance">--</span><span class="info-card-unit">cm</span>
+          <!-- Distância e Nível na parte inferior -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+            <div class="info-card" id="distanceCard" onclick="showDetails('distance')">
+              <div class="info-card-label">Distância</div>
+              <div class="info-card-value" style="font-size:1.1rem;"><span id="currentDistance">--</span><span class="info-card-unit"> cm</span></div>
             </div>
-          </div>
-          <div class="info-card" id="levelCard" onclick="showDetails('level')">
-            <div class="info-card-label"><i class="fas fa-arrows-alt-v"></i> Altura</div>
-            <div class="info-card-value">
-              <span id="currentLevel">--</span><span class="info-card-unit">cm</span>
+            <div class="info-card" id="levelCard" onclick="showDetails('level')">
+              <div class="info-card-label">Nível</div>
+              <div class="info-card-value" style="font-size:1.1rem;"><span id="currentLevel">--</span><span class="info-card-unit"> cm</span></div>
             </div>
           </div>
         </div>
@@ -678,42 +658,26 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom: 10px; max-height: 300px;">
-      <div class="card-header">
-        <i class="fas fa-history"></i> Últimas Leituras
-      </div>
-      <div id="historyLoading" style="text-align: center; padding: 20px; color: var(--gray);">
-        <i class="fas fa-spinner fa-spin"></i> Aguardando dados...
-      </div>
-      <div id="historyTableContainer" style="display: none;">
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Horário</th>
-                <th>Status Sensor</th>
-                <th>Nível</th>
-                <th>Volume</th>
-                <th>Dist.</th>
-                <th>Sinal LoRa</th>
-              </tr>
-            </thead>
-            <tbody id="historyBody"></tbody>
-          </table>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;height:160px;flex-shrink:0;">
+      <div class="card">
+        <div class="card-header" style="margin-bottom:5px;"><i class="fas fa-history"></i> Últimas Leituras</div>
+        <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;"><i class="fas fa-spinner fa-spin"></i> Aguardando dados...</div>
+        <div id="historyTableContainer" style="display:none;flex:1;min-height:0;overflow:auto;">
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Horário</th><th>Sensor</th><th>Nível</th><th>Volume</th><th>Dist.</th><th>Sinal LoRa</th></tr></thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
-
-    <div class="card" style="max-height: 250px;">
-      <div class="log-header">
-        <div class="card-header" style="margin: 0;">
-          <i class="fas fa-bell"></i> Log de Eventos MQTT
+      <div class="card">
+        <div class="log-header">
+          <div class="card-header" style="margin:0;"><i class="fas fa-bell"></i> Log de Eventos</div>
+          <button class="btn btn-reboot" onclick="confirmarReboot()"><i class="fas fa-power-off"></i> Reiniciar</button>
         </div>
-        <button class="btn btn-reboot" onclick="confirmarReboot()">
-          <i class="fas fa-power-off"></i> Reiniciar Receptor
-        </button>
+        <div id="updateHistory"></div>
       </div>
-      <div id="updateHistory"></div>
     </div>
   </div>
 
