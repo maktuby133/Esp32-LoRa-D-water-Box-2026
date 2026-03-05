@@ -210,14 +210,13 @@
     /* CORREÇÃO: Container do tanque com altura fixa */
     .tank-wrapper {
       position: relative;
-      width: 240px;
-      height: 220px;
+      width: 320px;
+      height: 300px;
       margin: 4px auto;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
     }
 
     .tank-image {
@@ -234,9 +233,9 @@
     .tank {
       position: absolute;
       left: 50%; transform: translateX(-50%);
-      width: 52px;
-      top: 30px; bottom: 36px;
-      border-radius: 10px;
+      width: 70px;
+      top: 40px; bottom: 48px;
+      border-radius: 12px;
       overflow: hidden;
       z-index: 2;
       background: rgba(20, 40, 60, 0.30);
@@ -307,8 +306,8 @@
     .tank-marks {
       position: absolute;
       left: 50%; transform: translateX(-50%);
-      width: 44px;
-      top: 38px; bottom: 42px;
+      width: 70px;
+      top: 40px; bottom: 48px;
       z-index: 3;
       pointer-events: none;
     }
@@ -624,7 +623,7 @@
         </div>
 
         <!-- Rodapé do card: 2x2 grid simétrico -->
-        <div style="flex-shrink:0;padding-top:6px;border-top:1px solid #e9ecef;margin-top:4px;">
+        <div style="flex-shrink:0;padding-top:6px;border-top:1px solid #e9ecef;margin-top:auto;padding-top:10px;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
             <!-- Capacidade Total -->
             <div class="info-card" style="cursor:default;">
