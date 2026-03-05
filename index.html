@@ -623,28 +623,28 @@
           </div>
         </div>
 
-        <!-- Rodapé do card: volume + distância + nível -->
+        <!-- Rodapé do card: 2x2 grid simétrico -->
         <div style="flex-shrink:0;padding-top:6px;border-top:1px solid #e9ecef;margin-top:4px;">
-          <!-- Volume centralizado -->
-          <div style="text-align:center;margin-bottom:5px;">
-            <span style="font-size:0.6rem;color:var(--gray);font-weight:600;text-transform:uppercase;">Capacidade Total</span>
-            <span style="font-size:1rem;font-weight:700;color:var(--primary-dark);margin-left:6px;" id="totalCapacity">-- L</span>
-          </div>
-          <div class="info-grid" style="grid-template-columns:1fr;">
-            <div class="info-card" id="volumeCard" onclick="showDetails('volume')" style="flex-direction:row;justify-content:space-between;align-items:center;padding:5px 10px;">
-              <div class="info-card-label" style="margin-bottom:0;">Volume</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <!-- Capacidade Total -->
+            <div class="info-card" style="cursor:default;">
+              <div class="info-card-label">Capacidade</div>
+              <div class="info-card-value"><span id="totalCapacity">--</span></div>
+            </div>
+            <!-- Volume -->
+            <div class="info-card" id="volumeCard" onclick="showDetails('volume')">
+              <div class="info-card-label">Volume</div>
               <div class="info-card-value"><span id="currentVolume">--</span><span class="info-card-unit"> L</span></div>
             </div>
-          </div>
-          <!-- Distância e Nível na parte inferior -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+            <!-- Distância -->
             <div class="info-card" id="distanceCard" onclick="showDetails('distance')">
               <div class="info-card-label">Distância</div>
-              <div class="info-card-value" style="font-size:1.1rem;"><span id="currentDistance">--</span><span class="info-card-unit"> cm</span></div>
+              <div class="info-card-value"><span id="currentDistance">--</span><span class="info-card-unit"> cm</span></div>
             </div>
+            <!-- Nível -->
             <div class="info-card" id="levelCard" onclick="showDetails('level')">
               <div class="info-card-label">Nível</div>
-              <div class="info-card-value" style="font-size:1.1rem;"><span id="currentLevel">--</span><span class="info-card-unit"> cm</span></div>
+              <div class="info-card-value"><span id="currentLevel">--</span><span class="info-card-unit"> cm</span></div>
             </div>
           </div>
         </div>
