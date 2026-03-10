@@ -559,6 +559,8 @@
 
       /* Grid inferior responsivo */
       .bottom-grid { grid-template-columns: 1fr !important; height: auto !important; }
+      .bottom-grid .card { height: auto !important; max-height: 320px; overflow: hidden; }
+      #updateHistory { max-height: 160px; overflow-y: auto; }
 
       /* Log header empilha botão */
       .log-header { flex-direction: column; align-items: flex-start; gap: 6px; }
@@ -710,11 +712,11 @@
     </div>
 
     <div class="bottom-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0;margin-bottom:10px;">
-      <div class="card">
-        <div class="card-header" style="margin-bottom:5px;"><i class="fas fa-history"></i> Últimas Leituras</div>
-        <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;"><i class="fas fa-spinner fa-spin"></i> Aguardando dados...</div>
-        <div id="historyTableContainer" style="display:none;flex:1;min-height:0;overflow:auto;">
-          <div class="table-container">
+      <div class="card" style="overflow:hidden;">
+        <div class="card-header" style="margin-bottom:5px;flex-shrink:0;"><i class="fas fa-history"></i> Últimas Leituras</div>
+        <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;flex-shrink:0;"><i class="fas fa-spinner fa-spin"></i> Aguardando dados...</div>
+        <div id="historyTableContainer" style="display:none;overflow:hidden;">
+          <div class="table-container" style="max-height:220px;overflow-y:auto;overflow-x:auto;">
             <table>
               <thead><tr><th>Horário</th><th>Sensor</th><th>Nível</th><th>Volume</th><th>Dist.</th><th>Sinal LoRa</th></tr></thead>
               <tbody id="historyBody"></tbody>
