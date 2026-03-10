@@ -392,7 +392,7 @@
       margin-top: 6px;
       border-radius: 8px;
       border: 1px solid #e9ecef;
-      max-height: 200px; /* CORREÇÃO: Altura máxima */
+      height: 100%;
       overflow-y: auto;
     }
     table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
@@ -559,8 +559,7 @@
 
       /* Grid inferior responsivo */
       .bottom-grid { grid-template-columns: 1fr !important; height: auto !important; }
-      .bottom-grid .card { height: auto !important; max-height: 320px; overflow: hidden; }
-      #updateHistory { max-height: 160px; overflow-y: auto; }
+      .bottom-grid .card { height: 260px !important; max-height: 260px !important; min-height: 0 !important; }
 
       /* Log header empilha botão */
       .log-header { flex-direction: column; align-items: flex-start; gap: 6px; }
@@ -712,11 +711,11 @@
     </div>
 
     <div class="bottom-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0;margin-bottom:10px;">
-      <div class="card" style="overflow:hidden;">
+      <div class="card" style="height:280px;max-height:280px;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
         <div class="card-header" style="margin-bottom:5px;flex-shrink:0;"><i class="fas fa-history"></i> Últimas Leituras</div>
         <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;flex-shrink:0;"><i class="fas fa-spinner fa-spin"></i> Aguardando dados...</div>
-        <div id="historyTableContainer" style="display:none;overflow:hidden;">
-          <div class="table-container" style="max-height:220px;overflow-y:auto;overflow-x:auto;">
+        <div id="historyTableContainer" style="display:none;flex:1;min-height:0;overflow:hidden;">
+          <div class="table-container" style="height:100%;max-height:100%;overflow-y:auto;overflow-x:auto;">
             <table>
               <thead><tr><th>Horário</th><th>Sensor</th><th>Nível</th><th>Volume</th><th>Dist.</th><th>Sinal LoRa</th></tr></thead>
               <tbody id="historyBody"></tbody>
@@ -724,12 +723,12 @@
           </div>
         </div>
       </div>
-      <div class="card">
-        <div class="log-header">
+      <div class="card" style="height:280px;max-height:280px;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
+        <div class="log-header" style="flex-shrink:0;">
           <div class="card-header" style="margin:0;"><i class="fas fa-bell"></i> Log de Eventos</div>
           <button class="btn btn-reboot" onclick="confirmarReboot()"><i class="fas fa-power-off"></i> Reiniciar</button>
         </div>
-        <div id="updateHistory"></div>
+        <div id="updateHistory" style="flex:1;min-height:0;overflow-y:auto;max-height:none;"></div>
       </div>
     </div>
   </div>
