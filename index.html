@@ -178,10 +178,11 @@
       gap: 8px;
       margin-bottom: 5px;
       align-items: stretch;
+      height: 420px;
     }
 
     @media (max-width: 600px) { 
-      .main-content { grid-template-columns: 1fr; } 
+      .main-content { grid-template-columns: 1fr; height: auto; } 
     }
 
     .card {
@@ -191,6 +192,8 @@
       box-shadow: 0 5px 20px rgba(0,0,0,0.08);
       display: flex;
       flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
     }
 
     .card-header {
@@ -206,13 +209,13 @@
       flex-shrink: 0; /* Não encolhe */
     }
 
-    /* CORREÇÃO: Container do tanque responsivo */
+    /* CORREÇÃO: Container do tanque responsivo e limitado */
     .tank-wrapper {
       position: relative;
-      width: min(300px, 85vw);
-      height: min(280px, 80vw);
+      width: min(280px, 80vw);
+      height: min(250px, 42vh);
       margin: 4px auto;
-      flex-shrink: 0;
+      flex-shrink: 1;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -382,7 +385,7 @@
     .info-card.error .info-card-label { color: var(--danger); }
     .info-card.offline .info-card-value { color: var(--gray); }
 
-    #nivelChart { flex: 1; width: 100% !important; min-height: 150px; }
+    #nivelChart { flex: 1; width: 100% !important; min-height: 0; }
 
     .table-container {
       overflow-x: auto;
@@ -672,7 +675,7 @@
         </div>
 
         <!-- Rodapé do card: 2x2 grid simétrico -->
-        <div style="flex-shrink:0;padding-top:6px;border-top:1px solid #e9ecef;margin-top:auto;padding-top:10px;">
+        <div style="flex-shrink:0; padding-top:8px; border-top:1px solid #e9ecef; margin-top:auto;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
             <!-- Capacidade Total -->
             <div class="info-card" style="cursor:default;">
