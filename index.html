@@ -389,11 +389,11 @@
 
     .table-container {
       overflow-x: auto;
-      overflow-y: auto;
       margin-top: 6px;
       border-radius: 8px;
       border: 1px solid #e9ecef;
-      max-height: 170px;
+      max-height: 200px; /* CORREÇÃO: Altura máxima */
+      overflow-y: auto;
     }
     table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
     thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
@@ -559,10 +559,7 @@
 
       /* Grid inferior responsivo */
       .bottom-grid { grid-template-columns: 1fr !important; height: auto !important; }
-
-      /* Forçar coluna única no grid inferior mesmo sem classe */
-      #historyTableContainer { max-height: 160px !important; }
-      #updateHistory { max-height: 140px !important; }
+      #bottomGrid { grid-template-columns: 1fr !important; }
 
       /* Log header empilha botão */
       .log-header { flex-direction: column; align-items: flex-start; gap: 6px; }
@@ -588,12 +585,6 @@
       .status-panel { grid-template-columns: repeat(3, 1fr); }
       .tank-wrapper { width: min(200px, 78vw); height: min(188px, 73vw); }
       .header h1 { font-size: 0.8rem; }
-    }
-    @media (max-width: 600px) {
-      /* Força coluna única no grid inferior (sem classe) */
-      .container > div[style*="grid-template-columns:1fr 1fr"] {
-        grid-template-columns: 1fr !important;
-      }
     }
   </style>
 </head>
@@ -719,25 +710,25 @@
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0;margin-bottom:10px;">
-      <div class="card" style="max-height:270px;overflow:hidden;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0;margin-bottom:10px;" id="bottomGrid">
+      <div class="card" style="overflow:hidden;">
         <div class="card-header" style="margin-bottom:5px;flex-shrink:0;"><i class="fas fa-history"></i> Últimas Leituras</div>
         <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;flex-shrink:0;"><i class="fas fa-spinner fa-spin"></i> Aguardando dados...</div>
-        <div id="historyTableContainer" style="display:none;max-height:200px;overflow-y:auto;overflow-x:auto;">
-          <div class="table-container" style="max-height:200px;margin-top:0;">
-            <table>
-              <thead><tr><th>Horário</th><th>Sensor</th><th>Nível</th><th>Volume</th><th>Dist.</th><th>Sinal LoRa</th></tr></thead>
+        <div id="historyTableContainer" style="display:none;max-height:180px;overflow-y:auto;overflow-x:auto;flex-shrink:0;">
+          <div style="border-radius:8px;border:1px solid #e9ecef;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+              <thead><tr><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Horário</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Sensor</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Nível</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Volume</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Dist.</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Sinal LoRa</th></tr></thead>
               <tbody id="historyBody"></tbody>
             </table>
           </div>
         </div>
       </div>
-      <div class="card" style="max-height:270px;overflow:hidden;">
+      <div class="card" style="overflow:hidden;">
         <div class="log-header" style="flex-shrink:0;">
           <div class="card-header" style="margin:0;"><i class="fas fa-bell"></i> Log de Eventos</div>
           <button class="btn btn-reboot" onclick="confirmarReboot()"><i class="fas fa-power-off"></i> Reiniciar</button>
         </div>
-        <div id="updateHistory" style="overflow-y:auto;max-height:180px;"></div>
+        <div id="updateHistory" style="max-height:150px;overflow-y:auto;flex-shrink:0;"></div>
       </div>
     </div>
   </div>
@@ -1223,6 +1214,10 @@
       
       loading.style.display = 'none';
       container.style.display = 'block';
+      container.style.maxHeight = '180px';
+      container.style.overflowY = 'auto';
+      container.style.overflowX = 'auto';
+      container.style.flexShrink = '0';
       
       tbody.innerHTML = '';
       historico.slice(0, 5).forEach(item => {
