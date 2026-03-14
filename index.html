@@ -1259,26 +1259,99 @@
     function atualizarGrafico() {
       const ctx = document.getElementById('nivelChart');
       if (!ctx) return;
-      
+
       const dadosValidos = historico.filter(i => i.status === 'normal').reverse();
       if (dadosValidos.length === 0) return;
-      
-      const labels = dadosValidos.map(i => new Date(i.timestamp));
-      const data = dadosValidos.map(i => i.percentage);
-      
+
+      // Agrupa por hora: mantém último registro de cada hora
+      const porHora = {};
+      dadosValidos.forEach(i => {
+        const d = new Date(i.timestamp);
+        const chave = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+        porHora[chave] = i; // sobrescreve, ficando com o mais recente da hora
+      });
+      const agregados = Object.values(porHora).sort((a, b) => a.timestamp - b.timestamp);
+
+      const labels = agregados.map(i => {
+        const d = new Date(i.timestamp);
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      });
+      const data = agregados.map(i => i.percentage);
+
+      const isMobile = window.innerWidth <= 600;
+
+      const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(2, 62, 138, 0.92)',
+            titleColor: '#90e0ef',
+            bodyColor: '#ffffff',
+            padding: 10,
+            cornerRadius: 8,
+            callbacks: {
+              title: (items) => '🕐 ' + items[0].label,
+              label: (item) => `  Nível: ${item.raw}%`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: v => v + '%',
+              font: { size: isMobile ? 9 : 11 },
+              color: '#6c757d',
+              maxTicksLimit: 6
+            },
+            grid: { color: 'rgba(0,0,0,0.06)' },
+            border: { dash: [4, 4] }
+          },
+          x: {
+            display: true,
+            ticks: {
+              font: { size: isMobile ? 8 : 10 },
+              color: '#6c757d',
+              maxRotation: 45,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: isMobile ? 6 : 12
+            },
+            grid: { display: false }
+          }
+        }
+      };
+
       if (!chart) {
         chart = new Chart(ctx, {
           type: 'line',
-          data: { labels, datasets: [{ label: 'Nível %', data, borderColor: '#0077b6', backgroundColor: 'rgba(0, 119, 182, 0.1)', borderWidth: 2, fill: true, tension: 0.4 }] },
-          options: { 
-            responsive: true, 
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { 
-              y: { beginAtZero: true, max: 100 },
-              x: { display: false }
-            }
-          }
+          data: {
+            labels,
+            datasets: [{
+              label: 'Nível %',
+              data,
+              borderColor: '#0077b6',
+              backgroundColor: (context) => {
+                const gradient = context.chart.ctx.createLinearGradient(0, 0, 0, context.chart.height);
+                gradient.addColorStop(0, 'rgba(0, 119, 182, 0.35)');
+                gradient.addColorStop(1, 'rgba(0, 119, 182, 0.02)');
+                return gradient;
+              },
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.4,
+              pointRadius: isMobile ? 3 : 4,
+              pointBackgroundColor: '#0077b6',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointHoverRadius: 6
+            }]
+          },
+          options: chartOptions
         });
       } else {
         chart.data.labels = labels;
