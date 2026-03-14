@@ -385,7 +385,13 @@
     .info-card.error .info-card-label { color: var(--danger); }
     .info-card.offline .info-card-value { color: var(--gray); }
 
-    #nivelChart { width: 100% !important; height: 100% !important; display: block; }
+    #nivelChart { display: block; width: 100% !important; }
+    #chartWrapper { height: 340px; }
+
+    @media (max-width: 600px) {
+      #chartWrapper { height: 220px; }
+      #chartCard { height: auto !important; overflow: hidden; }
+    }
 
     .table-container {
       overflow-x: auto;
@@ -554,10 +560,6 @@
       /* Tanque menor */
       .tank-wrapper { width: min(240px, 80vw); height: min(225px, 75vw); }
 
-      /* Gráfico — altura fixa no mobile para não crescer infinitamente */
-      #chartCard { height: 260px !important; max-height: 260px !important; overflow: hidden; }
-      #chartCard canvas { max-height: 200px !important; }
-
       /* Demais cards voltam ao auto */
       .card:not(#chartCard) { height: auto !important; }
 
@@ -706,12 +708,12 @@
         </div>
       </div>
 
-      <div class="card" id="chartCard" style="min-height:0; height:100%;">
+      <div class="card" id="chartCard" style="min-height:0; overflow:hidden;">
         <div class="card-header">
           <i class="fas fa-chart-line"></i> Histórico (24h)
         </div>
-        <div style="position:relative; flex:1; min-height:0; overflow:hidden;">
-          <canvas id="nivelChart" style="position:absolute; top:0; left:0; width:100% !important; height:100% !important;"></canvas>
+        <div id="chartWrapper" style="flex:1; min-height:0; overflow:hidden;">
+          <canvas id="nivelChart"></canvas>
         </div>
       </div>
     </div>
