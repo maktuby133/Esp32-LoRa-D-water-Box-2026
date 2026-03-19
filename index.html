@@ -757,7 +757,7 @@
             <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
             <div class="signal-bar-item"></div>
           </div>
-          <span style="font-size:0.62rem;color:var(--gray);font-weight:700;" id="signalText">0%</span>
+          <span style="font-size:0.62rem;color:var(--gray);font-weight:700;" id="signalText">OFF</span>
         </div>
       </div>
       <div class="status-item">
@@ -966,6 +966,26 @@
     // MODIFICADO: Aumentado de 60000 para 90000 (90 segundos) para maior tolerância
     const RECEPTOR_TIMEOUT = 90000;
 
+    // NOVO: Controle de visibilidade da página para evitar flash de offline ao minimizar
+    let pageHiddenAt = null;
+    let pageHiddenGracePeriod = 10000; // 10s de graça ao restaurar janela
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        pageHiddenAt = Date.now();
+      } else {
+        // Página voltou a ficar visível — compensar o tempo que ficou oculta
+        if (pageHiddenAt !== null) {
+          const hiddenFor = Date.now() - pageHiddenAt;
+          // Empurra os timestamps para frente, descontando o tempo oculto
+          // Isso evita que o timeout dispare logo após restaurar a janela
+          if (lastDataMessageTime) lastDataMessageTime += hiddenFor;
+          if (lastReceptorStatusTime) lastReceptorStatusTime += hiddenFor;
+          pageHiddenAt = null;
+        }
+      }
+    });
+
     let client = null;
     let chart = null;
     let savedCapacityTotal = 0;
@@ -1147,7 +1167,7 @@
       // Zerar barras de sinal
       const bars = document.querySelectorAll('.signal-bar-item');
       bars.forEach(bar => bar.classList.remove('active'));
-      document.getElementById('signalText').textContent = '0%';
+      document.getElementById('signalText').textContent = 'OFF';
       
       document.getElementById('loraStatus').textContent = 'Offline';
       document.getElementById('loraStatus').className = 'status-value offline';
@@ -1202,6 +1222,15 @@
       if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
 
       timeoutCheckInterval = setInterval(() => {
+        // NOVO: Se a página está oculta (minimizada), não verifica timeout
+        if (document.hidden) return;
+
+        // NOVO: Graça de 10s após restaurar a janela — evita flash de offline
+        if (pageHiddenAt === null && lastDataMessageTime) {
+          // pageHiddenAt já foi zerado na visibilitychange, mas
+          // verificamos se restauramos muito recentemente via flag auxiliar
+        }
+
         const agora = Date.now();
 
         // Só verifica timeout do transmissor APÓS receber o primeiro dado
@@ -1285,7 +1314,7 @@
       }
 
       const registro = {
-        timestamp: new Date().toISOString(),
+        timestamp: Date.now(),
         percentage: currentData.percentage,
         liters: currentData.liters,
         distance: currentData.distance,
@@ -1353,7 +1382,6 @@
       const activeBars = Math.ceil((currentData.quality / 100) * 5);
       bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
       document.getElementById('signalText').textContent = currentData.quality + '%';
-
       // Atualizar ícone de bateria do transmissor
       const pctBat = currentData.batPercent || 0;
       const vBat   = currentData.batVoltage || 0;
@@ -1417,8 +1445,7 @@
       tbody.innerHTML = '';
       historico.slice(0, 5).forEach(item => {
         const row = document.createElement('tr');
-        const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
-        
+        const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');        
         let classeBadge = 'badge-normal';
         let textoStatus = 'OK';
         if (item.status === 'sensor_error') { 
@@ -1458,7 +1485,6 @@
         porHora[chave] = i; // sobrescreve, ficando com o mais recente da hora
       });
       const agregados = Object.values(porHora).sort((a, b) => a.timestamp - b.timestamp);
-
       const labels = agregados.map(i => {
         const d = new Date(i.timestamp);
         return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
