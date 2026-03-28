@@ -582,6 +582,7 @@
   <div class="container">
     <div class="header">
       <h1><i class="fas fa-water"></i> Monitor de Caixa d'Água</h1>
+      <div id="deviceCodeDisplay" style="font-size:0.78rem;color:#aee;background:rgba(255,255,255,0.12);padding:3px 10px;border-radius:20px;letter-spacing:2px;font-family:monospace;">——</div>
       <div class="mqtt-badge connecting" id="mqttStatus">
         <i class="fas fa-broadcast-tower"></i> <span>Conectando...</span>
       </div>
@@ -590,6 +591,7 @@
     <div id="mqttDiagBanner" style="display:none; background:#fff3cd; border:2px solid #ffc107; border-radius:8px; padding:10px 14px; margin-bottom:8px; font-size:0.82rem; color:#856404;">
       <strong>⚠️ Erro MQTT:</strong> <span id="mqttDiagMsg">—</span>
     </div>
+
 
     <div id="alertTransmitter" class="alert-banner alert-transmitter">
       <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR (<span id="timeoutSeconds">0</span>s)
@@ -606,7 +608,22 @@
       <button class="tab-btn" onclick="mostrarAba('historico', event)"><i class="fas fa-chart-bar"></i> Histórico</button>
     </div>
 
-    <!-- ABA TEMPO REAL -->
+    
+    <!-- Card pequeno: Código do Dispositivo -->
+    <div id="deviceCodeCard" style="display:flex; align-items:center; justify-content:space-between; background:var(--surface,#fff); border:1px solid #e0e8f0; border-radius:10px; padding:10px 16px; margin-bottom:10px; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:1.1rem;">📡</span>
+        <div>
+          <div style="font-size:0.7rem; color:#888; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Dispositivo conectado</div>
+          <div id="deviceCodeCardLabel" style="font-size:1rem; font-weight:700; font-family:monospace; letter-spacing:3px; color:#0077b6;">——</div>
+        </div>
+      </div>
+      <button onclick="irParaConfigurar()" style="padding:6px 14px; background:#f0f6ff; color:#0077b6; border:1.5px solid #0077b6; border-radius:8px; font-size:0.82rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+        <i class="fas fa-sign-out-alt"></i> Trocar
+      </button>
+    </div>
+
+<!-- ABA TEMPO REAL -->
     <div id="aba-tempo-real" class="tab-content active">
       <div class="status-panel">
         <div class="status-item"><span class="status-label">Receptor WiFi</span><span class="status-value" id="receptorStatus">Aguardando...</span></div>
@@ -647,28 +664,10 @@
             <div class="info-card" id="levelCard" onclick="showDetails('level')"><div class="info-card-label">Nível</div><div class="info-card-value"><span id="currentLevel">--</span><span class="info-card-unit"> cm</span></div></div>
           </div>
         </div>
-        <div class="card" id="chartCard">
-          <div class="card-header"><i class="fas fa-chart-line"></i> Histórico (24h)</div>
-          <div id="chartWrapper" style="flex:1; min-height:0;"><canvas id="nivelChart" style="height:280px; width:100%"></canvas></div>
-        </div>
+        
       </div>
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
-        <div class="card">
-          <div class="card-header"><i class="fas fa-history"></i> Últimas Leituras</div>
-          <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);"><i class="fas fa-spinner fa-spin"></i> Aguardando dados...</div>
-          <div id="historyTableContainer" style="display:none; max-height:180px; overflow-y:auto;">
-            <div class="table-container"><table><thead><tr><th>Horário</th><th>Sensor</th><th>Nível</th><th>Volume</th><th>Dist.</th><th>Sinal LoRa</th></tr></thead><tbody id="historyBody"></tbody></table></div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="log-header" style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="card-header" style="margin:0;"><i class="fas fa-bell"></i> Log de Eventos</div>
-            <button class="btn btn-reboot" onclick="confirmarReboot()"><i class="fas fa-power-off"></i> Reiniciar</button>
-          </div>
-          <div id="updateHistory"></div>
-        </div>
-      </div>
+      
     </div>
 
     <!-- ABA HISTÓRICO GOOGLE SHEETS -->
@@ -694,6 +693,47 @@
     </div>
   </div>
 
+
+  <!-- PÁGINA DE CONFIGURAÇÃO DO DISPOSITIVO -->
+  <div id="setupPage" style="display:none; position:fixed; inset:0; background:#f0f4fa; z-index:1000; overflow-y:auto; display:none;">
+    <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+      <div style="background:white; border-radius:18px; box-shadow:0 8px 40px rgba(0,119,182,0.15); padding:36px 32px; max-width:420px; width:100%; text-align:center;">
+        <div style="font-size:2.8rem; margin-bottom:12px;">📡</div>
+        <h2 style="color:#0077b6; font-size:1.4rem; margin-bottom:6px;">Monitor de Caixa d'Água</h2>
+        <p style="color:#888; font-size:0.88rem; margin-bottom:28px;">Digite o código exibido no portal AP do receptor para conectar ao dispositivo.</p>
+
+        <div style="background:#f0f6ff; border-radius:12px; padding:20px; margin-bottom:24px; text-align:left;">
+          <div style="font-size:0.78rem; color:#0077b6; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">Código do Dispositivo</div>
+          <input id="setupCodeInput" type="text" maxlength="6" placeholder="Ex: D4E5F6"
+            style="width:100%; padding:14px 16px; border:2px solid #c8dff0; border-radius:10px; font-size:1.6rem; font-family:monospace; letter-spacing:6px; text-transform:uppercase; text-align:center; outline:none; transition:border .2s;"
+            onfocus="this.style.borderColor='#0077b6'"
+            onblur="this.style.borderColor='#c8dff0'"
+            onkeydown="if(event.key==='Enter') confirmarSetupCodigo()">
+          <div id="setupCodeError" style="display:none; color:#e63946; font-size:0.8rem; margin-top:8px; text-align:center;"></div>
+        </div>
+
+        <button onclick="confirmarSetupCodigo()"
+          style="width:100%; padding:14px; background:linear-gradient(135deg,#0077b6,#0096c7); color:white; border:none; border-radius:10px; font-size:1rem; font-weight:700; cursor:pointer; letter-spacing:0.5px; box-shadow:0 4px 15px rgba(0,119,182,0.3);">
+          ✅ Conectar
+        </button>
+
+        <div id="setupBackBtn" style="display:none; margin-top:16px;">
+          <button onclick="voltarDashboard()"
+            style="background:none; border:none; color:#888; font-size:0.85rem; cursor:pointer; text-decoration:underline;">
+            ← Voltar ao dashboard
+          </button>
+        </div>
+
+        <div style="margin-top:28px; padding-top:20px; border-top:1px solid #e8f0f8;">
+          <div style="font-size:0.75rem; color:#aaa; margin-bottom:6px;">Como encontrar o código?</div>
+          <div style="font-size:0.8rem; color:#666; line-height:1.6;">
+            Conecte no WiFi <strong>RECEPTOR_XXXXXX</strong> e acesse <strong>192.168.4.1</strong> — o código aparece na tela do portal.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="modalReboot" class="modal"><div class="modal-content"><h3><i class="fas fa-exclamation-triangle"></i> Reiniciar Receptor?</h3><p>O dispositivo ESP32 será reiniciado remotamente via MQTT.</p><div class="modal-buttons"><button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button><button class="btn btn-confirm" onclick="executarReboot()">Sim, Reiniciar</button></div></div></div>
   <button class="debug-btn" onclick="debugData()" title="Debug"><i class="fas fa-bug"></i></button>
 
@@ -706,7 +746,20 @@
       password: '061084Cc@',
       clientId: 'lora-dashboard-' + Math.random().toString(16).substr(2, 8)
     };
-    const TOPICS = { dados: 'caixas/agua/dados', status: 'caixas/agua/status', comandos: 'caixas/agua/comandos' };
+    // ========= CÓDIGO DO DISPOSITIVO =========
+    // Últimos 6 chars do MAC do receptor (ex: D4E5F6)
+    // Exibido no portal AP do ESP32 ao ligar pela primeira vez
+    let DEVICE_CODE = localStorage.getItem('lora_device_code') || '';
+
+    function buildTopics(code) {
+      code = code.toUpperCase().trim();
+      return {
+        dados:    'caixas/agua/' + code + '/dados',
+        status:   'caixas/agua/' + code + '/status',
+        comandos: 'caixas/agua/' + code + '/comandos'
+      };
+    }
+    let TOPICS = buildTopics(DEVICE_CODE);
     const SHEETS_API   = 'https://script.google.com/macros/s/AKfycbyysbyOqkNq6J7DI8BYpRt4BnyzB9hJa34mJQCCg0x7xdJT2rqurF4Iex3yVir-F3-H/exec';
     const SHEETS_TOKEN = '0a3327c1-f03f-4381-9145-f5bca1b98089';
 
@@ -735,7 +788,7 @@
           protocol: 'wss', clean: true, rejectUnauthorized: true, reconnectPeriod: 5000, connectTimeout: 20000, keepalive: 60
         });
       } catch(e) { adicionarLog('❌ Falha ao iniciar MQTT'); updateConnectionStatus(false); return; }
-      mqttClient.on('connect', () => { updateConnectionStatus(true); adicionarLog('✅ Dashboard conectado'); document.getElementById('mqttDiagBanner').style.display = 'none'; iniciarVerificacaoTimeout(); mqttClient.subscribe([TOPICS.dados, TOPICS.status]); });
+      mqttClient.on('connect', () => { updateConnectionStatus(true); adicionarLog('✅ Dashboard conectado — ' + TOPICS.dados); document.getElementById('mqttDiagBanner').style.display = 'none'; iniciarVerificacaoTimeout(); mqttClient.subscribe([TOPICS.dados, TOPICS.status]); });
       mqttClient.on('reconnect', () => adicionarLog('🔄 Reconectando...', 'warning'));
       mqttClient.on('disconnect', () => { updateConnectionStatus(false); if(lastDataMessageTime) zerarInterfaceOffline(); });
       mqttClient.on('error', (err) => { adicionarLog('❌ Erro MQTT'); updateConnectionStatus(false); document.getElementById('mqttDiagBanner').style.display = 'block'; document.getElementById('mqttDiagMsg').textContent = 'Falha ao conectar.'; if(lastDataMessageTime) zerarInterfaceOffline(); });
@@ -839,7 +892,61 @@
     function renderizarGraficoSheets(registros) { let ctx=document.getElementById('sheetsChart'); if(!ctx) return; let labels=registros.map(r=>escapeHtml(r.data)+' '+escapeHtml(r.hora)); let niveis=registros.map(r=>sanitizarNumero(r.perc,0,100,0)); if(sheetsChart) sheetsChart.destroy(); sheetsChart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Nível %',data:niveis,borderColor:'#0077b6',backgroundColor:'rgba(0,119,182,0.1)',borderWidth:2,fill:true,tension:0.4,pointRadius:registros.length>30?0:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}},x:{display:false}}}}); }
     function debugData() { console.log('=== DEBUG ===',{receptorOnline,transmitterActive,lastData:lastDataMessageTime,currentData}); }
 
-    connectMQTT();
+    // ── Navegação entre dashboard e página de configuração ──
+    function irParaConfigurar() {
+      document.getElementById('setupPage').style.display = 'block';
+      document.getElementById('setupBackBtn').style.display = DEVICE_CODE.length === 6 ? 'block' : 'none';
+      document.getElementById('setupCodeError').style.display = 'none';
+      const input = document.getElementById('setupCodeInput');
+      input.value = DEVICE_CODE || '';
+      setTimeout(() => input.focus(), 100);
+    }
+
+    function voltarDashboard() {
+      document.getElementById('setupPage').style.display = 'none';
+    }
+
+    function confirmarSetupCodigo() {
+      const input = document.getElementById('setupCodeInput');
+      const code  = input.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().trim();
+      const errEl = document.getElementById('setupCodeError');
+      if (code.length !== 6) {
+        errEl.textContent = 'O código deve ter exatamente 6 caracteres.';
+        errEl.style.display = 'block';
+        input.style.borderColor = '#e63946';
+        return;
+      }
+      errEl.style.display = 'none';
+      input.style.borderColor = '#c8dff0';
+
+      DEVICE_CODE = code;
+      localStorage.setItem('lora_device_code', code);
+      TOPICS = buildTopics(code);
+
+      // Atualiza displays
+      document.getElementById('deviceCodeDisplay').textContent = code;
+      document.getElementById('deviceCodeCardLabel').textContent = code;
+
+      // Desconecta cliente anterior
+      if (mqttClient) { try { mqttClient.end(true); } catch(e){} mqttClient = null; }
+
+      // Fecha a página de setup e vai ao dashboard
+      document.getElementById('setupPage').style.display = 'none';
+      adicionarLog('📡 Dispositivo: ' + code + ' | Tópico: ' + TOPICS.dados);
+      connectMQTT();
+    }
+
+    // ── Inicialização ──
+    if (!DEVICE_CODE || DEVICE_CODE.length !== 6) {
+      // Primeiro acesso — mostra página de configuração
+      document.getElementById('setupPage').style.display = 'block';
+      document.getElementById('setupBackBtn').style.display = 'none';
+    } else {
+      // Código já salvo — vai direto ao dashboard
+      document.getElementById('deviceCodeDisplay').textContent = DEVICE_CODE;
+      document.getElementById('deviceCodeCardLabel').textContent = DEVICE_CODE;
+      connectMQTT();
+    }
   </script>
 </body>
 </html>
