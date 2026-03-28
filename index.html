@@ -700,15 +700,15 @@
   <script>
     // ========= CONFIGURAÇÕES =========
     const MQTT_CONFIG = {
-      host:     'SEU_BROKER.s1.eu.hivemq.cloud', // Substitua pelo seu broker
+      host:     '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud', // Substitua pelo seu broker
       port:     8884,
-      username: 'SEU_USUARIO_DASHBOARD',
-      password: 'SUA_SENHA_DASHBOARD',
+      username: 'esp32-receptor',
+      password: '061084Cc@',
       clientId: 'lora-dashboard-' + Math.random().toString(16).substr(2, 8)
     };
     const TOPICS = { dados: 'caixas/agua/dados', status: 'caixas/agua/status', comandos: 'caixas/agua/comandos' };
-    const SHEETS_API   = 'https://script.google.com/macros/s/SUA_URL_DO_APPS_SCRIPT/exec';
-    const SHEETS_TOKEN = 'TROQUE_ESTE_TOKEN_POR_UM_SECRETO_LONGO_E_ALEATORIO';
+    const SHEETS_API   = 'https://script.google.com/macros/s/AKfycbyysbyOqkNq6J7DI8BYpRt4BnyzB9hJa34mJQCCg0x7xdJT2rqurF4Iex3yVir-F3-H/exec';
+    const SHEETS_TOKEN = '0a3327c1-f03f-4381-9145-f5bca1b98089';
 
     const TRANSMITTER_TIMEOUT = 45000;
     const RECEPTOR_TIMEOUT    = 90000;
