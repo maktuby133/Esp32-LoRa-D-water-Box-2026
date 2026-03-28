@@ -2,25 +2,14 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <!-- 🔐 CSP: restringe origens de scripts, estilos e conexões -->
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self';
-                 script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline';
-                 style-src  'self' https://cdnjs.cloudflare.com 'unsafe-inline';
-                 connect-src wss://*.hivemq.cloud https://script.google.com;
-                 img-src 'self' https://ik.imagekit.io data:;
-                 font-src https://cdnjs.cloudflare.com;">
-  <meta http-equiv="X-Content-Type-Options" content="nosniff">
-  <meta http-equiv="X-Frame-Options" content="DENY">
-  <title>🌊 Monitor Caixa d'Água - LoRa</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌊 Monitor Caixa d'Água - HiveMQ</title>
+  
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
+  
   <style>
-    /* ===== ESTILOS MODERNOS DO PRIMEIRO ARQUIVO ===== */
     :root {
       --primary: #0077b6;
       --primary-dark: #023e8a;
@@ -217,9 +206,10 @@
       color: var(--primary-dark);
       font-size: 1rem;
       font-weight: 600;
-      flex-shrink: 0;
+      flex-shrink: 0; /* Não encolhe */
     }
 
+    /* CORREÇÃO: Container do tanque responsivo e limitado */
     .tank-wrapper {
       position: relative;
       width: min(280px, 80vw);
@@ -303,6 +293,7 @@
       background: linear-gradient(to top, #7f1d1d, #dc2626) !important; 
       animation: pulse-red 0.5s infinite; 
     }
+    /* NOVO: Estilo para quando estiver offline */
     .water.offline { 
       background: linear-gradient(to top, #374151, #6b7280) !important; 
       height: 0% !important;
@@ -337,6 +328,19 @@
     .tank-mark.mid { top: 50%; transform: translateY(-50%); }
     .tank-mark.bottom { bottom: 0; }
 
+    .tank-capacity {
+      text-align: center;
+      margin: 5px 0;
+      padding: 6px;
+      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+      border-radius: 10px;
+      border: 2px solid var(--primary);
+      flex-shrink: 0;
+    }
+    .tank-capacity-label { font-size: 0.7rem; color: var(--gray); font-weight: 600; text-transform: uppercase; }
+    .tank-capacity-value { font-size: 1.2rem; font-weight: 700; color: var(--primary-dark); }
+
+    /* CORREÇÃO: Grid com altura controlada */
     .info-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -368,6 +372,7 @@
       border-color: var(--danger);
       animation: pulse-border 1.5s infinite;
     }
+    /* NOVO: Estilo para quando estiver offline */
     .info-card.offline {
       background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
       border-color: var(--gray);
@@ -380,6 +385,123 @@
     .info-card.error .info-card-label { color: var(--danger); }
     .info-card.offline .info-card-value { color: var(--gray); }
 
+    #nivelChart { display: block; width: 100% !important; }
+    #chartWrapper { height: 340px; }
+
+    @media (max-width: 600px) {
+      #chartWrapper { height: 220px; }
+      #chartCard { height: auto !important; overflow: hidden; }
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin-top: 6px;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+      max-height: 200px; /* CORREÇÃO: Altura máxima */
+      overflow-y: auto;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
+    th { padding: 5px 7px; text-align: left; font-weight: 600; white-space: nowrap; }
+    td { padding: 4px 7px; border-bottom: 1px solid #e9ecef; }
+    tbody tr:hover { background: #f8f9fa; }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-block;
+    }
+    .badge-normal { background: #d4edda; color: #155724; }
+    .badge-error { background: #f8d7da; color: #721c24; }
+
+    .signal-cell { display: flex; align-items: center; gap: 8px; }
+    .signal-dbm { font-weight: 700; font-size: 0.85rem; color: var(--primary-dark); min-width: 45px; }
+    .signal-percent { font-weight: 600; font-size: 0.85rem; color: var(--gray); }
+
+    #updateHistory { max-height: 120px; overflow-y: auto; }
+
+    .update-entry {
+      padding: 4px 10px;
+      margin-bottom: 3px;
+      background: #f8f9fa;
+      border-left: 3px solid var(--primary);
+      border-radius: 5px;
+      display: flex;
+      gap: 10px;
+      font-size: 0.72rem;
+    }
+    .update-entry.alert { background: #fee2e2; border-left-color: var(--danger); animation: pulse-alert 2s infinite; }
+    .update-entry.warning { background: #fef3c7; border-left-color: var(--warning); }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes pulse-alert { 0%, 100% { background: #fee2e2; } 50% { background: #fecaca; } }
+    .update-time { color: var(--primary); font-weight: 600; min-width: 60px; font-size: 0.75rem; }
+    .update-entry.alert .update-time { color: var(--danger); }
+    .update-text { color: var(--dark); flex: 1; }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+
+    .debug-btn {
+      position: fixed;
+      bottom: 20px; right: 20px;
+      width: 50px; height: 50px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+    .debug-btn:hover { transform: scale(1.1); background: var(--primary-dark); }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal.show { display: flex; }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+    }
+    .modal h3 { margin-bottom: 15px; color: var(--danger); }
+    .modal p { margin-bottom: 20px; color: var(--gray); }
+    .modal-buttons { display: flex; gap: 10px; justify-content: center; }
+    .btn-cancel { background: #e9ecef; color: var(--dark); }
+    .btn-confirm { background: var(--danger); color: white; }
+
+
+
+    .status-item.sensor-error {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      border: 2px solid var(--danger);
+      animation: pulse-border 1.5s infinite;
+    }
+    .status-item.sensor-error .status-label,
+    .status-item.sensor-error .status-value {
+      color: var(--danger);
+    }
+
+    /* ===== BATERIA ===== */
     .bat-icon-wrap {
       display: flex;
       align-items: center;
@@ -419,179 +541,194 @@
       text-align: right;
     }
 
-    .tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 8px;
-      flex-shrink: 0;
-    }
-    .tab-btn {
-      padding: 6px 16px;
-      border: 2px solid #e0e0e0;
-      border-radius: 30px;
-      background: white;
-      color: var(--gray);
-      font-weight: 600;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .tab-btn.active {
-      background: var(--primary);
-      color: white;
-      border-color: var(--primary);
-    }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
+    /* ===== MOBILE ===== */
+    @media (max-width: 480px) {
+      body { padding: 5px; }
 
-    .sheets-toolbar {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }
-    .periodo-btn {
-      padding: 5px 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 20px;
-      background: white;
-      font-size: 0.75rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .periodo-btn.active {
-      background: var(--primary);
-      color: white;
-      border-color: var(--primary);
-    }
-    .sheets-resumo {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .resumo-card {
-      background: #f8f9fa;
-      border-radius: 8px;
-      padding: 8px;
-      text-align: center;
-      border: 1px solid #e9ecef;
-    }
-    .resumo-card .r-label {
-      font-size: 0.65rem;
-      color: var(--gray);
-      font-weight: 600;
-    }
-    .resumo-card .r-value {
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--primary-dark);
-      margin-top: 2px;
-    }
-    .sheets-status {
-      text-align: center;
-      padding: 20px;
-      color: var(--gray);
-      font-size: 0.85rem;
-    }
-    .table-container {
-      overflow-x: auto;
-      margin-top: 6px;
-      border-radius: 8px;
-      border: 1px solid #e9ecef;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
-    thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
-    th { padding: 5px 7px; text-align: left; font-weight: 600; white-space: nowrap; }
-    td { padding: 4px 7px; border-bottom: 1px solid #e9ecef; }
-    tbody tr:hover { background: #f8f9fa; }
+      .header { padding: 8px 10px; }
+      .header h1 { font-size: 0.9rem; }
 
-    .status-badge {
-      padding: 2px 6px;
-      border-radius: 12px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      display: inline-block;
-    }
-    .badge-normal { background: #d4edda; color: #155724; }
-    .badge-error { background: #f8d7da; color: #721c24; }
+      /* Status panel: 6 colunas compactas, rola se precisar */
+      .status-panel { grid-template-columns: repeat(6, 1fr); gap: 4px; }
+      .status-label { font-size: 0.5rem; }
+      .status-value { font-size: 0.65rem; }
 
-    #updateHistory { max-height: 120px; overflow-y: auto; }
-    .update-entry {
-      padding: 4px 10px;
-      margin-bottom: 3px;
-      background: #f8f9fa;
-      border-left: 3px solid var(--primary);
-      border-radius: 5px;
-      display: flex;
-      gap: 10px;
-      font-size: 0.72rem;
-    }
-    .update-entry.alert { background: #fee2e2; border-left-color: var(--danger); }
-    .update-entry.warning { background: #fef3c7; border-left-color: var(--warning); }
-    .update-time { color: var(--primary); font-weight: 600; min-width: 60px; font-size: 0.75rem; }
-    .update-text { color: var(--dark); flex: 1; }
+      /* Cards */
+      .card { padding: 10px; border-radius: 12px; }
+      .card-header { font-size: 0.88rem; }
 
-    .debug-btn {
-      position: fixed;
-      bottom: 20px; right: 20px;
-      width: 50px; height: 50px;
-      border-radius: 50%;
-      background: var(--primary);
-      color: white;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      transition: all 0.3s;
-      z-index: 1000;
+      /* Tanque menor */
+      .tank-wrapper { width: min(240px, 80vw); height: min(225px, 75vw); }
+
+      /* Demais cards voltam ao auto */
+      .card:not(#chartCard) { height: auto !important; }
+
+      /* Grid inferior responsivo */
+      .bottom-grid { grid-template-columns: 1fr !important; height: auto !important; }
+      #bottomGrid { grid-template-columns: 1fr !important; }
+
+      /* Log header empilha botão */
+      .log-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+      .log-header .btn { width: 100%; justify-content: center; }
+
+      /* Tabela responsiva */
+      th, td { padding: 5px 4px; font-size: 0.68rem; }
+      .signal-dbm { font-size: 0.72rem; min-width: 38px; }
+      .signal-percent { font-size: 0.72rem; }
+
+      /* Alertas */
+      .alert-banner { font-size: 0.78rem; padding: 7px 10px; }
+
+      /* Debug btn */
+      .debug-btn { width: 42px; height: 42px; bottom: 12px; right: 12px; }
+
+      /* Banner MQTT */
+      #mqttDiagBanner { font-size: 0.75rem; word-break: break-word; }
+      #mqttDiagBanner code { font-size: 0.68rem; word-break: break-all; }
     }
-    .modal {
+
+    @media (max-width: 360px) {
+      .status-panel { grid-template-columns: repeat(3, 1fr); }
+      .tank-wrapper { width: min(200px, 78vw); height: min(188px, 73vw); }
+      .header h1 { font-size: 0.8rem; }
+    }
+
+    /* ══ TELA DE CÓDIGO DO DISPOSITIVO ══ */
+    #codigoScreen {
       display: none;
       position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 2000;
+      inset: 0;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      z-index: 9999;
       align-items: center;
       justify-content: center;
-    }
-    .modal.show { display: flex; }
-    .modal-content {
-      background: white;
       padding: 20px;
-      border-radius: 12px;
+    }
+    #codigoScreen.show { display: flex; }
+    .codigo-card {
+      background: white;
+      padding: 36px 32px 28px;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+      width: 100%;
       max-width: 400px;
-      width: 90%;
       text-align: center;
+      animation: fadeUpCard 0.4s ease;
     }
-    .modal-buttons { display: flex; gap: 10px; justify-content: center; }
-    .btn-cancel { background: #e9ecef; color: var(--dark); }
-    .btn-confirm { background: var(--danger); color: white; }
-
-    @media (max-width: 480px) {
-      .status-panel { grid-template-columns: repeat(3, 1fr); }
-      .tank-wrapper { width: min(240px, 80vw); height: min(225px, 75vw); }
-      .header h1 { font-size: 0.9rem; }
+    @keyframes fadeUpCard { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    .codigo-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
+    .codigo-card h2 { color: #023e8a; font-size: 1.3rem; margin-bottom: 6px; }
+    .codigo-card p  { color: #6c757d; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5; }
+    .codigo-input-wrap { position: relative; margin-bottom: 18px; }
+    .codigo-input {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      text-align: center;
+      text-transform: uppercase;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      outline: none;
+      transition: border 0.3s;
+      color: #023e8a;
     }
+    .codigo-input:focus { border-color: #0077b6; }
+    .codigo-input.erro  { border-color: #e63946; animation: shake 0.3s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+    .codigo-btn {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(135deg, #0077b6, #023e8a);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .codigo-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,119,182,0.35); }
+    .codigo-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .codigo-erro-msg {
+      color: #e63946;
+      font-size: 0.82rem;
+      margin-top: 10px;
+      min-height: 18px;
+      font-weight: 600;
+    }
+    .codigo-lembrar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      margin-top: 14px;
+      font-size: 0.82rem;
+      color: #6c757d;
+      cursor: pointer;
+    }
+    .codigo-lembrar input { cursor: pointer; accent-color: #0077b6; }
+    /* badge do código no header */
+    .device-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #e3f2fd;
+      color: #023e8a;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid #90caf9;
+      transition: all 0.2s;
+    }
+    .device-badge:hover { background: #bbdefb; }
   </style>
 </head>
 <body>
-  <div class="container">
+
+  <!-- ══ TELA DE CÓDIGO DO DISPOSITIVO ══ -->
+  <div id="codigoScreen" class="show">
+    <div class="codigo-card">
+      <span class="codigo-icon">📡</span>
+      <h2>Monitor Caixa d'Água</h2>
+      <p>Digite o <strong>código do dispositivo</strong> que está na etiqueta colada no seu receptor.</p>
+      <div class="codigo-input-wrap">
+        <input class="codigo-input" id="codigoInput" type="text"
+               maxlength="6" placeholder="A1B2C3"
+               autocomplete="off" autocorrect="off"
+               autocapitalize="characters" spellcheck="false">
+      </div>
+      <button class="codigo-btn" id="codigoBtn" onclick="confirmarCodigo()">
+        <i class="fas fa-plug"></i> Conectar
+      </button>
+      <div class="codigo-erro-msg" id="codigoErro"></div>
+      <label class="codigo-lembrar">
+        <input type="checkbox" id="lembrarCodigo" checked>
+        Lembrar neste aparelho
+      </label>
+    </div>
+  </div>
+
+  <div class="container" id="mainContainer" style="display:none">
     <div class="header">
       <h1><i class="fas fa-water"></i> Monitor de Caixa d'Água</h1>
-      <div id="deviceCodeDisplay" style="font-size:0.78rem;color:#aee;background:rgba(255,255,255,0.12);padding:3px 10px;border-radius:20px;letter-spacing:2px;font-family:monospace;">——</div>
+      <span class="device-badge" id="deviceBadge" onclick="trocarDispositivo()" title="Clique para trocar"><i class="fas fa-microchip"></i> <span id="deviceBadgeText">--</span></span>
       <div class="mqtt-badge connecting" id="mqttStatus">
         <i class="fas fa-broadcast-tower"></i> <span>Conectando...</span>
       </div>
     </div>
 
     <div id="mqttDiagBanner" style="display:none; background:#fff3cd; border:2px solid #ffc107; border-radius:8px; padding:10px 14px; margin-bottom:8px; font-size:0.82rem; color:#856404;">
-      <strong>⚠️ Erro MQTT:</strong> <span id="mqttDiagMsg">—</span>
+      <strong>⚠️ Erro MQTT:</strong> <span id="mqttDiagMsg">—</span><br>
+      <small>Broker: <code>71a5889f36334b82b820b780b8409341.s1.eu.hivemq.cloud:8884</code> | Usuário: <code id="mqttDiagUser">—</code></small>
     </div>
-
 
     <div id="alertTransmitter" class="alert-banner alert-transmitter">
       <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR (<span id="timeoutSeconds">0</span>s)
@@ -603,350 +740,881 @@
       <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR ULTRASSÔNICO
     </div>
 
-    <div class="tabs">
-      <button class="tab-btn active" onclick="mostrarAba('tempo-real', event)"><i class="fas fa-broadcast-tower"></i> Tempo Real</button>
-      <button class="tab-btn" onclick="mostrarAba('historico', event)"><i class="fas fa-chart-bar"></i> Histórico</button>
-    </div>
+    <!-- IDs mantidos ocultos para compatibilidade JS -->
+    <span id="brokerStatus" style="display:none"></span>
+    <span id="loraStatus" style="display:none"></span>
 
-    
-    <!-- Card pequeno: Código do Dispositivo -->
-    <div id="deviceCodeCard" style="display:flex; align-items:center; justify-content:space-between; background:var(--surface,#fff); border:1px solid #e0e8f0; border-radius:10px; padding:10px 16px; margin-bottom:10px; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:1.1rem;">📡</span>
-        <div>
-          <div style="font-size:0.7rem; color:#888; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Dispositivo conectado</div>
-          <div id="deviceCodeCardLabel" style="font-size:1rem; font-weight:700; font-family:monospace; letter-spacing:3px; color:#0077b6;">——</div>
+    <div class="status-panel">
+      <div class="status-item">
+        <span class="status-label">Receptor WiFi</span>
+        <span class="status-value" id="receptorStatus">Aguardando...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Sinal LoRa</span>
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+          <div class="signal-bar" id="signalBar" style="justify-content:flex-end;">
+            <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
+            <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
+            <div class="signal-bar-item"></div>
+          </div>
+          <span style="font-size:0.62rem;color:var(--gray);font-weight:700;" id="signalText">OFF</span>
         </div>
       </div>
-      <button onclick="irParaConfigurar()" style="padding:6px 14px; background:#f0f6ff; color:#0077b6; border:1.5px solid #0077b6; border-radius:8px; font-size:0.82rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
-        <i class="fas fa-sign-out-alt"></i> Trocar
-      </button>
-    </div>
-
-<!-- ABA TEMPO REAL -->
-    <div id="aba-tempo-real" class="tab-content active">
-      <div class="status-panel">
-        <div class="status-item"><span class="status-label">Receptor WiFi</span><span class="status-value" id="receptorStatus">Aguardando...</span></div>
-        <div class="status-item">
-          <span class="status-label">Sinal LoRa</span>
-          <div style="display:flex;align-items:center;gap:4px;">
-            <div class="signal-bar" id="signalBar">
-              <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
-              <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
-              <div class="signal-bar-item"></div>
-            </div>
-            <span style="font-size:0.62rem;color:var(--gray);font-weight:700;" id="signalText">OFF</span>
+      <div class="status-item">
+        <span class="status-label">Último Dado</span>
+        <span class="status-value" id="lastUpdate">--:--:--</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">WiFi RSSI</span>
+        <span class="status-value" id="wifiRssi">-- dBm</span>
+      </div>
+      <div class="status-item" id="sensorStatusItem">
+        <span class="status-label"><i class="fas fa-microchip"></i> Sensor</span>
+        <span class="status-value" id="sensorStatus">Aguardando...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label"><i class="fas fa-battery-half"></i> Bateria TX</span>
+        <div class="bat-icon-wrap" style="justify-content:flex-end;flex-shrink:0;">
+          <div class="bat-body">
+            <div class="bat-fill" id="batFill" style="width:0%;background:#38b000;"></div>
           </div>
-        </div>
-        <div class="status-item"><span class="status-label">Último Dado</span><span class="status-value" id="lastUpdate">--:--:--</span></div>
-        <div class="status-item"><span class="status-label">WiFi RSSI</span><span class="status-value" id="wifiRssi">-- dBm</span></div>
-        <div class="status-item" id="sensorStatusItem"><span class="status-label"><i class="fas fa-microchip"></i> Sensor</span><span class="status-value" id="sensorStatus">Aguardando...</span></div>
-        <div class="status-item">
-          <span class="status-label"><i class="fas fa-battery-half"></i> Bateria TX</span>
-          <div class="bat-icon-wrap">
-            <div class="bat-body"><div class="bat-fill" id="batFill" style="width:0%;"></div></div>
-            <span class="bat-label" id="batPercLabel">--%</span>
-          </div>
+          <span class="bat-label" id="batPercLabel">--%</span>
         </div>
       </div>
-
-      <div class="main-content">
-        <div class="card">
-          <div class="card-header">Status da Caixa d'Água</div>
-          <div class="tank-wrapper">
-            <img class="tank-image" src="https://ik.imagekit.io/o7q7lmyva/caixa_d_agua_1000_litros.png?updatedAt=1769916384477" alt="Caixa d'água">
-            <div class="tank"><div class="water" id="waterLevel" style="height:0%;">0%</div></div>
-            <div class="tank-marks"><div class="tank-mark top">100%</div><div class="tank-mark mid">50%</div><div class="tank-mark bottom">0%</div></div>
-          </div>
-          <div class="info-grid">
-            <div class="info-card" id="volumeCard" onclick="showDetails('volume')"><div class="info-card-label">Volume</div><div class="info-card-value"><span id="currentVolume">--</span><span class="info-card-unit"> L</span></div></div>
-            <div class="info-card" id="distanceCard" onclick="showDetails('distance')"><div class="info-card-label">Distância</div><div class="info-card-value"><span id="currentDistance">--</span><span class="info-card-unit"> cm</span></div></div>
-            <div class="info-card" id="levelCard" onclick="showDetails('level')"><div class="info-card-label">Nível</div><div class="info-card-value"><span id="currentLevel">--</span><span class="info-card-unit"> cm</span></div></div>
-          </div>
-        </div>
-        
-      </div>
-
-      
     </div>
 
-    <!-- ABA HISTÓRICO GOOGLE SHEETS -->
-    <div id="aba-historico" class="tab-content">
+    <div class="main-content">
       <div class="card">
-        <div class="card-header"><i class="fas fa-chart-bar"></i> Histórico Google Sheets</div>
-        <div class="sheets-toolbar">
-          <span>Período:</span>
-          <button class="periodo-btn active" onclick="carregarSheets('dia')" id="btn-dia">Hoje</button>
-          <button class="periodo-btn" onclick="carregarSheets('semana')" id="btn-semana">7 dias</button>
-          <button class="periodo-btn" onclick="carregarSheets('mes')" id="btn-mes">30 dias</button>
-          <button class="periodo-btn" style="margin-left:auto;" onclick="carregarSheets(periodoAtual)"><i class="fas fa-sync-alt"></i> Atualizar</button>
+        <div class="card-header" style="margin-bottom:4px;text-align:center;justify-content:center;">
+          Status da Caixa d'Água
         </div>
-        <div class="sheets-resumo">
-          <div class="resumo-card"><div class="r-label">Nível Atual</div><div class="r-value" id="resumo-nivel">--</div></div>
-          <div class="resumo-card"><div class="r-label">Consumo Total</div><div class="r-value" id="resumo-consumo">--</div></div>
-          <div class="resumo-card"><div class="r-label">Registros</div><div class="r-value" id="resumo-registros">--</div></div>
-        </div>
-        <canvas id="sheetsChart" style="max-height:200px; margin-bottom:12px;"></canvas>
-        <div id="sheets-status" class="sheets-status"><i class="fas fa-spinner fa-spin"></i> Carregando histórico...</div>
-        <div id="sheets-table-container" style="display:none;"><div class="table-container sheets-table"><table><thead><tr><th>Data</th><th>Hora</th><th>Nível</th><th>Litros</th><th>Variação</th><th>Consumo</th></tr></thead><tbody id="sheets-body"></tbody></table></div></div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- PÁGINA DE CONFIGURAÇÃO DO DISPOSITIVO -->
-  <div id="setupPage" style="display:none; position:fixed; inset:0; background:#f0f4fa; z-index:1000; overflow-y:auto; display:none;">
-    <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
-      <div style="background:white; border-radius:18px; box-shadow:0 8px 40px rgba(0,119,182,0.15); padding:36px 32px; max-width:420px; width:100%; text-align:center;">
-        <div style="font-size:2.8rem; margin-bottom:12px;">📡</div>
-        <h2 style="color:#0077b6; font-size:1.4rem; margin-bottom:6px;">Monitor de Caixa d'Água</h2>
-        <p style="color:#888; font-size:0.88rem; margin-bottom:28px;">Digite o código exibido no portal AP do receptor para conectar ao dispositivo.</p>
-
-        <div style="background:#f0f6ff; border-radius:12px; padding:20px; margin-bottom:24px; text-align:left;">
-          <div style="font-size:0.78rem; color:#0077b6; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">Código do Dispositivo</div>
-          <input id="setupCodeInput" type="text" maxlength="6" placeholder="Ex: D4E5F6"
-            style="width:100%; padding:14px 16px; border:2px solid #c8dff0; border-radius:10px; font-size:1.6rem; font-family:monospace; letter-spacing:6px; text-transform:uppercase; text-align:center; outline:none; transition:border .2s;"
-            onfocus="this.style.borderColor='#0077b6'"
-            onblur="this.style.borderColor='#c8dff0'"
-            onkeydown="if(event.key==='Enter') confirmarSetupCodigo()">
-          <div id="setupCodeError" style="display:none; color:#e63946; font-size:0.8rem; margin-top:8px; text-align:center;"></div>
+        <!-- Imagem grande ocupa quase tudo -->
+        <div class="tank-wrapper">
+          <img class="tank-image"
+               src="https://ik.imagekit.io/o7q7lmyva/caixa_d_agua_1000_litros.png?updatedAt=1769916384477"
+               alt="Caixa d'água">
+          <div class="tank">
+            <div class="water" id="waterLevel" style="height:0%;">0%</div>
+          </div>
+          <div class="tank-marks">
+            <div class="tank-mark top">100%</div>
+            <div class="tank-mark mid">50%</div>
+            <div class="tank-mark bottom">0%</div>
+          </div>
         </div>
 
-        <button onclick="confirmarSetupCodigo()"
-          style="width:100%; padding:14px; background:linear-gradient(135deg,#0077b6,#0096c7); color:white; border:none; border-radius:10px; font-size:1rem; font-weight:700; cursor:pointer; letter-spacing:0.5px; box-shadow:0 4px 15px rgba(0,119,182,0.3);">
-          ✅ Conectar
-        </button>
-
-        <div id="setupBackBtn" style="display:none; margin-top:16px;">
-          <button onclick="voltarDashboard()"
-            style="background:none; border:none; color:#888; font-size:0.85rem; cursor:pointer; text-decoration:underline;">
-            ← Voltar ao dashboard
-          </button>
-        </div>
-
-        <div style="margin-top:28px; padding-top:20px; border-top:1px solid #e8f0f8;">
-          <div style="font-size:0.75rem; color:#aaa; margin-bottom:6px;">Como encontrar o código?</div>
-          <div style="font-size:0.8rem; color:#666; line-height:1.6;">
-            Conecte no WiFi <strong>RECEPTOR_XXXXXX</strong> e acesse <strong>192.168.4.1</strong> — o código aparece na tela do portal.
+        <!-- Rodapé do card: 2x2 grid simétrico -->
+        <div style="flex-shrink:0; padding-top:8px; border-top:1px solid #e9ecef; margin-top:auto;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <!-- Capacidade Total -->
+            <div class="info-card" style="cursor:default;">
+              <div class="info-card-label">Capacidade</div>
+              <div class="info-card-value"><span id="totalCapacity">--</span></div>
+            </div>
+            <!-- Volume -->
+            <div class="info-card" id="volumeCard" onclick="showDetails('volume')">
+              <div class="info-card-label">Volume</div>
+              <div class="info-card-value"><span id="currentVolume">--</span><span class="info-card-unit"> L</span></div>
+            </div>
+            <!-- Distância -->
+            <div class="info-card" id="distanceCard" onclick="showDetails('distance')">
+              <div class="info-card-label">Distância</div>
+              <div class="info-card-value"><span id="currentDistance">--</span><span class="info-card-unit"> cm</span></div>
+            </div>
+            <!-- Nível -->
+            <div class="info-card" id="levelCard" onclick="showDetails('level')">
+              <div class="info-card-label">Nível</div>
+              <div class="info-card-value"><span id="currentLevel">--</span><span class="info-card-unit"> cm</span></div>
+            </div>
           </div>
         </div>
       </div>
+
+      <div class="card" id="chartCard" style="min-height:0; overflow:hidden;">
+        <div class="card-header">
+          <i class="fas fa-chart-line"></i> Histórico (24h)
+        </div>
+        <div id="chartWrapper" style="flex:1; min-height:0; overflow:hidden;">
+          <canvas id="nivelChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0;margin-bottom:10px;" id="bottomGrid">
+      <div class="card" style="overflow:hidden;">
+        <div class="card-header" style="margin-bottom:5px;flex-shrink:0;"><i class="fas fa-history"></i> Últimas Leituras</div>
+        <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;flex-shrink:0;"><i class="fas fa-spinner fa-spin"></i> Aguardando dados...</div>
+        <div id="historyTableContainer" style="display:none;max-height:180px;overflow-y:auto;overflow-x:auto;flex-shrink:0;">
+          <div style="border-radius:8px;border:1px solid #e9ecef;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+              <thead><tr><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Horário</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Sensor</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Nível</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Volume</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Dist.</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Sinal LoRa</th></tr></thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="overflow:hidden;">
+        <div class="log-header" style="flex-shrink:0;">
+          <div class="card-header" style="margin:0;"><i class="fas fa-bell"></i> Log de Eventos</div>
+          <button class="btn btn-reboot" onclick="confirmarReboot()"><i class="fas fa-power-off"></i> Reiniciar</button>
+        </div>
+        <div id="updateHistory" style="max-height:150px;overflow-y:auto;flex-shrink:0;"></div>
+      </div>
     </div>
   </div>
 
-  <div id="modalReboot" class="modal"><div class="modal-content"><h3><i class="fas fa-exclamation-triangle"></i> Reiniciar Receptor?</h3><p>O dispositivo ESP32 será reiniciado remotamente via MQTT.</p><div class="modal-buttons"><button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button><button class="btn btn-confirm" onclick="executarReboot()">Sim, Reiniciar</button></div></div></div>
-  <button class="debug-btn" onclick="debugData()" title="Debug"><i class="fas fa-bug"></i></button>
+  <div id="modalReboot" class="modal">
+    <div class="modal-content">
+      <h3><i class="fas fa-exclamation-triangle"></i> Reiniciar Receptor?</h3>
+      <p>O dispositivo ESP32 será reiniciado remotamente via MQTT. Isso pode levar 30 segundos.</p>
+      <div class="modal-buttons">
+        <button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button>
+        <button class="btn btn-confirm" onclick="executarReboot()">Sim, Reiniciar</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="debug-btn" onclick="debugData()" title="Debug">
+    <i class="fas fa-bug"></i>
+  </button>
 
   <script>
-    // ========= CONFIGURAÇÕES =========
+    // mqtt carregado via CDN global
+
+    // ── Configuração do broker (não muda por cliente) ──────────────
     const MQTT_CONFIG = {
-      host:     '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud', // Substitua pelo seu broker
+      host:     '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud',
       port:     8884,
       username: 'esp32-receptor',
       password: '061084Cc@',
-      clientId: 'lora-dashboard-' + Math.random().toString(16).substr(2, 8)
+      clientId: 'dash-' + Math.random().toString(16).substr(2, 8)
     };
-    // ========= CÓDIGO DO DISPOSITIVO =========
-    // Últimos 6 chars do MAC do receptor (ex: D4E5F6)
-    // Exibido no portal AP do ESP32 ao ligar pela primeira vez
-    let DEVICE_CODE = localStorage.getItem('lora_device_code') || '';
 
-    function buildTopics(code) {
-      code = code.toUpperCase().trim();
-      return {
-        dados:    'caixas/agua/' + code + '/dados',
-        status:   'caixas/agua/' + code + '/status',
-        comandos: 'caixas/agua/' + code + '/comandos'
-      };
-    }
-    let TOPICS = buildTopics(DEVICE_CODE);
-    const SHEETS_API   = 'https://script.google.com/macros/s/AKfycbyysbyOqkNq6J7DI8BYpRt4BnyzB9hJa34mJQCCg0x7xdJT2rqurF4Iex3yVir-F3-H/exec';
-    const SHEETS_TOKEN = '0a3327c1-f03f-4381-9145-f5bca1b98089';
+    // Preenchidos após o cliente digitar o código
+    let TOPICS = { dados: '', status: '', comandos: '' };
+    let deviceMac = '';
 
-    const TRANSMITTER_TIMEOUT = 45000;
-    const RECEPTOR_TIMEOUT    = 90000;
+    // ── Tela de código ───────────────────────────────────────────
+    const STORAGE_CODE_KEY = 'dispositivo_codigo';
 
-    let mqttClient = null, chart = null, sheetsChart = null;
-    let savedCapacityTotal = 0, currentData = {}, historico = [];
-    let lastDataMessageTime = null, lastReceptorStatusTime = null, receptorOnline = false, transmitterActive = false;
-    let timeoutCheckInterval = null, secondsWithoutData = 0, sensorErrorActive = false;
-    let leiturasConsecutivasErradas = 0, ultimoValorValido = null;
-    let periodoAtual = 'semana';
+    function iniciarTela() {
+      const salvo = localStorage.getItem(STORAGE_CODE_KEY);
+      if (salvo) {
+        // já tem código salvo — entra direto
+        ativarDispositivo(salvo);
+      }
+      // senão: tela de código já está visível (show por padrão)
 
-    // Utilitários seguros
-    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
-    function setTexto(id, txt) { let el = document.getElementById(id); if(el) el.textContent = String(txt); }
-    function sanitizarNumero(val, min, max, padrao) { let n = parseFloat(val); if(isNaN(n)) return padrao; return Math.min(Math.max(n, min), max); }
-
-    // MQTT
-    function connectMQTT() {
-      const url = `wss://${MQTT_CONFIG.host}:8884/mqtt`;
-      adicionarLog('🔄 Conectando ao HiveMQ...');
-      try {
-        mqttClient = mqtt.connect(url, {
-          username: MQTT_CONFIG.username, password: MQTT_CONFIG.password, clientId: MQTT_CONFIG.clientId,
-          protocol: 'wss', clean: true, rejectUnauthorized: true, reconnectPeriod: 5000, connectTimeout: 20000, keepalive: 60
-        });
-      } catch(e) { adicionarLog('❌ Falha ao iniciar MQTT'); updateConnectionStatus(false); return; }
-      mqttClient.on('connect', () => { updateConnectionStatus(true); adicionarLog('✅ Dashboard conectado — ' + TOPICS.dados); document.getElementById('mqttDiagBanner').style.display = 'none'; iniciarVerificacaoTimeout(); mqttClient.subscribe([TOPICS.dados, TOPICS.status]); });
-      mqttClient.on('reconnect', () => adicionarLog('🔄 Reconectando...', 'warning'));
-      mqttClient.on('disconnect', () => { updateConnectionStatus(false); if(lastDataMessageTime) zerarInterfaceOffline(); });
-      mqttClient.on('error', (err) => { adicionarLog('❌ Erro MQTT'); updateConnectionStatus(false); document.getElementById('mqttDiagBanner').style.display = 'block'; document.getElementById('mqttDiagMsg').textContent = 'Falha ao conectar.'; if(lastDataMessageTime) zerarInterfaceOffline(); });
-      mqttClient.on('message', (topic, message) => {
-        try {
-          if(message.length > 4096) return;
-          const payload = JSON.parse(message.toString());
-          if(topic !== TOPICS.dados && topic !== TOPICS.status) return;
-          if(topic === TOPICS.dados) {
-            lastDataMessageTime = Date.now(); secondsWithoutData = 0;
-            if(!receptorOnline) { receptorOnline = true; atualizarStatusReceptor(true, 'Online'); }
-            lastReceptorStatusTime = Date.now();
-            let sensorOK = payload.sensor_ok;
-            const distancia = sanitizarNumero(payload.distance, 0, 10000, 0);
-            const percentual = sanitizarNumero(payload.percentage, 0, 100, 0);
-            if(sensorOK !== false) { if(distancia <= 0 || percentual < 0) sensorOK = false; if(ultimoValorValido && (percentual - ultimoValorValido.percentage < -50)) sensorOK = false; }
-            if(sensorOK) { ultimoValorValido = { percentage: percentual, liters: sanitizarNumero(payload.liters,0,50000,0), distance: distancia, level: sanitizarNumero(payload.level,0,10000,0) }; leiturasConsecutivasErradas = 0; }
-            else leiturasConsecutivasErradas++;
-            if(!transmitterActive) { transmitterActive = true; adicionarLog('✅ Sinal do transmissor restaurado'); esconderAlertaTransmitter(); }
-            const rssi = sanitizarNumero(payload.lora_rssi, -150, 0, -100);
-            const quality = (rssi >= -50) ? 100 : (rssi >= -70) ? 80 : (rssi >= -90) ? 60 : (rssi >= -100) ? 40 : (rssi >= -110) ? 20 : 10;
-            payload.signal_quality = quality;
-            processarDados(payload, sensorOK);
-          } else if(topic === TOPICS.status) { lastReceptorStatusTime = Date.now(); processarStatus(payload); }
-        } catch(e) { console.error(e); }
+      // Enter no campo confirma
+      document.getElementById('codigoInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') confirmarCodigo();
+      });
+      // Formata para maiúsculo enquanto digita
+      document.getElementById('codigoInput').addEventListener('input', e => {
+        e.target.value = e.target.value.toUpperCase().replace(/[^A-F0-9]/g, '');
       });
     }
 
-    function processarStatus(payload) { if(payload.status === 'online' || payload.heartbeat) atualizarStatusReceptor(true, 'Online'); else if(payload.status === 'offline') { atualizarStatusReceptor(false); adicionarLog('⚠️ Receptor reportou offline', 'warning'); } }
-    function atualizarStatusReceptor(online, texto) { receptorOnline = online; let el = document.getElementById('receptorStatus'); if(online) { el.textContent = texto || 'Online'; el.className = 'status-value online'; document.getElementById('alertReceptor').classList.remove('show'); ['volumeCard','distanceCard','levelCard'].forEach(id=>document.getElementById(id).classList.remove('offline')); } else { if(lastDataMessageTime) { el.textContent = 'Offline'; el.className = 'status-value offline'; document.getElementById('alertReceptor').classList.add('show'); zerarInterfaceOffline(); } } }
-    function zerarInterfaceOffline() { let w = document.getElementById('waterLevel'); w.className = 'water offline'; w.style.height = '0%'; w.textContent = 'OFF'; setTexto('currentVolume','--'); setTexto('currentDistance','--'); setTexto('currentLevel','--'); document.querySelectorAll('.signal-bar-item').forEach(b=>b.classList.remove('active')); setTexto('signalText','0%'); setTexto('wifiRssi','-- dBm'); document.getElementById('sensorStatus').textContent='Offline'; document.getElementById('sensorStatus').className='status-value offline'; if(lastDataMessageTime){ document.getElementById('alertTransmitter').classList.add('show'); } }
-    function iniciarVerificacaoTimeout() { if(timeoutCheckInterval) clearInterval(timeoutCheckInterval); timeoutCheckInterval = setInterval(()=>{ let agora=Date.now(); if(lastDataMessageTime){ let t=agora-lastDataMessageTime; secondsWithoutData=Math.floor(t/1000); setTexto('timeoutSeconds',secondsWithoutData); if(t>TRANSMITTER_TIMEOUT && transmitterActive){ transmitterActive=false; adicionarLog('⚠️ Perda de sinal do transmissor','alert'); document.getElementById('alertTransmitter').classList.add('show'); zerarInterfaceOffline(); } } let ultimo=Math.max(lastDataMessageTime||0,lastReceptorStatusTime||0); if(ultimo>0 && (agora-ultimo)>RECEPTOR_TIMEOUT && receptorOnline){ atualizarStatusReceptor(false); adicionarLog('⚠️ Receptor sem resposta (>90s)','warning'); } },1000); }
+    function confirmarCodigo() {
+      const input = document.getElementById('codigoInput');
+      const codigo = input.value.trim().toUpperCase().replace(/[^A-F0-9]/g, '');
+      const erroEl = document.getElementById('codigoErro');
+
+      if (codigo.length !== 6) {
+        input.classList.add('erro');
+        erroEl.textContent = 'O código tem 6 caracteres (ex: A1B2C3)';
+        setTimeout(() => input.classList.remove('erro'), 600);
+        return;
+      }
+      erroEl.textContent = '';
+
+      if (document.getElementById('lembrarCodigo').checked) {
+        localStorage.setItem(STORAGE_CODE_KEY, codigo);
+      }
+      ativarDispositivo(codigo);
+    }
+
+    function ativarDispositivo(codigo) {
+      deviceMac = codigo;
+
+      // Tópicos com os últimos 6 do MAC (mesma lógica do receptor)
+      TOPICS = {
+        dados:    'caixas/agua/' + codigo + '/dados',
+        status:   'caixas/agua/' + codigo + '/status',
+        comandos: 'caixas/agua/' + codigo + '/comandos'
+      };
+
+      // Atualiza badge no header
+      document.getElementById('deviceBadgeText').textContent = codigo;
+
+      // Mostra dashboard, esconde tela de código
+      document.getElementById('codigoScreen').classList.remove('show');
+      document.getElementById('mainContainer').style.display = 'block';
+
+      // Conecta MQTT
+      connectMQTT();
+    }
+
+    function trocarDispositivo() {
+      if (!confirm('Trocar de dispositivo? A página será recarregada.')) return;
+      localStorage.removeItem(STORAGE_CODE_KEY);
+      location.reload();
+    }
+
+    // MODIFICADO: Aumentado de 15000 para 45000 (45 segundos) para evitar falsos positivos
+    const TRANSMITTER_TIMEOUT = 45000;
+    // MODIFICADO: Aumentado de 60000 para 90000 (90 segundos) para maior tolerância
+    const RECEPTOR_TIMEOUT = 90000;
+
+    // NOVO: Controle de visibilidade da página para evitar flash de offline ao minimizar
+    let pageHiddenAt = null;
+    let pageHiddenGracePeriod = 10000; // 10s de graça ao restaurar janela
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        pageHiddenAt = Date.now();
+      } else {
+        // Página voltou a ficar visível — compensar o tempo que ficou oculta
+        if (pageHiddenAt !== null) {
+          const hiddenFor = Date.now() - pageHiddenAt;
+          // Empurra os timestamps para frente, descontando o tempo oculto
+          // Isso evita que o timeout dispare logo após restaurar a janela
+          if (lastDataMessageTime) lastDataMessageTime += hiddenFor;
+          if (lastReceptorStatusTime) lastReceptorStatusTime += hiddenFor;
+          pageHiddenAt = null;
+        }
+      }
+    });
+
+    let client = null;
+    let chart = null;
+    let savedCapacityTotal = 0;
+    let currentData = {};
+    let historico = [];
+    let lastDataMessageTime = null;
+    let lastReceptorStatusTime = null;
+    let receptorOnline = false;
+    let transmitterActive = false;
+    let timeoutCheckInterval = null;
+    let secondsWithoutData = 0;
+    let sensorErrorActive = false;
+    let sensorErrorCount = 0;
+    let ultimoValorValido = null;
+    let leiturasConsecutivasErradas = 0;
+
+    // NOVO: Função para calcular qualidade do sinal com faixas mais largas
+    // Isso evita que a porcentagem mude com pequenas variações de dBm
+    function calcularQualidadeSinal(rssi) {
+      // Faixas mais largas para evitar oscilações:
+      // -50 dBm ou melhor: 100% (Excelente)
+      // -50 a -70 dBm: 80% (Muito bom) - faixa de 20dB
+      // -70 a -90 dBm: 60% (Bom) - faixa de 20dB  
+      // -90 a -100 dBm: 40% (Regular) - faixa de 10dB
+      // -100 a -110 dBm: 20% (Fraco) - faixa de 10dB
+      // Abaixo de -110 dBm: 10% (Muito fraco)
+      
+      if (rssi >= -50) return 100;
+      if (rssi >= -70) return 80;
+      if (rssi >= -90) return 60;
+      if (rssi >= -100) return 40;
+      if (rssi >= -110) return 20;
+      return 10;
+    }
+
+    function connectMQTT() {
+      const url = `wss://${MQTT_CONFIG.host}:8884/mqtt`;
+
+      adicionarLog('🔄 Conectando ao HiveMQ...');
+
+      try {
+        client = mqtt.connect(url, {
+          username: MQTT_CONFIG.username,
+          password: MQTT_CONFIG.password,
+          clientId: MQTT_CONFIG.clientId,
+          protocol: 'wss',
+          clean: true,
+          rejectUnauthorized: false,
+          reconnectPeriod: 5000,
+          connectTimeout: 20000,
+          keepalive: 60
+        });
+      } catch(e) {
+        adicionarLog('❌ Falha ao iniciar MQTT: ' + e.message);
+        updateConnectionStatus(false);
+        return;
+      }
+
+      client.on('connect', () => {
+        console.log('✅ Conectado ao HiveMQ!');
+        updateConnectionStatus(true);
+        adicionarLog('✅ Dashboard conectado');
+        document.getElementById('mqttDiagBanner').style.display = 'none';
+        
+        iniciarVerificacaoTimeout();
+        
+        client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
+          if (!err) {
+            lastReceptorStatusTime = Date.now();
+          }
+        });
+      });
+
+      client.on('reconnect', () => {
+        // Só loga, não muda status dos dispositivos — evita flash de offline
+        adicionarLog('🔄 Reconectando ao broker...', 'warning');
+      });
+
+      client.on('disconnect', () => {
+        console.log('❌ Desconectado do MQTT');
+        updateConnectionStatus(false);
+        // Só zera interface se já tinha recebido dados antes
+        if (lastDataMessageTime) zerarInterfaceOffline();
+      });
+
+      client.on('error', (err) => {
+        console.error('❌ Erro MQTT:', err);
+        const msg = err.message || String(err);
+        adicionarLog('❌ Erro MQTT: ' + msg);
+        updateConnectionStatus(false);
+        document.getElementById('mqttDiagBanner').style.display = 'block';
+        document.getElementById('mqttDiagMsg').textContent = msg;
+        document.getElementById('mqttDiagUser').textContent = MQTT_CONFIG.username;
+        if (lastDataMessageTime) zerarInterfaceOffline();
+      });
+
+      client.on('message', (topic, message) => {
+        try {
+          const payload = JSON.parse(message.toString());
+          console.log('📥 Payload:', payload);
+          
+          if (topic === TOPICS.dados) {
+            lastDataMessageTime = Date.now();
+            secondsWithoutData = 0;
+            
+            if (!receptorOnline) {
+              receptorOnline = true;
+              atualizarStatusReceptor(true, 'Online ');
+            }
+            lastReceptorStatusTime = Date.now();
+            
+            let sensorOK = payload.sensor_ok;
+            const distancia = parseFloat(payload.distance);
+            const percentual = parseInt(payload.percentage);
+            
+            if (sensorOK !== false) {
+              if (distancia < 0 || distancia === 0 || percentual < 0) {
+                sensorOK = false;
+              }
+              
+              if (ultimoValorValido !== null) {
+                const variacao = percentual - ultimoValorValido.percentage;
+                if (variacao < -50) sensorOK = false;
+              }
+            }
+            
+            if (sensorOK) {
+              ultimoValorValido = {
+                percentage: percentual,
+                liters: parseInt(payload.liters),
+                distance: distancia,
+                level: parseInt(payload.level)
+              };
+              leiturasConsecutivasErradas = 0;
+            } else {
+              leiturasConsecutivasErradas++;
+            }
+            
+            if (!transmitterActive) {
+              transmitterActive = true;
+              adicionarLog('✅ Sinal do transmissor restaurado');
+              esconderAlertaTransmitter();
+            }
+            
+            // MODIFICADO: Usar nova função de cálculo de qualidade
+            const rssi = payload.lora_rssi || -100;
+            const quality = calcularQualidadeSinal(rssi);
+            
+            // Atualizar payload com qualidade calculada
+            payload.signal_quality = quality;
+            
+            processarDados(payload, sensorOK);
+            
+          } else if (topic === TOPICS.status) {
+            lastReceptorStatusTime = Date.now();
+            processarStatus(payload);
+          }
+        } catch (e) {
+          console.error('❌ Erro:', e);
+        }
+      });
+    }
+
+    // NOVO: Função para zerar interface quando offline
+    function zerarInterfaceOffline() {
+      const water = document.getElementById('waterLevel');
+      water.className = 'water offline';
+      water.style.height = '0%';
+      water.textContent = 'OFF';
+      
+      document.getElementById('currentVolume').textContent = '--';
+      document.getElementById('currentDistance').textContent = '--';
+      document.getElementById('currentLevel').textContent = '--';
+      
+      document.getElementById('volumeCard').classList.add('offline');
+      document.getElementById('distanceCard').classList.add('offline');
+      document.getElementById('levelCard').classList.add('offline');
+      
+      // Zerar barras de sinal
+      const bars = document.querySelectorAll('.signal-bar-item');
+      bars.forEach(bar => bar.classList.remove('active'));
+      document.getElementById('signalText').textContent = 'OFF';
+      
+      document.getElementById('loraStatus').textContent = 'Offline';
+      document.getElementById('loraStatus').className = 'status-value offline';
+      
+      document.getElementById('wifiRssi').textContent = '-- dBm';
+      document.getElementById('sensorStatus').textContent = 'Offline';
+      document.getElementById('sensorStatus').className = 'status-value offline';
+      
+      // Mostrar alertas só se já havia dados (evita flash no carregamento)
+      if (lastDataMessageTime) {
+        document.getElementById('alertReceptor').classList.add('show');
+        document.getElementById('alertTransmitter').classList.add('show');
+      }
+    }
+
+    function atualizarStatusReceptor(online, texto) {
+      const receptorStatus = document.getElementById('receptorStatus');
+      receptorOnline = online;
+      
+      if (online) {
+        receptorStatus.textContent = texto || 'Online';
+        receptorStatus.className = 'status-value online';
+        document.getElementById('alertReceptor').classList.remove('show');
+        document.getElementById('volumeCard').classList.remove('offline');
+        document.getElementById('distanceCard').classList.remove('offline');
+        document.getElementById('levelCard').classList.remove('offline');
+      } else {
+        // Só mostra offline se já recebeu dados antes — evita flash no carregamento
+        if (lastDataMessageTime) {
+          receptorStatus.textContent = 'Offline';
+          receptorStatus.className = 'status-value offline';
+          document.getElementById('alertReceptor').classList.add('show');
+          zerarInterfaceOffline();
+        }
+      }
+    }
+
+    function processarStatus(payload) {
+      if (payload.status === 'online' || payload.heartbeat === true) {
+        atualizarStatusReceptor(true, payload.status === 'online' ? 'Online' : 'Online ');
+        
+        if (payload.heartbeat) {
+          console.log('💓 Heartbeat do receptor recebido');
+        }
+      } else if (payload.status === 'offline') {
+        atualizarStatusReceptor(false);
+        adicionarLog('⚠️ Receptor reportou offline', 'warning');
+      }
+    }
+
+    function iniciarVerificacaoTimeout() {
+      if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
+
+      timeoutCheckInterval = setInterval(() => {
+        // NOVO: Se a página está oculta (minimizada), não verifica timeout
+        if (document.hidden) return;
+
+        // NOVO: Graça de 10s após restaurar a janela — evita flash de offline
+        if (pageHiddenAt === null && lastDataMessageTime) {
+          // pageHiddenAt já foi zerado na visibilitychange, mas
+          // verificamos se restauramos muito recentemente via flag auxiliar
+        }
+
+        const agora = Date.now();
+
+        // Só verifica timeout do transmissor APÓS receber o primeiro dado
+        if (lastDataMessageTime) {
+          const tempoSemDados = agora - lastDataMessageTime;
+          secondsWithoutData = Math.floor(tempoSemDados / 1000);
+          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+
+          if (tempoSemDados > TRANSMITTER_TIMEOUT && transmitterActive) {
+            transmitterActive = false;
+            adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
+            document.getElementById('alertTransmitter').classList.add('show');
+            document.getElementById('loraStatus').textContent = 'Sem Sinal';
+            document.getElementById('loraStatus').className = 'status-value offline';
+            zerarInterfaceOffline();
+          }
+        }
+        // Se ainda não recebeu dados, não dispara timeout — apenas aguarda
+
+        // Só verifica timeout do receptor se já houve algum contato
+        const ultimoContato = Math.max(lastDataMessageTime || 0, lastReceptorStatusTime || 0);
+        if (ultimoContato > 0) {
+          const tempoSemContato = agora - ultimoContato;
+          if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
+            console.log('⏱️ Timeout do receptor:', tempoSemContato, 'ms sem contato');
+            atualizarStatusReceptor(false);
+            adicionarLog('⚠️ Receptor sem resposta (>90s)', 'warning');
+          }
+        }
+        // Se ultimoContato === 0, ainda aguardando primeiro dado — não marca offline
+
+      }, 1000);
+    }
 
     function processarDados(payload, sensorOK) {
-      if(payload.config_volume_total > 0) savedCapacityTotal = sanitizarNumero(payload.config_volume_total,0,1000000,0);
-      if(!sensorOK) {
-        currentData = { percentage: ultimoValorValido?.percentage||0, liters: ultimoValorValido?.liters||0, distance: ultimoValorValido?.distance||0, level: ultimoValorValido?.level||0, rssi: sanitizarNumero(payload.lora_rssi,-150,0,-100), quality: sanitizarNumero(payload.signal_quality,0,100,0), wifiRssi: sanitizarNumero(payload.wifi_rssi,-150,0,0), sensorOk: false, erro: true, batVoltage: parseFloat(payload.bat_voltage)||0, batPercent: parseInt(payload.bat_percent)||0 };
-        if(!sensorErrorActive && leiturasConsecutivasErradas>=1){ sensorErrorActive=true; adicionarLog('🚨 Falha no sensor detectada!','alert'); mostrarAlertaSensor(); }
-      } else {
-        currentData = { percentage: sanitizarNumero(payload.percentage,0,100,0), liters: sanitizarNumero(payload.liters,0,50000,0), distance: sanitizarNumero(payload.distance,0,10000,0), level: sanitizarNumero(payload.level,0,10000,0), rssi: sanitizarNumero(payload.lora_rssi,-150,0,-100), quality: sanitizarNumero(payload.signal_quality,0,100,0), wifiRssi: sanitizarNumero(payload.wifi_rssi,-150,0,0), sensorOk: true, erro: false, batVoltage: parseFloat(payload.bat_voltage)||0, batPercent: parseInt(payload.bat_percent)||0 };
-        if(sensorErrorActive){ sensorErrorActive=false; leiturasConsecutivasErradas=0; adicionarLog('✅ Sensor normalizado'); esconderAlertaSensor(); }
+      if (payload.config_volume_total > 0) {
+        savedCapacityTotal = payload.config_volume_total;
       }
-      let registro = { timestamp: Date.now(), percentage: currentData.percentage, liters: currentData.liters, distance: currentData.distance, status: sensorOK?'normal':'sensor_error', lora_signal:{ quality: currentData.quality, rssi: currentData.rssi } };
-      historico.unshift(registro); if(historico.length>50) historico.pop();
-      atualizarInterface(); atualizarHistorico(); atualizarGrafico();
+      
+      if (!sensorOK) {
+        currentData = {
+          percentage: ultimoValorValido ? ultimoValorValido.percentage : 0,
+          liters: ultimoValorValido ? ultimoValorValido.liters : 0,
+          distance: ultimoValorValido ? ultimoValorValido.distance : 0,
+          level: ultimoValorValido ? ultimoValorValido.level : 0,
+          rssi: payload.lora_rssi || -100,
+          quality: payload.signal_quality || 0,
+          wifiRssi: payload.wifi_rssi || 0,
+          sensorOk: false,
+          erro: true,
+          batVoltage: parseFloat(payload.bat_voltage) || 0,
+          batPercent: parseInt(payload.bat_percent) || 0
+        };
+        
+        if (!sensorErrorActive && leiturasConsecutivasErradas >= 1) {
+          sensorErrorActive = true;
+          adicionarLog('🚨 Falha no sensor detectada!', 'alert');
+          mostrarAlertaSensor();
+        }
+      } else {
+        currentData = {
+          percentage: parseInt(payload.percentage) || 0,
+          liters: parseInt(payload.liters) || 0,
+          distance: parseFloat(payload.distance) || 0,
+          level: parseInt(payload.level) || 0,
+          rssi: payload.lora_rssi || -100,
+          quality: payload.signal_quality || 0,
+          wifiRssi: payload.wifi_rssi || 0,
+          sensorOk: true,
+          erro: false,
+          batVoltage: parseFloat(payload.bat_voltage) || 0,
+          batPercent: parseInt(payload.bat_percent) || 0
+        };
+        
+        if (sensorErrorActive) {
+          sensorErrorActive = false;
+          leiturasConsecutivasErradas = 0;
+          adicionarLog('✅ Sensor normalizado');
+          esconderAlertaSensor();
+        }
+      }
+
+      const registro = {
+        timestamp: Date.now(),
+        percentage: currentData.percentage,
+        liters: currentData.liters,
+        distance: currentData.distance,
+        status: sensorOK ? 'normal' : 'sensor_error',
+        lora_signal: { quality: currentData.quality, rssi: currentData.rssi }
+      };
+      
+      historico.unshift(registro);
+      if (historico.length > 50) historico.pop();
+      
+      atualizarInterface();
+      atualizarHistorico();
+      atualizarGrafico();
     }
 
     function atualizarInterface() {
-      let pct = currentData.percentage, water = document.getElementById('waterLevel');
-      if(currentData.erro) {
-        water.className='water sensor-error'; water.textContent='ERRO'; water.style.height='10%';
-        document.getElementById('sensorStatus').textContent='FALHA'; document.getElementById('sensorStatus').className='status-value sensor-error'; document.getElementById('sensorStatusItem').classList.add('sensor-error');
-        ['volumeCard','distanceCard','levelCard'].forEach(id=>document.getElementById(id).classList.add('error'));
-        setTexto('currentVolume',currentData.liters+'*'); setTexto('currentDistance',currentData.distance.toFixed(1)+'*'); setTexto('currentLevel',currentData.level+'*');
+      const pct = currentData.percentage;
+      const water = document.getElementById('waterLevel');
+      
+      if (currentData.erro) {
+        water.className = 'water sensor-error';
+        water.textContent = 'ERRO';
+        water.style.height = '10%';
+        
+        document.getElementById('sensorStatus').textContent = 'FALHA';
+        document.getElementById('sensorStatus').className = 'status-value sensor-error';
+        document.getElementById('sensorStatusItem').classList.add('sensor-error');
+        
+        document.getElementById('volumeCard').classList.add('error');
+        document.getElementById('distanceCard').classList.add('error');
+        document.getElementById('levelCard').classList.add('error');
+        
+        document.getElementById('currentVolume').textContent = currentData.liters + '*';
+        document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1) + '*';
+        document.getElementById('currentLevel').textContent = currentData.level + '*';
       } else {
-        water.style.height = pct+'%'; water.textContent = pct+'%'; water.className='water';
-        if(pct<=10) water.classList.add('critical'); else if(pct<=25) water.classList.add('low'); else if(pct<=50) water.classList.add('medium'); else if(pct<=80) water.classList.add('good'); else water.classList.add('full');
-        setTexto('currentVolume',currentData.liters); setTexto('currentDistance',currentData.distance.toFixed(1)); setTexto('currentLevel',currentData.level);
-        document.getElementById('sensorStatus').textContent='OK'; document.getElementById('sensorStatus').className='status-value online'; document.getElementById('sensorStatusItem').classList.remove('sensor-error');
-        ['volumeCard','distanceCard','levelCard'].forEach(id=>document.getElementById(id).classList.remove('error'));
+        water.style.height = pct + '%';
+        water.textContent = pct + '%';
+        
+        water.className = 'water';
+        if (pct <= 10) water.classList.add('critical');
+        else if (pct <= 25) water.classList.add('low');
+        else if (pct <= 50) water.classList.add('medium');
+        else if (pct <= 80) water.classList.add('good');
+        else water.classList.add('full');
+
+        document.getElementById('currentVolume').textContent = currentData.liters;
+        document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1);
+        document.getElementById('currentLevel').textContent = currentData.level;
+        
+        document.getElementById('sensorStatus').textContent = 'OK';
+        document.getElementById('sensorStatus').className = 'status-value online';
+        document.getElementById('sensorStatusItem').classList.remove('sensor-error');
+        
+        document.getElementById('volumeCard').classList.remove('error');
+        document.getElementById('distanceCard').classList.remove('error');
+        document.getElementById('levelCard').classList.remove('error');
       }
-      setTexto('totalCapacity', savedCapacityTotal+' L'); setTexto('wifiRssi', currentData.wifiRssi+' dBm'); setTexto('lastUpdate', new Date().toLocaleTimeString('pt-BR'));
-      let bars = document.querySelectorAll('.signal-bar-item'); let activeBars = Math.ceil((currentData.quality/100)*5); bars.forEach((bar,idx)=>bar.classList.toggle('active', idx<activeBars)); setTexto('signalText', currentData.quality+'%');
-      let pctBat = currentData.batPercent||0, fill = document.getElementById('batFill'), lbl = document.getElementById('batPercLabel'); if(fill){ fill.style.width=pctBat+'%'; fill.style.background = pctBat<=15?'#e63946':(pctBat<=35?'#ff9e00':'#38b000'); lbl.textContent=pctBat+'%'; lbl.title=(currentData.batVoltage||0).toFixed(2)+'V'; }
+
+      document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
+      document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
+      document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
+      
+      const bars = document.querySelectorAll('.signal-bar-item');
+      const activeBars = Math.ceil((currentData.quality / 100) * 5);
+      bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
+      document.getElementById('signalText').textContent = currentData.quality + '%';
+      // Atualizar ícone de bateria do transmissor
+      const pctBat = currentData.batPercent || 0;
+      const vBat   = currentData.batVoltage || 0;
+      const fill   = document.getElementById('batFill');
+      const lbl    = document.getElementById('batPercLabel');
+      if (fill && lbl) {
+        fill.style.width = pctBat + '%';
+        if      (pctBat <= 15) fill.style.background = '#e63946';
+        else if (pctBat <= 35) fill.style.background = '#ff9e00';
+        else                   fill.style.background = '#38b000';
+        lbl.textContent = pctBat + '%';
+        lbl.title = vBat.toFixed(2) + 'V';
+      }
     }
+
+    function mostrarAlertaSensor() {
+      document.getElementById('alertSensor').classList.add('show');
+    }
+
+    function esconderAlertaSensor() {
+      document.getElementById('alertSensor').classList.remove('show');
+    }
+
+    function esconderAlertaTransmitter() {
+      document.getElementById('alertTransmitter').classList.remove('show');
+      document.getElementById('loraStatus').textContent = 'Conectado';
+      document.getElementById('loraStatus').className = 'status-value online';
+    }
+
+    function updateConnectionStatus(connected) {
+      const badge = document.getElementById('mqttStatus');
+      const brokerStatus = document.getElementById('brokerStatus');
+      
+      if (connected) {
+        badge.innerHTML = '<i class="fas fa-check-circle"></i> <span>MQTT Online</span>';
+        badge.className = 'mqtt-badge';
+        brokerStatus.textContent = 'Conectado';
+        brokerStatus.className = 'status-value online';
+      } else {
+        badge.innerHTML = '<i class="fas fa-times-circle"></i> <span>Offline</span>';
+        badge.className = 'mqtt-badge disconnected';
+        brokerStatus.textContent = 'Desconectado';
+        brokerStatus.className = 'status-value offline';
+      }
+    }
+
     function atualizarHistorico() {
-      let container = document.getElementById('historyTableContainer'), loading = document.getElementById('historyLoading'), tbody = document.getElementById('historyBody');
-      if(historico.length===0) return;
-      loading.style.display='none'; container.style.display='block'; tbody.innerHTML='';
-      historico.slice(0,5).forEach(item=>{
-        let row=tbody.insertRow(); let hora=new Date(item.timestamp).toLocaleTimeString('pt-BR');
-        let statusClass=item.status==='sensor_error'?'badge-error':'badge-normal'; let statusText=item.status==='sensor_error'?'FALHA':'OK';
-        row.insertCell(0).textContent=hora;
-        let cell1=row.insertCell(1); let span=document.createElement('span'); span.className='status-badge '+statusClass; span.textContent=statusText; cell1.appendChild(span);
-        row.insertCell(2).textContent=item.percentage+'%'; row.insertCell(3).textContent=item.liters+'L'; row.insertCell(4).textContent=item.distance.toFixed(1)+'cm';
-        row.insertCell(5).innerHTML=`<div class="signal-cell"><span class="signal-dbm">${item.lora_signal.rssi} dBm</span><span class="signal-percent">(${item.lora_signal.quality}%)</span></div>`;
+      const container = document.getElementById('historyTableContainer');
+      const loading = document.getElementById('historyLoading');
+      const tbody = document.getElementById('historyBody');
+      
+      if (historico.length === 0) return;
+      
+      loading.style.display = 'none';
+      container.style.display = 'block';
+      container.style.maxHeight = '180px';
+      container.style.overflowY = 'auto';
+      container.style.overflowX = 'auto';
+      container.style.flexShrink = '0';
+      
+      tbody.innerHTML = '';
+      historico.slice(0, 5).forEach(item => {
+        const row = document.createElement('tr');
+        const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');        
+        let classeBadge = 'badge-normal';
+        let textoStatus = 'OK';
+        if (item.status === 'sensor_error') { 
+          classeBadge = 'badge-error'; 
+          textoStatus = 'FALHA'; 
+        }
+        
+        row.innerHTML = `
+          <td>${hora}</td>
+          <td><span class="status-badge ${classeBadge}">${textoStatus}</span></td>
+          <td>${item.percentage}%</td>
+          <td>${item.liters}L</td>
+          <td>${item.distance.toFixed(1)}cm</td>
+          <td>
+            <div class="signal-cell">
+              <span class="signal-dbm">${item.lora_signal.rssi} dBm</span>
+              <span class="signal-percent">(${item.lora_signal.quality}%)</span>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(row);
       });
     }
+
     function atualizarGrafico() {
-      let ctx=document.getElementById('nivelChart'); if(!ctx) return; let validos=historico.filter(i=>i.status==='normal').reverse(); if(validos.length===0) return;
-      let labels=validos.map(i=>new Date(i.timestamp)), data=validos.map(i=>i.percentage);
-      if(!chart){ chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Nível %',data,borderColor:'#0077b6',backgroundColor:'rgba(0,119,182,0.1)',borderWidth:2,fill:true,tension:0.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100},x:{display:false}}}}); }
-      else{ chart.data.labels=labels; chart.data.datasets[0].data=data; chart.update(); }
-    }
+      const ctx = document.getElementById('nivelChart');
+      if (!ctx) return;
 
-    function adicionarLog(texto, tipo='normal'){ let hora=new Date().toLocaleTimeString('pt-BR'); let div=document.createElement('div'); div.className='update-entry'; if(tipo==='alert') div.classList.add('alert'); if(tipo==='warning') div.classList.add('warning'); let spanHora=document.createElement('span'); spanHora.className='update-time'; spanHora.textContent=hora; let spanTexto=document.createElement('span'); spanTexto.className='update-text'; spanTexto.textContent=texto; div.appendChild(spanHora); div.appendChild(spanTexto); let container=document.getElementById('updateHistory'); container.insertBefore(div,container.firstChild); while(container.children.length>20) container.removeChild(container.lastChild); }
-    function mostrarAlertaSensor(){ document.getElementById('alertSensor').classList.add('show'); }
-    function esconderAlertaSensor(){ document.getElementById('alertSensor').classList.remove('show'); }
-    function esconderAlertaTransmitter(){ document.getElementById('alertTransmitter').classList.remove('show'); }
-    function updateConnectionStatus(connected){ let badge=document.getElementById('mqttStatus'); if(connected){ badge.innerHTML='<i class="fas fa-check-circle"></i> <span>MQTT Online</span>'; badge.className='mqtt-badge'; } else{ badge.innerHTML='<i class="fas fa-times-circle"></i> <span>Offline</span>'; badge.className='mqtt-badge disconnected'; } }
-    function confirmarReboot(){ document.getElementById('modalReboot').classList.add('show'); }
-    function fecharModal(){ document.getElementById('modalReboot').classList.remove('show'); }
-    function executarReboot(){ fecharModal(); if(mqttClient && mqttClient.connected){ mqttClient.publish(TOPICS.comandos, 'REBOOT'); adicionarLog('🔄 Comando REBOOT enviado'); } }
-    function showDetails(tipo){ let msg=''; if(tipo==='volume') msg=`Volume: ${currentData.liters}L / ${savedCapacityTotal}L`; else if(tipo==='distance') msg=`Distância: ${currentData.distance}cm`; else if(tipo==='level') msg=`Altura: ${currentData.level}cm`; alert(msg); }
+      const dadosValidos = historico.filter(i => i.status === 'normal').reverse();
+      if (dadosValidos.length === 0) return;
 
-    // Abas
-    function mostrarAba(aba, evt) { document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active')); document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active')); document.getElementById('aba-'+aba).classList.add('active'); if(evt && evt.currentTarget) evt.currentTarget.classList.add('active'); if(aba==='historico') carregarSheets(periodoAtual); }
+      // Agrupa por hora: mantém último registro de cada hora
+      const porHora = {};
+      dadosValidos.forEach(i => {
+        const d = new Date(i.timestamp);
+        const chave = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+        porHora[chave] = i; // sobrescreve, ficando com o mais recente da hora
+      });
+      const agregados = Object.values(porHora).sort((a, b) => a.timestamp - b.timestamp);
+      const labels = agregados.map(i => {
+        const d = new Date(i.timestamp);
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      });
+      const data = agregados.map(i => i.percentage);
 
-    // Google Sheets
-    function carregarSheets(periodo) { let periodosValidos=['dia','semana','mes']; if(!periodosValidos.includes(periodo)) periodo='semana'; periodoAtual=periodo; ['dia','semana','mes'].forEach(p=>{let btn=document.getElementById('btn-'+p); if(btn) btn.classList.toggle('active',p===periodo);}); let statusEl=document.getElementById('sheets-status'); statusEl.style.display='block'; statusEl.textContent='⏳ Carregando...'; document.getElementById('sheets-table-container').style.display='none'; let url=SHEETS_API+'?acao=ler&periodo='+encodeURIComponent(periodo)+'&token='+encodeURIComponent(SHEETS_TOKEN); fetch(url).then(r=>{if(!r.ok) throw new Error('HTTP '+r.status); return r.json();}).then(data=>{ let registros=Array.isArray(data.registros)?data.registros:[]; if(registros.length===0){ statusEl.textContent='ℹ️ Nenhum registro encontrado.'; setTexto('resumo-nivel','--'); setTexto('resumo-consumo','--'); setTexto('resumo-registros','0'); return; } statusEl.style.display='none'; document.getElementById('sheets-table-container').style.display='block'; let ultimo=registros[registros.length-1]; let consumo=registros.reduce((acc,r)=>acc+(r.variacao>0?r.variacao:0),0); setTexto('resumo-nivel', sanitizarNumero(ultimo.perc,0,100,0)+'%'); setTexto('resumo-consumo', consumo+'%'); setTexto('resumo-registros', registros.length); let tbody=document.getElementById('sheets-body'); tbody.innerHTML=''; [...registros].reverse().forEach(r=>{ let perc=sanitizarNumero(r.perc,0,100,0); let litros=sanitizarNumero(r.litros,0,50000,0); let variacao=sanitizarNumero(r.variacao,-100,100,0); let varClass=variacao>0?'variacao-pos':variacao<0?'variacao-neg':''; let varSinal=variacao>0?'▼ ':variacao<0?'▲ ':''; let tr=tbody.insertRow(); tr.insertCell(0).textContent=r.data||''; tr.insertCell(1).textContent=r.hora||''; tr.insertCell(2).innerHTML='<b>'+perc+'%</b>'; tr.insertCell(3).textContent=litros+'L'; tr.insertCell(4).textContent=varSinal+Math.abs(variacao)+'%'; tr.insertCell(5).textContent=r.consumo||''; if(varClass) tr.cells[4].className=varClass; }); renderizarGraficoSheets(registros); }).catch(err=>{ statusEl.textContent='❌ Erro ao carregar dados.'; console.error(err); }); }
-    function renderizarGraficoSheets(registros) { let ctx=document.getElementById('sheetsChart'); if(!ctx) return; let labels=registros.map(r=>escapeHtml(r.data)+' '+escapeHtml(r.hora)); let niveis=registros.map(r=>sanitizarNumero(r.perc,0,100,0)); if(sheetsChart) sheetsChart.destroy(); sheetsChart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Nível %',data:niveis,borderColor:'#0077b6',backgroundColor:'rgba(0,119,182,0.1)',borderWidth:2,fill:true,tension:0.4,pointRadius:registros.length>30?0:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}},x:{display:false}}}}); }
-    function debugData() { console.log('=== DEBUG ===',{receptorOnline,transmitterActive,lastData:lastDataMessageTime,currentData}); }
+      const isMobile = window.innerWidth <= 600;
 
-    // ── Navegação entre dashboard e página de configuração ──
-    function irParaConfigurar() {
-      document.getElementById('setupPage').style.display = 'block';
-      document.getElementById('setupBackBtn').style.display = DEVICE_CODE.length === 6 ? 'block' : 'none';
-      document.getElementById('setupCodeError').style.display = 'none';
-      const input = document.getElementById('setupCodeInput');
-      input.value = DEVICE_CODE || '';
-      setTimeout(() => input.focus(), 100);
-    }
+      const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(2, 62, 138, 0.92)',
+            titleColor: '#90e0ef',
+            bodyColor: '#ffffff',
+            padding: 10,
+            cornerRadius: 8,
+            callbacks: {
+              title: (items) => '🕐 ' + items[0].label,
+              label: (item) => `  Nível: ${item.raw}%`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: v => v + '%',
+              font: { size: isMobile ? 9 : 11 },
+              color: '#6c757d',
+              maxTicksLimit: 6
+            },
+            grid: { color: 'rgba(0,0,0,0.06)' },
+            border: { dash: [4, 4] }
+          },
+          x: {
+            display: true,
+            ticks: {
+              font: { size: isMobile ? 8 : 10 },
+              color: '#6c757d',
+              maxRotation: 45,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: isMobile ? 6 : 12
+            },
+            grid: { display: false }
+          }
+        }
+      };
 
-    function voltarDashboard() {
-      document.getElementById('setupPage').style.display = 'none';
-    }
-
-    function confirmarSetupCodigo() {
-      const input = document.getElementById('setupCodeInput');
-      const code  = input.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().trim();
-      const errEl = document.getElementById('setupCodeError');
-      if (code.length !== 6) {
-        errEl.textContent = 'O código deve ter exatamente 6 caracteres.';
-        errEl.style.display = 'block';
-        input.style.borderColor = '#e63946';
-        return;
+      if (!chart) {
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Nível %',
+              data,
+              borderColor: '#0077b6',
+              backgroundColor: (context) => {
+                const gradient = context.chart.ctx.createLinearGradient(0, 0, 0, context.chart.height);
+                gradient.addColorStop(0, 'rgba(0, 119, 182, 0.35)');
+                gradient.addColorStop(1, 'rgba(0, 119, 182, 0.02)');
+                return gradient;
+              },
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.4,
+              pointRadius: isMobile ? 3 : 4,
+              pointBackgroundColor: '#0077b6',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointHoverRadius: 6
+            }]
+          },
+          options: chartOptions
+        });
+      } else {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.update();
       }
-      errEl.style.display = 'none';
-      input.style.borderColor = '#c8dff0';
-
-      DEVICE_CODE = code;
-      localStorage.setItem('lora_device_code', code);
-      TOPICS = buildTopics(code);
-
-      // Atualiza displays
-      document.getElementById('deviceCodeDisplay').textContent = code;
-      document.getElementById('deviceCodeCardLabel').textContent = code;
-
-      // Desconecta cliente anterior
-      if (mqttClient) { try { mqttClient.end(true); } catch(e){} mqttClient = null; }
-
-      // Fecha a página de setup e vai ao dashboard
-      document.getElementById('setupPage').style.display = 'none';
-      adicionarLog('📡 Dispositivo: ' + code + ' | Tópico: ' + TOPICS.dados);
-      connectMQTT();
     }
 
-    // ── Inicialização ──
-    if (!DEVICE_CODE || DEVICE_CODE.length !== 6) {
-      // Primeiro acesso — mostra página de configuração
-      document.getElementById('setupPage').style.display = 'block';
-      document.getElementById('setupBackBtn').style.display = 'none';
-    } else {
-      // Código já salvo — vai direto ao dashboard
-      document.getElementById('deviceCodeDisplay').textContent = DEVICE_CODE;
-      document.getElementById('deviceCodeCardLabel').textContent = DEVICE_CODE;
-      connectMQTT();
+    function adicionarLog(texto, tipo = 'normal') {
+      const hora = new Date().toLocaleTimeString('pt-BR');
+      const div = document.createElement('div');
+      div.className = 'update-entry';
+      if (tipo === 'alert') div.classList.add('alert');
+      if (tipo === 'warning') div.classList.add('warning');
+      div.innerHTML = `<span class="update-time">${hora}</span><span class="update-text">${texto}</span>`;
+      const container = document.getElementById('updateHistory');
+      container.insertBefore(div, container.firstChild);
+      while (container.children.length > 20) container.removeChild(container.lastChild);
     }
+
+    function confirmarReboot() { document.getElementById('modalReboot').classList.add('show'); }
+    function fecharModal() { document.getElementById('modalReboot').classList.remove('show'); }
+    function executarReboot() {
+      fecharModal();
+      if (client && client.connected) {
+        client.publish(TOPICS.comandos, 'REBOOT');
+        adicionarLog('🔄 Comando REBOOT enviado');
+      }
+    }
+    function showDetails(tipo) {
+      let msg = '';
+      switch(tipo) {
+        case 'volume': msg = `Volume: ${currentData.liters}L / ${savedCapacityTotal}L`; break;
+        case 'distance': msg = `Distância: ${currentData.distance}cm`; break;
+        case 'level': msg = `Altura: ${currentData.level}cm`; break;
+      }
+      alert(msg);
+    }
+    function debugData() {
+      console.log('=== DEBUG ===');
+      console.log('receptorOnline:', receptorOnline);
+      console.log('lastDataMessageTime:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : null);
+      console.log('lastReceptorStatusTime:', lastReceptorStatusTime ? new Date(lastReceptorStatusTime).toLocaleTimeString() : null);
+      console.log('currentData:', currentData);
+      console.log('transmitterActive:', transmitterActive);
+      console.log('TRANSMITTER_TIMEOUT:', TRANSMITTER_TIMEOUT);
+      console.log('RECEPTOR_TIMEOUT:', RECEPTOR_TIMEOUT);
+    }
+
+    iniciarTela();
   </script>
 </body>
 </html>
