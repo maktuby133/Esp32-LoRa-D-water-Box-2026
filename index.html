@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>🌊 Monitor Caixa d'Água - HiveMQ</title>
   
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
@@ -32,7 +32,6 @@
       min-height: 100vh;
       padding: 6px;
       color: var(--dark);
-      -webkit-text-size-adjust: 100%;
     }
 
     .container {
@@ -134,7 +133,6 @@
     }
 
     .status-label { font-weight:600; color:var(--gray); font-size:0.52rem; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:1; }
-
     .status-value { font-weight:700; font-size:0.7rem; text-align:right; white-space:nowrap; flex-shrink:0; }
 
     .online { color: var(--success); }
@@ -169,6 +167,7 @@
     .alert-transmitter { background: #fecaca; color: #7f1d1d; border: 2px solid #ef4444; }
     .alert-receptor { background: #fee2e2; color: #991b1b; border: 2px solid #f87171; }
     .alert-sensor { background: #fef3c7; color: #92400e; border: 2px solid #fbbf24; }
+    .alert-wrong-device { background: #e0e7ff; color: #1e3a8a; border: 2px solid #3b82f6; }
 
     @keyframes slideInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse-border { 0%, 100% { border-width: 2px; } 50% { border-width: 4px; } }
@@ -332,18 +331,6 @@
     .tank-mark.top { top: 0; }
     .tank-mark.mid { top: 50%; transform: translateY(-50%); }
     .tank-mark.bottom { bottom: 0; }
-
-    .tank-capacity {
-      text-align: center;
-      margin: 1px 0;
-      padding: 1px;
-      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-      border-radius: 10px;
-      border: 2px solid var(--primary);
-      flex-shrink: 0;
-    }
-    .tank-capacity-label { font-size: 0.7rem; color: var(--gray); font-weight: 600; text-transform: uppercase; }
-    .tank-capacity-value { font-size: 1.2rem; font-weight: 700; color: var(--primary-dark); }
 
     .info-grid {
       display: grid;
@@ -713,6 +700,9 @@
     <div id="alertSensor" class="alert-banner alert-sensor">
       <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR ULTRASSÔNICO
     </div>
+    <div id="alertWrongDevice" class="alert-banner alert-wrong-device" style="display:none;">
+      <i class="fas fa-ban"></i> DADO DE OUTRO DISPOSITIVO IGNORADO
+    </div>
 
     <span id="brokerStatus" style="display:none"></span>
     <span id="loraStatus" style="display:none"></span>
@@ -846,7 +836,7 @@
   </button>
 
   <script>
-    // Configuração do broker HiveMQ Cloud (fixa)
+    // ==================== CONFIGURAÇÃO DO BROKER ====================
     const MQTT_CONFIG = {
       host:     '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud',
       port:     8884,
@@ -856,11 +846,11 @@
     };
 
     let TOPICS = { dados: '', status: '', comandos: '' };
-    let deviceMac = '';
+    let deviceMac = '';           // código de 6 caracteres (ex: "A1B2C3")
 
-    // ========== TIMEOUTS AUMENTADOS PARA 100 SEGUNDOS ==========
-    const TRANSMITTER_TIMEOUT = 100000;   // 100 segundos sem dados do transmissor
-    const RECEPTOR_TIMEOUT    = 100000;   // 100 segundos sem status ou dados do receptor
+    // ==================== TIMEOUTS (100 segundos) ====================
+    const TRANSMITTER_TIMEOUT = 100000;   // 100s sem dados do transmissor
+    const RECEPTOR_TIMEOUT    = 100000;   // 100s sem status do receptor
 
     let client = null;
     let chart = null;
@@ -874,13 +864,11 @@
     let timeoutCheckInterval = null;
     let secondsWithoutData = 0;
     let sensorErrorActive = false;
-    let sensorErrorCount = 0;
-    let ultimoValorValido = null;
     let leiturasConsecutivasErradas = 0;
+    let ultimoValorValido = null;
     let pageHiddenAt = null;
-    let pageHiddenGracePeriod = 10000;
 
-    // ========== FUNÇÕES AUXILIARES ==========
+    // ==================== FUNÇÕES AUXILIARES ====================
     function calcularQualidadeSinal(rssi) {
       if (rssi >= -50) return 100;
       if (rssi >= -70) return 80;
@@ -904,7 +892,6 @@
       document.getElementById('currentVolume').textContent = '--';
       document.getElementById('currentDistance').textContent = '--';
       document.getElementById('currentLevel').textContent = '--';
-
       document.getElementById('volumeCard').classList.add('offline');
       document.getElementById('distanceCard').classList.add('offline');
       document.getElementById('levelCard').classList.add('offline');
@@ -912,10 +899,8 @@
       const bars = document.querySelectorAll('.signal-bar-item');
       bars.forEach(bar => bar.classList.remove('active'));
       document.getElementById('signalText').textContent = 'OFF';
-
       document.getElementById('loraStatus').textContent = motivo === 'receptor' ? 'Receptor Off' : 'Sem Sinal';
       document.getElementById('loraStatus').className = 'status-value offline';
-
       document.getElementById('wifiRssi').textContent = '-- dBm';
       document.getElementById('sensorStatus').textContent = motivo === 'receptor' ? 'Receptor Off' : 'Sem Sinal';
       document.getElementById('sensorStatus').className = 'status-value offline';
@@ -1177,6 +1162,7 @@
       }
     }
 
+    // ==================== CONEXÃO MQTT COM VALIDAÇÃO DE DEVICEID ====================
     function connectMQTT() {
       const url = `wss://${MQTT_CONFIG.host}:8884/mqtt`;
       adicionarLog('🔄 Conectando ao HiveMQ...');
@@ -1218,6 +1204,20 @@
       client.on('message', (topic, message) => {
         try {
           const payload = JSON.parse(message.toString());
+          // --- VALIDAÇÃO EXTRA: ignora dados de dispositivo não pareado ---
+          if (topic === TOPICS.dados) {
+            // Verifica se o payload contém deviceID e se corresponde ao código do dashboard
+            if (payload.deviceID && payload.deviceID !== deviceMac) {
+              console.warn(`🚫 Pacote ignorado: deviceID ${payload.deviceID} não corresponde ao código ${deviceMac}`);
+              adicionarLog(`🚫 Dado ignorado: esperado ${deviceMac}, recebido ${payload.deviceID}`, 'warning');
+              // Mostra alerta por 3 segundos
+              const wrongAlert = document.getElementById('alertWrongDevice');
+              wrongAlert.style.display = 'block';
+              setTimeout(() => { wrongAlert.style.display = 'none'; }, 3000);
+              return; // descarta o pacote
+            }
+          }
+          // Processamento normal
           if (topic === TOPICS.dados) {
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
@@ -1251,7 +1251,7 @@
       });
     }
 
-    // ========== GERENCIAMENTO DE CÓDIGO ==========
+    // ==================== GERENCIAMENTO DE CÓDIGO ====================
     const STORAGE_CODE_KEY = 'dispositivo_codigo';
     function iniciarTela() {
       const salvo = localStorage.getItem(STORAGE_CODE_KEY);
@@ -1274,7 +1274,11 @@
     }
     function ativarDispositivo(codigo) {
       deviceMac = codigo;
-      TOPICS = { dados: 'caixas/agua/' + codigo + '/dados', status: 'caixas/agua/' + codigo + '/status', comandos: 'caixas/agua/' + codigo + '/comandos' };
+      TOPICS = {
+        dados: 'caixas/agua/' + codigo + '/dados',
+        status: 'caixas/agua/' + codigo + '/status',
+        comandos: 'caixas/agua/' + codigo + '/comandos'
+      };
       document.getElementById('deviceBadgeText').textContent = codigo;
       document.getElementById('codigoScreen').classList.remove('show');
       document.getElementById('mainContainer').style.display = 'block';
@@ -1302,6 +1306,7 @@
       console.log('receptorOnline:', receptorOnline, 'transmitterActive:', transmitterActive);
       console.log('lastDataMessageTime:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : null);
       console.log('lastReceptorStatusTime:', lastReceptorStatusTime ? new Date(lastReceptorStatusTime).toLocaleTimeString() : null);
+      console.log('deviceMac:', deviceMac);
     }
 
     document.addEventListener('visibilitychange', () => {
