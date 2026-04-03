@@ -37,7 +37,7 @@
 
     .container {
       max-width: 1400px; margin: 0 auto;
-      display: flex; flex-direction: column; gap: 5px;
+      display: flex; flex-direction: column; gap: 9px;
     }
 
     .header {
@@ -115,6 +115,7 @@
       grid-template-columns: repeat(6, 1fr);
       gap: 5px;
       flex-shrink: 0;
+      margin-top: 6px;
     }
 
     .status-item {
@@ -124,7 +125,7 @@
       justify-content: space-between;
       gap: 4px;
       background: white;
-      padding: 4px 7px;
+      padding: 2px 7px;
       border-radius: 7px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       min-width: 0;
@@ -177,8 +178,9 @@
       grid-template-columns: 1fr 1fr;
       gap: 8px;
       margin-bottom: 5px;
+      margin-top: 8px;
       align-items: stretch;
-      height: 420px;
+      height: 370px;
     }
 
     @media (max-width: 600px) { 
@@ -213,7 +215,7 @@
     .tank-wrapper {
       position: relative;
       width: min(280px, 80vw);
-      height: min(250px, 42vh);
+      height: min(320px, 54vh);
       margin: 4px auto;
       flex-shrink: 1;
       display: flex;
@@ -330,8 +332,8 @@
 
     .tank-capacity {
       text-align: center;
-      margin: 5px 0;
-      padding: 6px;
+      margin: 1px 0;
+      padding: 1px;
       background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
       border-radius: 10px;
       border: 2px solid var(--primary);
@@ -351,7 +353,7 @@
 
     .info-card {
       background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-      padding: 5px 4px;
+      padding: 1px 4px;
       border-radius: 10px;
       text-align: center;
       cursor: pointer;
