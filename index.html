@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
-    /* ========== SEU CSS ORIGINAL COMPLETO (MANTIDO) ========== */
+    /* ========== CSS COMPLETO (igual ao original, mantido) ========== */
     :root {
       --primary: #0077b6;
       --primary-dark: #023e8a;
@@ -724,7 +724,7 @@
             <div class="signal-bar-item"></div><div class="signal-bar-item"></div>
             <div class="signal-bar-item"></div>
           </div>
-          <span style="font-size:0.62rem;color:var(--gray);font-weight:700;" id="signalText">OFF</span>
+          <span style="font-size:0.62rem;color:var(--gray);font-weight:700;" id="signalText">---</span>
         </div>
       </div>
       <div class="status-item">
@@ -737,7 +737,7 @@
       </div>
       <div class="status-item" id="sensorStatusItem">
         <span class="status-label"><i class="fas fa-microchip"></i> Sensor</span>
-        <span class="status-value" id="sensorStatus">Aguardando...</span>
+        <span class="status-value" id="sensorStatus">Aguardando</span>
       </div>
       <div class="status-item">
         <span class="status-label"><i class="fas fa-battery-half"></i> Bateria TX</span>
@@ -850,9 +850,9 @@
     let TOPICS = { dados: '', status: '', comandos: '' };
     let deviceMac = '';
 
-    // Timeouts: transmissor (100s), receptor (45s)
-    const TRANSMITTER_TIMEOUT = 100000;
-    const RECEPTOR_TIMEOUT    = 45000;
+    const TRANSMITTER_TIMEOUT = 100000;  // 100s
+    const RECEPTOR_TIMEOUT    = 45000;   // 45s
+    const MAX_DATA_AGE_MS     = 60000;   // 60s – dados mais antigos que isso são ignorados
 
     let client = null;
     let chart = null;
@@ -869,8 +869,9 @@
     let leiturasConsecutivasErradas = 0;
     let ultimoValorValido = null;
     let pageHiddenAt = null;
+    let firstStatusReceived = false;  // Garante que só aceitamos dados após primeiro status online
 
-    // ========== FUNÇÕES DE INTERFACE OFFLINE ==========
+    // ========== FUNÇÕES DE INTERFACE ==========
     function setCardsOffline() {
       document.getElementById('currentVolume').textContent = '---';
       document.getElementById('currentDistance').textContent = '---';
@@ -897,6 +898,7 @@
       document.getElementById('batPercLabel').textContent = '--%';
       document.getElementById('sensorStatus').textContent = 'Aguardando';
       document.getElementById('sensorStatus').className = 'status-value warning';
+      document.getElementById('sensorStatusItem').classList.remove('sensor-error');
     }
 
     function setCardsOnline() {
@@ -919,6 +921,7 @@
       document.getElementById('signalText').textContent = 'OFF';
       const bars = document.querySelectorAll('.signal-bar-item');
       bars.forEach(bar => bar.classList.remove('active'));
+      firstStatusReceived = false;
     }
 
     function transmitterOfflineUI() {
@@ -936,7 +939,7 @@
     }
 
     function waitingUI() {
-      atualizarStatusReceptor(false); // ainda não sabemos
+      atualizarStatusReceptor(false);
       setCardsWaiting();
       const water = document.getElementById('waterLevel');
       water.className = 'water waiting';
@@ -947,10 +950,11 @@
       document.getElementById('signalText').textContent = '---';
       const bars = document.querySelectorAll('.signal-bar-item');
       bars.forEach(bar => bar.classList.remove('active'));
+      firstStatusReceived = false;
     }
 
     function restoreInterfaceWithData() {
-      atualizarStatusReceptor(true);
+      if (!receptorOnline) return;
       document.getElementById('alertTransmitter').classList.remove('show');
       document.getElementById('alertReceptor').classList.remove('show');
       if (currentData && !currentData.erro) {
@@ -988,13 +992,16 @@
     }
 
     function processarStatus(payload) {
+      const agora = Date.now();
       if (payload.status === 'online' || payload.heartbeat === true) {
-        lastReceptorStatusTime = Date.now();
+        lastReceptorStatusTime = agora;
+        firstStatusReceived = true;
         if (!receptorOnline) {
           receptorOnline = true;
           atualizarStatusReceptor(true);
-          adicionarLog('✅ Receptor online novamente');
-          if (lastDataMessageTime && (Date.now() - lastDataMessageTime) < TRANSMITTER_TIMEOUT) {
+          adicionarLog('✅ Receptor online');
+          // Se já temos dados recentes do transmissor, restaura
+          if (lastDataMessageTime && (agora - lastDataMessageTime) < TRANSMITTER_TIMEOUT) {
             transmitterActive = true;
             restoreInterfaceWithData();
           } else {
@@ -1204,8 +1211,7 @@
         if (document.hidden) return;
         const agora = Date.now();
 
-        // Se nunca recebeu nada após 10 segundos da conexão, mostra waiting (já está)
-        // Verifica timeout do transmissor (apenas se receptor online)
+        // Timeout do transmissor (apenas se receptor online)
         if (receptorOnline && lastDataMessageTime) {
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
@@ -1222,7 +1228,7 @@
           }
         }
 
-        // Verifica timeout do receptor (heartbeat ou dados)
+        // Timeout do receptor (status ou dados)
         const ultimoContato = Math.max(lastDataMessageTime || 0, lastReceptorStatusTime || 0);
         if (ultimoContato > 0) {
           const tempoSemContato = agora - ultimoContato;
@@ -1231,8 +1237,8 @@
             adicionarLog(`⚠️ Receptor sem resposta (${Math.floor(tempoSemContato/1000)}s)`, 'warning');
             receptorOfflineUI();
           }
-        } else if (receptorOnline === false && (agora - (window.initialConnectTime || 0)) > 10000) {
-          // Após 10 segundos sem nada, mantém waiting (já está)
+        } else if (receptorOnline === false && (agora - (window.initialConnectTime || 0)) > 10000 && !firstStatusReceived) {
+          // Mantém waiting
         }
       }, 1000);
     }
@@ -1285,6 +1291,8 @@
       client.on('message', (topic, message) => {
         try {
           const payload = JSON.parse(message.toString());
+          const agora = Date.now();
+
           // Valida deviceID
           if (topic === TOPICS.dados) {
             if (payload.deviceID && payload.deviceID !== deviceMac) {
@@ -1296,21 +1304,45 @@
               return;
             }
           }
+
+          if (topic === TOPICS.status) {
+            lastReceptorStatusTime = agora;
+            processarStatus(payload);
+            // Se estava waiting e agora temos status, tenta restaurar se houver dados recentes
+            if (document.getElementById('waterLevel').classList.contains('waiting') && receptorOnline) {
+              if (lastDataMessageTime && (agora - lastDataMessageTime) < TRANSMITTER_TIMEOUT) {
+                restoreInterfaceWithData();
+              } else {
+                transmitterOfflineUI();
+              }
+            }
+            return;
+          }
+
           if (topic === TOPICS.dados) {
-            // Só processa dados se já tivermos um heartbeat recente do receptor
-            // ou se for a primeira mensagem e o receptor estiver "online" via status
-            if (!receptorOnline && lastReceptorStatusTime && (Date.now() - lastReceptorStatusTime) > RECEPTOR_TIMEOUT) {
-              adicionarLog('⚠️ Dados ignorados: receptor offline (sem heartbeat)', 'warning');
+            // Só aceita dados se:
+            // 1. Já recebemos um status online (firstStatusReceived)
+            // 2. O receptor está online (receptorOnline)
+            // 3. O timestamp do dado (se existir) não é muito antigo
+            if (!firstStatusReceived || !receptorOnline) {
+              adicionarLog('⚠️ Dados ignorados: receptor offline ou sem status inicial', 'warning');
               return;
             }
-            lastDataMessageTime = Date.now();
-            secondsWithoutData = 0;
-            if (!receptorOnline) {
-              receptorOnline = true;
-              atualizarStatusReceptor(true);
-              adicionarLog('✅ Receptor online (dados recebidos)');
+
+            // Verifica timestamp do dado (se enviado pelo receptor)
+            let dataTimestamp = payload.timestamp;
+            if (dataTimestamp && typeof dataTimestamp === 'number') {
+              // Se o timestamp for muito antigo (mais de MAX_DATA_AGE_MS), ignora
+              if (agora - dataTimestamp > MAX_DATA_AGE_MS) {
+                adicionarLog(`⚠️ Dado ignorado: timestamp antigo (${Math.floor((agora - dataTimestamp)/1000)}s atrás)`, 'warning');
+                return;
+              }
             }
-            lastReceptorStatusTime = Date.now();
+
+            lastDataMessageTime = agora;
+            secondsWithoutData = 0;
+            lastReceptorStatusTime = agora; // dados também contam como contato
+
             let sensorOK = payload.sensor_ok;
             const distancia = parseFloat(payload.distance);
             const percentual = parseInt(payload.percentage);
@@ -1337,21 +1369,6 @@
                 document.getElementById('waterLevel').classList.contains('offline-receptor') ||
                 document.getElementById('waterLevel').classList.contains('offline-transmitter')) {
               restoreInterfaceWithData();
-            }
-          } else if (topic === TOPICS.status) {
-            lastReceptorStatusTime = Date.now();
-            processarStatus(payload);
-            if (payload.status === 'online' && !receptorOnline) {
-              receptorOnline = true;
-              atualizarStatusReceptor(true);
-            }
-            // Se estava waiting, agora tem status
-            if (document.getElementById('waterLevel').classList.contains('waiting')) {
-              if (lastDataMessageTime && (Date.now() - lastDataMessageTime) < TRANSMITTER_TIMEOUT) {
-                restoreInterfaceWithData();
-              } else {
-                transmitterOfflineUI();
-              }
             }
           }
         } catch (e) { console.error('Erro ao processar mensagem:', e); }
@@ -1389,7 +1406,7 @@
       document.getElementById('deviceBadgeText').textContent = codigo;
       document.getElementById('codigoScreen').classList.remove('show');
       document.getElementById('mainContainer').style.display = 'block';
-      waitingUI(); // Inicia em modo aguardando
+      waitingUI(); // Estado inicial limpo
       connectMQTT();
     }
     function trocarDispositivo() {
@@ -1412,6 +1429,7 @@
     function debugData() {
       console.log('=== DEBUG ===');
       console.log('receptorOnline:', receptorOnline, 'transmitterActive:', transmitterActive);
+      console.log('firstStatusReceived:', firstStatusReceived);
       console.log('lastDataMessageTime:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : null);
       console.log('lastReceptorStatusTime:', lastReceptorStatusTime ? new Date(lastReceptorStatusTime).toLocaleTimeString() : null);
       console.log('deviceMac:', deviceMac);
