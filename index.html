@@ -963,10 +963,8 @@
       location.reload();
     }
 
-    // MODIFICADO: Aumentado de 15000 para 45000 (45 segundos) para evitar falsos positivos
-    const TRANSMITTER_TIMEOUT = 45000;
-    // MODIFICADO: Aumentado de 60000 para 90000 (90 segundos) para maior tolerância
-    const RECEPTOR_TIMEOUT = 90000;
+    const TRANSMITTER_TIMEOUT = 90000;  // 90 segundos sem dado do transmissor → alerta
+    const RECEPTOR_TIMEOUT    = 90000;  // 90 segundos sem heartbeat do receptor → offline
 
     // NOVO: Controle de visibilidade da página para evitar flash de offline ao minimizar
     let pageHiddenAt = null;
@@ -1036,9 +1034,9 @@
           protocol: 'wss',
           clean: true,
           rejectUnauthorized: false,
-          reconnectPeriod: 5000,
-          connectTimeout: 20000,
-          keepalive: 60
+          reconnectPeriod: 3000,
+          connectTimeout: 8000,
+          keepalive: 30
         });
       } catch(e) {
         adicionarLog('❌ Falha ao iniciar MQTT: ' + e.message);
@@ -1054,9 +1052,11 @@
         
         iniciarVerificacaoTimeout();
         
-        client.subscribe([TOPICS.dados, TOPICS.status], (err) => {
+        // Subscreve e marca lastReceptorStatusTime apenas após confirmação
+        client.subscribe([TOPICS.dados, TOPICS.status], { qos: 0 }, (err) => {
           if (!err) {
             lastReceptorStatusTime = Date.now();
+            adicionarLog('📡 Aguardando dados do receptor...');
           }
         });
       });
@@ -1092,6 +1092,7 @@
           if (topic === TOPICS.dados) {
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
+            pararContadorEspera();
             
             if (!receptorOnline) {
               receptorOnline = true;
@@ -1422,12 +1423,32 @@
         badge.className = 'mqtt-badge';
         brokerStatus.textContent = 'Conectado';
         brokerStatus.className = 'status-value online';
+        // Inicia contagem regressiva visual enquanto aguarda o primeiro dado
+        if (!lastDataMessageTime) iniciarContadorEspera();
       } else {
         badge.innerHTML = '<i class="fas fa-times-circle"></i> <span>Offline</span>';
         badge.className = 'mqtt-badge disconnected';
         brokerStatus.textContent = 'Desconectado';
         brokerStatus.className = 'status-value offline';
+        pararContadorEspera();
       }
+    }
+
+    let _esperaInterval = null;
+    function iniciarContadorEspera() {
+      pararContadorEspera();
+      let t = 0;
+      const el = document.getElementById('receptorStatus');
+      const dots = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
+      _esperaInterval = setInterval(() => {
+        if (lastDataMessageTime) { pararContadorEspera(); return; }
+        el.textContent = dots[t % dots.length] + ' ' + t + 's';
+        el.className = 'status-value warning';
+        t++;
+      }, 1000);
+    }
+    function pararContadorEspera() {
+      if (_esperaInterval) { clearInterval(_esperaInterval); _esperaInterval = null; }
     }
 
     function atualizarHistorico() {
