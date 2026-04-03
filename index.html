@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
+    /* ========== SEU CSS ORIGINAL COMPLETO (MANTIDO) ========== */
     :root {
       --primary: #0077b6;
       --primary-dark: #023e8a;
@@ -300,6 +301,11 @@
     }
     .water.offline-transmitter { 
       background: linear-gradient(to top, #451a1a, #7f1d1d) !important; 
+      height: 0% !important;
+      animation: none;
+    }
+    .water.waiting {
+      background: linear-gradient(to top, #6c757d, #adb5bd) !important;
       height: 0% !important;
       animation: none;
     }
@@ -754,7 +760,7 @@
                src="https://ik.imagekit.io/o7q7lmyva/caixa_d_agua_1000_litros.png?updatedAt=1769916384477"
                alt="Caixa d'água">
           <div class="tank">
-            <div class="water" id="waterLevel" style="height:0%;">0%</div>
+            <div class="water waiting" id="waterLevel" style="height:0%;">AGUARDANDO</div>
           </div>
           <div class="tank-marks">
             <div class="tank-mark top">100%</div>
@@ -864,7 +870,7 @@
     let ultimoValorValido = null;
     let pageHiddenAt = null;
 
-    // Função para zerar cards (exibir --- e cinza) quando não há dados válidos
+    // ========== FUNÇÕES DE INTERFACE OFFLINE ==========
     function setCardsOffline() {
       document.getElementById('currentVolume').textContent = '---';
       document.getElementById('currentDistance').textContent = '---';
@@ -872,15 +878,25 @@
       document.getElementById('volumeCard').classList.add('offline');
       document.getElementById('distanceCard').classList.add('offline');
       document.getElementById('levelCard').classList.add('offline');
-      // Bateria
       document.getElementById('batFill').style.width = '0%';
       document.getElementById('batPercLabel').textContent = '---';
       document.getElementById('batPercLabel').title = '';
-      // Sensor status
       document.getElementById('sensorStatus').textContent = '---';
       document.getElementById('sensorStatus').className = 'status-value offline';
       document.getElementById('sensorStatusItem').classList.add('sensor-error');
-      // Tanque será alterado separadamente
+    }
+
+    function setCardsWaiting() {
+      document.getElementById('currentVolume').textContent = '--';
+      document.getElementById('currentDistance').textContent = '--';
+      document.getElementById('currentLevel').textContent = '--';
+      document.getElementById('volumeCard').classList.add('offline');
+      document.getElementById('distanceCard').classList.add('offline');
+      document.getElementById('levelCard').classList.add('offline');
+      document.getElementById('batFill').style.width = '0%';
+      document.getElementById('batPercLabel').textContent = '--%';
+      document.getElementById('sensorStatus').textContent = 'Aguardando';
+      document.getElementById('sensorStatus').className = 'status-value warning';
     }
 
     function setCardsOnline() {
@@ -890,7 +906,6 @@
       document.getElementById('sensorStatusItem').classList.remove('sensor-error');
     }
 
-    // Receptor offline: tudo fica cinza, alerta receptor
     function receptorOfflineUI() {
       atualizarStatusReceptor(false);
       setCardsOffline();
@@ -900,16 +915,12 @@
       water.style.height = '0%';
       document.getElementById('alertTransmitter').classList.remove('show');
       document.getElementById('alertReceptor').classList.add('show');
-      // Desliga indicador de transmissor
       transmitterActive = false;
-      document.getElementById('loraStatus').textContent = 'Receptor Off';
-      document.getElementById('loraStatus').className = 'status-value offline';
       document.getElementById('signalText').textContent = 'OFF';
       const bars = document.querySelectorAll('.signal-bar-item');
       bars.forEach(bar => bar.classList.remove('active'));
     }
 
-    // Transmissor offline (receptor online, mas sem dados)
     function transmitterOfflineUI() {
       setCardsOffline();
       const water = document.getElementById('waterLevel');
@@ -919,23 +930,32 @@
       document.getElementById('alertTransmitter').classList.add('show');
       document.getElementById('alertReceptor').classList.remove('show');
       transmitterActive = false;
-      document.getElementById('loraStatus').textContent = 'Sem Sinal';
-      document.getElementById('loraStatus').className = 'status-value offline';
       document.getElementById('signalText').textContent = 'OFF';
       const bars = document.querySelectorAll('.signal-bar-item');
       bars.forEach(bar => bar.classList.remove('active'));
     }
 
-    // Ambos ok, restaura interface com dados atuais
+    function waitingUI() {
+      atualizarStatusReceptor(false); // ainda não sabemos
+      setCardsWaiting();
+      const water = document.getElementById('waterLevel');
+      water.className = 'water waiting';
+      water.textContent = 'AGUARDANDO';
+      water.style.height = '0%';
+      document.getElementById('alertTransmitter').classList.remove('show');
+      document.getElementById('alertReceptor').classList.remove('show');
+      document.getElementById('signalText').textContent = '---';
+      const bars = document.querySelectorAll('.signal-bar-item');
+      bars.forEach(bar => bar.classList.remove('active'));
+    }
+
     function restoreInterfaceWithData() {
       atualizarStatusReceptor(true);
       document.getElementById('alertTransmitter').classList.remove('show');
       document.getElementById('alertReceptor').classList.remove('show');
-      // Se temos dados em currentData, atualiza interface
       if (currentData && !currentData.erro) {
         atualizarInterface();
       } else if (ultimoValorValido) {
-        // Usa último valor válido se disponível
         currentData = {
           percentage: ultimoValorValido.percentage,
           liters: ultimoValorValido.liters,
@@ -950,9 +970,6 @@
           batPercent: currentData.batPercent || 0
         };
         atualizarInterface();
-      } else {
-        // Sem dados, mantém offline por enquanto
-        transmitterOfflineUI();
       }
     }
 
@@ -974,16 +991,13 @@
       if (payload.status === 'online' || payload.heartbeat === true) {
         lastReceptorStatusTime = Date.now();
         if (!receptorOnline) {
-          // Receptor voltou online
           receptorOnline = true;
           atualizarStatusReceptor(true);
           adicionarLog('✅ Receptor online novamente');
-          // Se já temos dados recentes do transmissor, restaura; senão aguarda
           if (lastDataMessageTime && (Date.now() - lastDataMessageTime) < TRANSMITTER_TIMEOUT) {
             transmitterActive = true;
             restoreInterfaceWithData();
           } else {
-            // Aguarda dados do transmissor
             transmitterActive = false;
             transmitterOfflineUI();
           }
@@ -1190,6 +1204,7 @@
         if (document.hidden) return;
         const agora = Date.now();
 
+        // Se nunca recebeu nada após 10 segundos da conexão, mostra waiting (já está)
         // Verifica timeout do transmissor (apenas se receptor online)
         if (receptorOnline && lastDataMessageTime) {
           const tempoSemDados = agora - lastDataMessageTime;
@@ -1200,7 +1215,6 @@
             adicionarLog('⚠️ Perda de sinal do transmissor (>100s)', 'alert');
             transmitterOfflineUI();
           } else if (tempoSemDados <= TRANSMITTER_TIMEOUT && !transmitterActive && lastDataMessageTime) {
-            // Voltou a ter dados
             transmitterActive = true;
             adicionarLog('✅ Sinal do transmissor restaurado');
             document.getElementById('alertTransmitter').classList.remove('show');
@@ -1217,10 +1231,8 @@
             adicionarLog(`⚠️ Receptor sem resposta (${Math.floor(tempoSemContato/1000)}s)`, 'warning');
             receptorOfflineUI();
           }
-        } else if (receptorOnline && ultimoContato === 0 && (agora - (Date.now() - 10000)) > RECEPTOR_TIMEOUT) {
-          // Caso inicial, se nunca recebeu nada
-          receptorOnline = false;
-          receptorOfflineUI();
+        } else if (receptorOnline === false && (agora - (window.initialConnectTime || 0)) > 10000) {
+          // Após 10 segundos sem nada, mantém waiting (já está)
         }
       }, 1000);
     }
@@ -1228,6 +1240,7 @@
     function connectMQTT() {
       const url = `wss://${MQTT_CONFIG.host}:8884/mqtt`;
       adicionarLog('🔄 Conectando ao HiveMQ...');
+      window.initialConnectTime = Date.now();
       try {
         client = mqtt.connect(url, {
           username: MQTT_CONFIG.username,
@@ -1243,6 +1256,7 @@
       } catch(e) {
         adicionarLog('❌ Falha ao iniciar MQTT: ' + e.message);
         updateConnectionStatus(false);
+        waitingUI();
         return;
       }
       client.on('connect', () => {
@@ -1253,7 +1267,11 @@
         client.subscribe([TOPICS.dados, TOPICS.status], (err) => { if (!err) lastReceptorStatusTime = Date.now(); });
       });
       client.on('reconnect', () => adicionarLog('🔄 Reconectando ao broker...', 'warning'));
-      client.on('disconnect', () => { updateConnectionStatus(false); if (receptorOnline) receptorOfflineUI(); });
+      client.on('disconnect', () => { 
+        updateConnectionStatus(false); 
+        if (receptorOnline) receptorOfflineUI();
+        else waitingUI();
+      });
       client.on('error', (err) => {
         const msg = err.message || String(err);
         adicionarLog('❌ Erro MQTT: ' + msg);
@@ -1262,6 +1280,7 @@
         document.getElementById('mqttDiagMsg').textContent = msg;
         document.getElementById('mqttDiagUser').textContent = MQTT_CONFIG.username;
         if (receptorOnline) receptorOfflineUI();
+        else waitingUI();
       });
       client.on('message', (topic, message) => {
         try {
@@ -1278,10 +1297,15 @@
             }
           }
           if (topic === TOPICS.dados) {
+            // Só processa dados se já tivermos um heartbeat recente do receptor
+            // ou se for a primeira mensagem e o receptor estiver "online" via status
+            if (!receptorOnline && lastReceptorStatusTime && (Date.now() - lastReceptorStatusTime) > RECEPTOR_TIMEOUT) {
+              adicionarLog('⚠️ Dados ignorados: receptor offline (sem heartbeat)', 'warning');
+              return;
+            }
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
             if (!receptorOnline) {
-              // Receptor voltou a enviar dados (estava offline)
               receptorOnline = true;
               atualizarStatusReceptor(true);
               adicionarLog('✅ Receptor online (dados recebidos)');
@@ -1305,10 +1329,12 @@
               adicionarLog('✅ Sinal do transmissor restaurado');
               document.getElementById('alertTransmitter').classList.remove('show');
             }
-            payload.signal_quality = Math.min(100, Math.max(0, Math.floor((payload.lora_rssi + 113) * 1.6))); // aproximação
+            let rssi = payload.lora_rssi || -100;
+            let qualidade = Math.min(100, Math.max(0, Math.floor((rssi + 113) * 1.6)));
+            payload.signal_quality = qualidade;
             processarDados(payload, sensorOK);
-            // Se a interface estava offline, restaura
-            if (document.getElementById('waterLevel').classList.contains('offline-receptor') ||
+            if (document.getElementById('waterLevel').classList.contains('waiting') ||
+                document.getElementById('waterLevel').classList.contains('offline-receptor') ||
                 document.getElementById('waterLevel').classList.contains('offline-transmitter')) {
               restoreInterfaceWithData();
             }
@@ -1318,6 +1344,14 @@
             if (payload.status === 'online' && !receptorOnline) {
               receptorOnline = true;
               atualizarStatusReceptor(true);
+            }
+            // Se estava waiting, agora tem status
+            if (document.getElementById('waterLevel').classList.contains('waiting')) {
+              if (lastDataMessageTime && (Date.now() - lastDataMessageTime) < TRANSMITTER_TIMEOUT) {
+                restoreInterfaceWithData();
+              } else {
+                transmitterOfflineUI();
+              }
             }
           }
         } catch (e) { console.error('Erro ao processar mensagem:', e); }
@@ -1355,6 +1389,7 @@
       document.getElementById('deviceBadgeText').textContent = codigo;
       document.getElementById('codigoScreen').classList.remove('show');
       document.getElementById('mainContainer').style.display = 'block';
+      waitingUI(); // Inicia em modo aguardando
       connectMQTT();
     }
     function trocarDispositivo() {
