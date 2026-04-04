@@ -1076,7 +1076,9 @@
           sensorOk: true,
           erro: false,
           batVoltage: parseFloat(payload.bat_voltage) || 0,
-          batPercent: parseInt(payload.bat_percent) || 0
+          batPercent: parseInt(payload.bat_percent) || 0,
+          datetime: payload.datetime || '--:--:--',
+          epoch: payload.epoch || 0
         };
         if (sensorErrorActive) {
           sensorErrorActive = false;
@@ -1171,7 +1173,11 @@
         }
       } else {
         document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
-        document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
+        // Usa horário NTP do payload se disponível, senão hora local do navegador
+        const horaExibir = currentData.datetime && currentData.datetime !== '--:--:--'
+          ? currentData.datetime.split(' ')[0]   // só "HH:MM:SS"
+          : new Date().toLocaleTimeString('pt-BR');
+        document.getElementById('lastUpdate').textContent = horaExibir;
         const bars = document.querySelectorAll('.signal-bar-item');
         const activeBars = Math.ceil((currentData.quality / 100) * 5);
         bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
@@ -1366,17 +1372,33 @@
               payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
               processarDados(payload, sensorOK, true);
 
-              // CORREÇÃO: não sabemos a idade real do dado retained (ESP32 usa millis(), não epoch).
-              // Estratégia: inicializa lastDataMessageTime como se o dado tivesse chegado há
-              // (TRANSMITTER_TIMEOUT - 1 ciclo de sleep - 5s de folga) atrás.
-              // Resultado: se o transmissor estiver ligado, o próximo pacote ao vivo chega em
-              // até 30s e reseta o contador. Se estiver desligado, o alerta dispara em ~35s
-              // após carregar a página — comportamento esperado.
+              // Usa epoch NTP do payload para calcular idade real do dado retained.
+              // Se o dado tiver mais de TRANSMITTER_TIMEOUT segundos, dispara alerta imediatamente.
               if (lastDataMessageTime === null) {
-                const idadeSimulada = TRANSMITTER_TIMEOUT - 30000 - 5000; // timeout - 1 ciclo - 5s folga
-                lastDataMessageTime = Date.now() - idadeSimulada;
-                secondsWithoutData = Math.floor(idadeSimulada / 1000);
-                adicionarLog('📦 Dado retido carregado — verificando transmissor...', 'warning');
+                const epochPayload = payload.epoch || 0;
+                const agoraMs = Date.now();
+                if (epochPayload > 0) {
+                  // Temos horário NTP real — calculamos a idade exata
+                  const idadeMs = agoraMs - (epochPayload * 1000);
+                  if (idadeMs > TRANSMITTER_TIMEOUT) {
+                    // Dado muito antigo — transmissor estava desligado
+                    lastDataMessageTime = agoraMs - TRANSMITTER_TIMEOUT - 1000; // já expirado
+                    secondsWithoutData = Math.floor(idadeMs / 1000);
+                    adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — transmissor pode estar desligado`, 'alert');
+                    window._transmitterAlertFired = false; // permite disparar alerta no próximo tick
+                  } else {
+                    // Dado recente — transmissor provavelmente ligado
+                    lastDataMessageTime = agoraMs - idadeMs;
+                    secondsWithoutData = Math.floor(idadeMs / 1000);
+                    adicionarLog(`📦 Dado retido carregado (${Math.floor(idadeMs/1000)}s atrás) — aguardando próximo ciclo`, 'warning');
+                  }
+                } else {
+                  // Sem epoch NTP — estratégia conservadora: 35s antes do timeout
+                  const idadeSimulada = TRANSMITTER_TIMEOUT - 30000 - 5000;
+                  lastDataMessageTime = agoraMs - idadeSimulada;
+                  secondsWithoutData = Math.floor(idadeSimulada / 1000);
+                  adicionarLog('📦 Dado retido carregado — verificando transmissor...', 'warning');
+                }
               }
 
             } else {
