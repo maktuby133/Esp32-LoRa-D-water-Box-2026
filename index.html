@@ -306,6 +306,13 @@
       height: 0% !important;
       animation: none;
     }
+    .water.aguardando {
+      background: linear-gradient(to top, #374151, #6b7280) !important;
+      height: 32px !important;
+      animation: none;
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
 
     @keyframes pulse-red { 
       0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(220, 38, 38, 0.5); } 
@@ -1099,26 +1106,27 @@
         document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1) + '*';
         document.getElementById('currentLevel').textContent = currentData.level + '*';
       } else {
-        water.style.height = pct + '%';
-        water.textContent = dadoRetained ? pct + '% *' : pct + '%';
-        water.className = 'water';
-        if (dadoRetained) water.style.opacity = '0.6';
-        else              water.style.opacity = '1';
-        if (pct <= 10) water.classList.add('critical');
-        else if (pct <= 25) water.classList.add('low');
-        else if (pct <= 50) water.classList.add('medium');
-        else if (pct <= 80) water.classList.add('good');
-        else water.classList.add('full');
-        document.getElementById('currentVolume').textContent = dadoRetained ? currentData.liters + '*' : currentData.liters;
-        document.getElementById('currentDistance').textContent = dadoRetained ? currentData.distance.toFixed(1) + '*' : currentData.distance.toFixed(1);
-        document.getElementById('currentLevel').textContent = dadoRetained ? currentData.level + '*' : currentData.level;
         if (dadoRetained) {
-          document.getElementById('sensorStatus').textContent = 'Antigo';
-          document.getElementById('sensorStatus').className = 'status-value warning';
+          water.style.height = '';
+          water.textContent = 'Aguardando...';
+          water.style.opacity = '1';
+          water.className = 'water aguardando';
         } else {
-          document.getElementById('sensorStatus').textContent = 'OK';
-          document.getElementById('sensorStatus').className = 'status-value online';
+          water.style.height = pct + '%';
+          water.textContent = pct + '%';
+          water.style.opacity = '1';
+          water.className = 'water';
+          if (pct <= 10) water.classList.add('critical');
+          else if (pct <= 25) water.classList.add('low');
+          else if (pct <= 50) water.classList.add('medium');
+          else if (pct <= 80) water.classList.add('good');
+          else water.classList.add('full');
         }
+        document.getElementById('currentVolume').textContent = dadoRetained ? '--' : currentData.liters;
+        document.getElementById('currentDistance').textContent = dadoRetained ? '--' : currentData.distance.toFixed(1);
+        document.getElementById('currentLevel').textContent = dadoRetained ? '--' : currentData.level;
+        document.getElementById('sensorStatus').textContent = dadoRetained ? '---' : 'OK';
+        document.getElementById('sensorStatus').className = dadoRetained ? 'status-value' : 'status-value online';
         document.getElementById('sensorStatusItem').classList.remove('sensor-error');
         document.getElementById('volumeCard').classList.remove('error');
         document.getElementById('distanceCard').classList.remove('error');
