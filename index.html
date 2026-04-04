@@ -841,7 +841,7 @@
       port:     8884,
       username: 'esp32-Project',
       password: '061084Cca',
-      clientId: 'dash-' + Math.random().toString(16).substr(2, 8)
+      clientId: 'dash-lora-01'
     };
 
     let TOPICS = { dados: '', status: '', comandos: '' };
@@ -965,7 +965,7 @@
       }, 1000);
     }
 
-    function processarDados(payload, sensorOK) {
+    function processarDados(payload, sensorOK, isCached = false) {
       if (payload.config_volume_total > 0) savedCapacityTotal = payload.config_volume_total;
       if (!sensorOK) {
         currentData = {
@@ -1163,7 +1163,7 @@
           password: MQTT_CONFIG.password,
           clientId: MQTT_CONFIG.clientId,
           protocol: 'wss',
-          clean: false,
+          clean: true,              // CORRIGIDO: sessão limpa evita receber mensagens antigas
           rejectUnauthorized: false,
           reconnectPeriod: 3000,
           connectTimeout: 8000,
@@ -1175,6 +1175,7 @@
         return;
       }
       client.on('connect', () => {
+        client._connectTime = Date.now(); // marca hora da conexão para rejeitar mensagens retidas
         updateConnectionStatus(true);
         adicionarLog('✅ Dashboard conectado');
         document.getElementById('mqttDiagBanner').style.display = 'none';
@@ -1195,6 +1196,7 @@
       client.on('message', (topic, message) => {
         try {
           const payload = JSON.parse(message.toString());
+
           // Valida deviceID
           if (topic === TOPICS.dados) {
             if (payload.deviceID && deviceMac && payload.deviceID !== deviceMac) {
@@ -1207,6 +1209,7 @@
             }
           }
           if (topic === TOPICS.dados) {
+            const isCached = payload.cached === true;
             lastDataMessageTime = Date.now();
             secondsWithoutData = 0;
             if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
@@ -1230,7 +1233,7 @@
               document.getElementById('alertTransmitter').classList.remove('show');
             }
             payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
-            processarDados(payload, sensorOK);
+            processarDados(payload, sensorOK, isCached);
           } else if (topic === TOPICS.status) {
             lastReceptorStatusTime = Date.now();
             processarStatus(payload);
