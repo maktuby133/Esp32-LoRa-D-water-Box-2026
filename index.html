@@ -851,7 +851,7 @@
     let deviceMac = '';
 
     // ========== TIMEOUTS AJUSTADOS ==========
-    const TRANSMITTER_TIMEOUT = 100000;   // 100 segundos (transmissor envia a cada 30s)
+    const TRANSMITTER_TIMEOUT = 45000;    // 45 segundos (transmissor envia a cada 30s)
     const RECEPTOR_TIMEOUT    = 45000;    // 45 segundos (mais rápido para detectar receptor offline)
 
     let client = null;
@@ -976,7 +976,7 @@
           document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
           if (tempoSemDados > TRANSMITTER_TIMEOUT && transmitterActive) {
             transmitterActive = false;
-            adicionarLog('⚠️ Perda de sinal do transmissor (>100s)', 'alert');
+            adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
             document.getElementById('alertTransmitter').classList.add('show');
             document.getElementById('loraStatus').textContent = 'Sem Sinal';
             document.getElementById('loraStatus').className = 'status-value offline';
@@ -1005,7 +1005,7 @@
           const tempoSemContato = agora - ultimoContato;
           if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
             atualizarStatusReceptor(false);
-            adicionarLog(`⚠️ Receptor sem resposta há ${Math.floor(tempoSemContato/1000)}s`, 'warning');
+            adicionarLog('⚠️ Receptor sem resposta', 'warning');
           }
           // Atualiza o contador de tempo offline continuamente no painel
           if (!receptorOnline && lastDataMessageTime) {
@@ -1185,7 +1185,14 @@
       }
     }
 
+    let _ultimoLogTexto = '';
+    let _ultimoLogTipo  = '';
     function adicionarLog(texto, tipo = 'normal') {
+      // Não repete a mesma mensagem consecutivamente
+      if (texto === _ultimoLogTexto && tipo === _ultimoLogTipo) return;
+      _ultimoLogTexto = texto;
+      _ultimoLogTipo  = tipo;
+
       const hora = new Date().toLocaleTimeString('pt-BR');
       const div = document.createElement('div');
       div.className = 'update-entry';
