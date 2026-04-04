@@ -1241,7 +1241,6 @@
         return;
       }
       client.on('connect', () => {
-        client._connectTime = Date.now(); // marca hora da conexão para rejeitar mensagens retidas
         updateConnectionStatus(true);
         adicionarLog('✅ Dashboard conectado');
         document.getElementById('mqttDiagBanner').style.display = 'none';
@@ -1259,18 +1258,17 @@
         document.getElementById('mqttDiagUser').textContent = MQTT_CONFIG.username;
         if (lastDataMessageTime) zerarInterfaceOffline('receptor');
       });
-      client.on('message', (topic, message) => {
+      client.on('message', (topic, message, packet) => {
         try {
           const payload = JSON.parse(message.toString());
 
-          // Rejeita mensagens ao vivo que cheguem nos primeiros 2s após conectar
-          // (podem ser de sessões zumbis antigas antes da correção do retain)
-          if (topic === TOPICS.dados && payload.cached !== true) {
-            const agora = Date.now();
-            if (client._connectTime && (agora - client._connectTime) < 2000) {
-              console.warn('🚫 Mensagem ignorada (janela de proteção pós-conexão)');
-              return;
-            }
+          // Rejeita mensagens retained do broker (flag packet.retain = true)
+          // exceto dados marcados como cached pelo próprio receptor.
+          // Isso evita que heartbeats/dados antigos com retain marquem
+          // o receptor como online quando ele está desligado.
+          if (packet && packet.retain && payload.cached !== true) {
+            console.warn('🚫 Mensagem retained ignorada:', topic);
+            return;
           }
 
           // Valida deviceID
