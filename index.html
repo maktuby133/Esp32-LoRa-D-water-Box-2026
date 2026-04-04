@@ -860,7 +860,7 @@
     // ========== TIMEOUTS ==========
     // Transmissor dorme 30s entre envios. Timeout = 4 ciclos (120s) para tolerar
     // atrasos de rede, reconexão WiFi/MQTT e variações do deep-sleep timer.
-    const TRANSMITTER_TIMEOUT = 60000;  // 120s — 4× o intervalo de sleep (30s)
+    const TRANSMITTER_TIMEOUT = 120000;  // 120s — 4× o intervalo de sleep (30s)
     const RECEPTOR_TIMEOUT    = 90000;   // 90s — heartbeat do receptor é a cada 30s
 
     // Último contato do receptor (qualquer mensagem: dado ou heartbeat)
@@ -1011,21 +1011,29 @@
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
           document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
-          if (tempoSemDados > TRANSMITTER_TIMEOUT && transmitterActive) {
+          // CORREÇÃO: dispara alerta se transmitterActive=true (dado ao vivo anterior)
+          // OU se dadoRetained=true (dado cached — transmissor pode estar desligado)
+          // Usa flag _transmitterAlertFired para não repetir o alerta
+          if (tempoSemDados > TRANSMITTER_TIMEOUT && (transmitterActive || dadoRetained) && !window._transmitterAlertFired) {
+            window._transmitterAlertFired = true;
             transmitterActive = false;
             adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
             document.getElementById('alertTransmitter').classList.add('show');
             document.getElementById('loraStatus').textContent = 'Sem Sinal';
             document.getElementById('loraStatus').className = 'status-value offline';
-            // Só zera interface se NÃO houver dado retained visível
             if (!dadoRetained) zerarInterfaceOffline('transmitter');
+          }
+          // Reseta flag quando transmissor volta (dado ao vivo chegou)
+          if (transmitterActive && window._transmitterAlertFired) {
+            window._transmitterAlertFired = false;
           }
         } else {
           // Nunca recebeu dado — conta a partir da conexão do dashboard
           const tempoSemDados = agora - dashboardConnectTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
           document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
-          if (tempoSemDados > TRANSMITTER_TIMEOUT && !transmitterActive) {
+          if (tempoSemDados > TRANSMITTER_TIMEOUT && !window._transmitterAlertFired) {
+            window._transmitterAlertFired = true;
             adicionarLog('⚠️ Transmissor não responde desde a abertura do painel', 'alert');
             document.getElementById('alertTransmitter').classList.add('show');
             document.getElementById('loraStatus').textContent = 'Sem Sinal';
@@ -1345,9 +1353,6 @@
 
             if (isCached || isRetained) {
               // ── DADO EM CACHE / RETAINED ──
-              // CORREÇÃO: mostra os valores reais imediatamente ao carregar a página.
-              // dadoRetained=true serve apenas para indicar visualmente que é dado antigo —
-              // os valores reais são exibidos na interface.
               dadoRetained = true;
               let sensorOK = payload.sensor_ok;
               const distancia = parseFloat(payload.distance);
@@ -1361,15 +1366,17 @@
               payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
               processarDados(payload, sensorOK, true);
 
-              // CORREÇÃO: inicializa lastDataMessageTime com o tempo do dado retained,
-              // descontando a idade estimada (usa timestamp do payload se disponível).
-              // Isso evita que o timeout do transmissor dispare imediatamente após o load.
+              // CORREÇÃO: não sabemos a idade real do dado retained (ESP32 usa millis(), não epoch).
+              // Estratégia: inicializa lastDataMessageTime como se o dado tivesse chegado há
+              // (TRANSMITTER_TIMEOUT - 1 ciclo de sleep - 5s de folga) atrás.
+              // Resultado: se o transmissor estiver ligado, o próximo pacote ao vivo chega em
+              // até 30s e reseta o contador. Se estiver desligado, o alerta dispara em ~35s
+              // após carregar a página — comportamento esperado.
               if (lastDataMessageTime === null) {
-                // Usa timestamp do payload se disponível (millis() do ESP32 — relativo, não epoch)
-                // Como não temos epoch real, usamos "agora - 1 ciclo de sleep" como estimativa conservadora
-                lastDataMessageTime = Date.now() - 35000; // 35s atrás — dentro do timeout de 120s
-                secondsWithoutData = 35;
-                adicionarLog('📦 Dado retido carregado — aguardando próximo ciclo ao vivo', 'warning');
+                const idadeSimulada = TRANSMITTER_TIMEOUT - 30000 - 5000; // timeout - 1 ciclo - 5s folga
+                lastDataMessageTime = Date.now() - idadeSimulada;
+                secondsWithoutData = Math.floor(idadeSimulada / 1000);
+                adicionarLog('📦 Dado retido carregado — verificando transmissor...', 'warning');
               }
 
             } else {
@@ -1393,6 +1400,7 @@
               }
               if (!transmitterActive) {
                 transmitterActive = true;
+                window._transmitterAlertFired = false;
                 adicionarLog('✅ Sinal do transmissor restaurado');
                 document.getElementById('alertTransmitter').classList.remove('show');
               }
