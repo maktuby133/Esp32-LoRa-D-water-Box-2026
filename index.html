@@ -851,8 +851,8 @@
     let deviceMac = '';
 
     // ========== TIMEOUTS ==========
-    const TRANSMITTER_TIMEOUT = 45000;   // 45s sem dado LoRa = transmissor offline
-    const RECEPTOR_TIMEOUT    = 45000;   // 45s sem qualquer mensagem = receptor offline
+    const TRANSMITTER_TIMEOUT = 90000;   // 90s — 3× o intervalo de sleep (30s), com folga de rede
+    const RECEPTOR_TIMEOUT    = 90000;   // 90s — heartbeat do receptor é a cada 30s
 
     // Último contato do receptor (qualquer mensagem: dado ou heartbeat)
     let lastReceptorContactTime = null;
