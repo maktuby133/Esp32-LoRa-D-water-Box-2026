@@ -967,8 +967,36 @@
         if (document.hidden) return;
         const agora = Date.now();
 
+        // ── Receptor ──
+        // Verifica receptor PRIMEIRO para saber o estado antes de avaliar o transmissor
+        if (lastReceptorContactTime === null) {
+          // Nunca recebeu nada ainda
+          if (receptorOnline) atualizarStatusReceptor(false);
+        } else {
+          const tempoSemContato = agora - lastReceptorContactTime;
+          if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
+            window._receptorOfflineSince = agora;
+            atualizarStatusReceptor(false);
+            adicionarLog('⚠️ Receptor sem resposta', 'warning');
+          }
+          if (!receptorOnline) {
+            const segsOffline = Math.floor((agora - (window._receptorOfflineSince || agora)) / 1000);
+            const el = document.getElementById('receptorStatus');
+            if (el && el.textContent.startsWith('Offline')) el.textContent = `Offline ${segsOffline}s`;
+            // Receptor offline — garante que alerta do transmissor não aparece
+            document.getElementById('alertTransmitter').classList.remove('show');
+          }
+        }
+
         // ── Transmissor ──
-        if (lastDataMessageTime) {
+        // Só avalia timeout do transmissor se o receptor estiver online
+        // (se o receptor está offline, não tem como receber sinal do transmissor de qualquer forma)
+        if (!receptorOnline) {
+          // Receptor offline: reseta estado do transmissor silenciosamente para
+          // não disparar alerta quando o receptor voltar com dados antigos
+          transmitterActive = false;
+          secondsWithoutData = 0;
+        } else if (lastDataMessageTime) {
           // Já recebeu dado antes — conta a partir do último dado
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
@@ -991,27 +1019,6 @@
             document.getElementById('alertTransmitter').classList.add('show');
             document.getElementById('loraStatus').textContent = 'Sem Sinal';
             document.getElementById('loraStatus').className = 'status-value offline';
-          }
-        }
-
-        // ── Receptor ──
-        // Se não receber nenhuma mensagem (dado ou heartbeat) por RECEPTOR_TIMEOUT, marca offline
-        if (lastReceptorContactTime === null) {
-          // Nunca recebeu nada ainda
-          if (receptorOnline) atualizarStatusReceptor(false);
-        } else {
-          const tempoSemContato = agora - lastReceptorContactTime;
-          if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
-            window._receptorOfflineSince = agora;
-            atualizarStatusReceptor(false);
-            adicionarLog('⚠️ Receptor sem resposta', 'warning');
-          }
-          if (!receptorOnline) {
-            const segsOffline = Math.floor((agora - (window._receptorOfflineSince || agora)) / 1000);
-            const el = document.getElementById('receptorStatus');
-            if (el && el.textContent.startsWith('Offline')) el.textContent = `Offline ${segsOffline}s`;
-            // Receptor offline — esconde alerta do transmissor (não tem como saber se está enviando)
-            document.getElementById('alertTransmitter').classList.remove('show');
           }
         }
       }, 1000);
