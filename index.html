@@ -1197,6 +1197,16 @@
         try {
           const payload = JSON.parse(message.toString());
 
+          // Rejeita mensagens ao vivo que cheguem nos primeiros 2s após conectar
+          // (podem ser de sessões zumbis antigas antes da correção do retain)
+          if (topic === TOPICS.dados && payload.cached !== true) {
+            const agora = Date.now();
+            if (client._connectTime && (agora - client._connectTime) < 2000) {
+              console.warn('🚫 Mensagem ignorada (janela de proteção pós-conexão)');
+              return;
+            }
+          }
+
           // Valida deviceID
           if (topic === TOPICS.dados) {
             if (payload.deviceID && deviceMac && payload.deviceID !== deviceMac) {
