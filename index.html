@@ -1284,6 +1284,7 @@
           }
           if (topic === TOPICS.dados) {
             lastReceptorContactTime = Date.now();  // qualquer dado = receptor está vivo
+            if (!receptorOnline) atualizarStatusReceptor(true, 'Online');  // cached ou ao vivo — receptor está ligado
             const isCached = payload.cached === true;
 
             if (isCached) {
