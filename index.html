@@ -850,9 +850,12 @@
     let TOPICS = { dados: '', status: '', comandos: '' };
     let deviceMac = '';
 
-    // ========== TIMEOUTS AJUSTADOS ==========
-    const TRANSMITTER_TIMEOUT = 45000;    // 45 segundos (transmissor envia a cada 30s)
-    const RECEPTOR_TIMEOUT    = 45000;    // 45 segundos (mais rápido para detectar receptor offline)
+    // ========== TIMEOUTS ==========
+    const TRANSMITTER_TIMEOUT = 45000;   // 45s sem dado LoRa = transmissor offline
+    const RECEPTOR_TIMEOUT    = 45000;   // 45s sem qualquer mensagem = receptor offline
+
+    // Último contato do receptor (qualquer mensagem: dado ou heartbeat)
+    let lastReceptorContactTime = null;
 
     let client = null;
     let chart = null;
@@ -911,6 +914,7 @@
       const receptorItem   = document.getElementById('receptorStatusItem');
       receptorOnline = online;
       if (online) {
+        window._receptorOfflineSince = null;
         receptorStatus.textContent = texto || 'Online';
         receptorStatus.className   = 'status-value online';
         receptorItem.style.background = '';
@@ -921,8 +925,8 @@
         document.getElementById('distanceCard').classList.remove('offline');
         document.getElementById('levelCard').classList.remove('offline');
       } else {
-        // Nunca recebeu dado — "aguardando"
-        if (!lastDataMessageTime) {
+        if (!lastReceptorContactTime) {
+          // Nunca recebeu nada — aguardando
           receptorStatus.textContent = 'Aguardando...';
           receptorStatus.className   = 'status-value warning';
           receptorItem.style.background = 'linear-gradient(135deg,#fff7e6,#fef3c7)';
@@ -930,8 +934,9 @@
           document.getElementById('alertReceptorNeverSeen').style.display = 'block';
           document.getElementById('alertReceptor').classList.remove('show');
         } else {
-          // Já teve dados mas perdeu contato
-          const segsOffline = Math.floor((Date.now() - Math.max(lastDataMessageTime, lastReceptorStatusTime || 0)) / 1000);
+          // Já teve contato mas perdeu
+          window._receptorOfflineSince = window._receptorOfflineSince || Date.now();
+          const segsOffline = Math.floor((Date.now() - window._receptorOfflineSince) / 1000);
           receptorStatus.textContent = `Offline ${segsOffline}s`;
           receptorStatus.className   = 'status-value offline';
           receptorItem.style.background = 'linear-gradient(135deg,#fee2e2,#fecaca)';
@@ -944,25 +949,19 @@
     }
 
     function processarStatus(payload) {
-      if (payload.status === 'online' || payload.heartbeat === true) {
-        atualizarStatusReceptor(true, payload.status === 'online' ? 'Online' : 'Online ');
-      } else if (payload.status === 'offline') {
-        atualizarStatusReceptor(false);
-        adicionarLog('⚠️ Receptor reportou offline', 'warning');
+      if (payload.online === true || payload.heartbeat === true || payload.status === 'online') {
+        if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
       }
+      // online=false (LWT) é ignorado — o timeout cuida disso automaticamente
     }
 
     function iniciarVerificacaoTimeout() {
       if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
 
-      // Marca o momento em que o dashboard conectou ao broker
-      // Usado para detectar transmissor offline mesmo sem nunca ter recebido dado
       const dashboardConnectTime = Date.now();
 
-      // Se nunca recebeu nenhum dado, mostra "aguardando" imediatamente
-      if (!lastDataMessageTime && !lastReceptorStatusTime) {
-        atualizarStatusReceptor(false);
-      }
+      // Mostra aguardando ao iniciar
+      if (!receptorOnline) atualizarStatusReceptor(false);
 
       timeoutCheckInterval = setInterval(() => {
         if (document.hidden) return;
@@ -996,24 +995,23 @@
         }
 
         // ── Receptor ──
-        const ultimoContato = Math.max(lastDataMessageTime || 0, lastReceptorStatusTime || 0);
-
-        if (ultimoContato === 0) {
-          // Nunca recebeu nada — mantém estado "aguardando"
+        // Se não receber nenhuma mensagem (dado ou heartbeat) por RECEPTOR_TIMEOUT, marca offline
+        if (lastReceptorContactTime === null) {
+          // Nunca recebeu nada ainda
           if (receptorOnline) atualizarStatusReceptor(false);
         } else {
-          const tempoSemContato = agora - ultimoContato;
+          const tempoSemContato = agora - lastReceptorContactTime;
           if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
+            window._receptorOfflineSince = agora;
             atualizarStatusReceptor(false);
             adicionarLog('⚠️ Receptor sem resposta', 'warning');
           }
-          // Atualiza o contador de tempo offline continuamente no painel
-          if (!receptorOnline && lastDataMessageTime) {
-            const segsOffline = Math.floor(tempoSemContato / 1000);
+          if (!receptorOnline) {
+            const segsOffline = Math.floor((agora - (window._receptorOfflineSince || agora)) / 1000);
             const el = document.getElementById('receptorStatus');
-            if (el && el.textContent.startsWith('Offline')) {
-              el.textContent = `Offline ${segsOffline}s`;
-            }
+            if (el && el.textContent.startsWith('Offline')) el.textContent = `Offline ${segsOffline}s`;
+            // Receptor offline — esconde alerta do transmissor (não tem como saber se está enviando)
+            document.getElementById('alertTransmitter').classList.remove('show');
           }
         }
       }, 1000);
@@ -1280,14 +1278,11 @@
             }
           }
           if (topic === TOPICS.dados) {
+            lastReceptorContactTime = Date.now();  // qualquer dado = receptor está vivo
             const isCached = payload.cached === true;
 
             if (isCached) {
               // ── DADO EM CACHE ──
-              // Mostra os valores na tela imediatamente mas NÃO atualiza
-              // os timers de timeout nem marca o transmissor como ativo.
-              // O painel continuará monitorando normalmente e vai mostrar
-              // "sem sinal" quando o timeout expirar (transmissor desligado).
               let sensorOK = payload.sensor_ok;
               const distancia = parseFloat(payload.distance);
               const percentual = parseInt(payload.percentage);
@@ -1299,17 +1294,13 @@
               }
               payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
               processarDados(payload, sensorOK, true);
-              // Receptor online pois o ESP32 está enviando (ele que mandou o cache)
-              if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
-              lastReceptorStatusTime = Date.now();
-              // NÃO atualiza lastDataMessageTime nem transmitterActive
+              // NÃO atualiza lastDataMessageTime, lastReceptorStatusTime nem transmitterActive
 
             } else {
               // ── DADO AO VIVO ──
               lastDataMessageTime = Date.now();
               secondsWithoutData = 0;
-              if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
-              lastReceptorStatusTime = Date.now();
+              // NÃO atualiza lastReceptorStatusTime — apenas o heartbeat faz isso
               let sensorOK = payload.sensor_ok;
               const distancia = parseFloat(payload.distance);
               const percentual = parseInt(payload.percentage);
@@ -1332,7 +1323,7 @@
               processarDados(payload, sensorOK, false);
             }
           } else if (topic === TOPICS.status) {
-            lastReceptorStatusTime = Date.now();
+            lastReceptorContactTime = Date.now();  // heartbeat = receptor está vivo
             processarStatus(payload);
           }
         } catch (e) { console.error('Erro ao processar mensagem:', e); }
