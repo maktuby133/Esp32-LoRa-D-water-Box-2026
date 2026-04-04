@@ -1262,12 +1262,11 @@
         try {
           const payload = JSON.parse(message.toString());
 
-          // Rejeita mensagens retained do broker (flag packet.retain = true)
-          // exceto dados marcados como cached pelo próprio receptor.
-          // Isso evita que heartbeats/dados antigos com retain marquem
-          // o receptor como online quando ele está desligado.
-          if (packet && packet.retain && payload.cached !== true) {
-            console.warn('🚫 Mensagem retained ignorada:', topic);
+          // Rejeita mensagens retained do tópico /status (heartbeat antigo pode marcar
+          // o receptor como online falsamente quando ele está desligado).
+          // O tópico /dados com retain é sempre aceito — contém a última leitura real.
+          if (packet && packet.retain && topic === TOPICS.status) {
+            console.warn('🚫 Heartbeat retained ignorado (evita falso online)');
             return;
           }
 
