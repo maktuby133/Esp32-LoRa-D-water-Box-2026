@@ -955,6 +955,10 @@
     function iniciarVerificacaoTimeout() {
       if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
 
+      // Marca o momento em que o dashboard conectou ao broker
+      // Usado para detectar transmissor offline mesmo sem nunca ter recebido dado
+      const dashboardConnectTime = Date.now();
+
       // Se nunca recebeu nenhum dado, mostra "aguardando" imediatamente
       if (!lastDataMessageTime && !lastReceptorStatusTime) {
         atualizarStatusReceptor(false);
@@ -966,6 +970,7 @@
 
         // ── Transmissor ──
         if (lastDataMessageTime) {
+          // Já recebeu dado antes — conta a partir do último dado
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
           document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
@@ -976,6 +981,17 @@
             document.getElementById('loraStatus').textContent = 'Sem Sinal';
             document.getElementById('loraStatus').className = 'status-value offline';
             zerarInterfaceOffline('transmitter');
+          }
+        } else {
+          // Nunca recebeu dado — conta a partir da conexão do dashboard
+          const tempoSemDados = agora - dashboardConnectTime;
+          secondsWithoutData = Math.floor(tempoSemDados / 1000);
+          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+          if (tempoSemDados > TRANSMITTER_TIMEOUT && !transmitterActive) {
+            adicionarLog('⚠️ Transmissor não responde desde a abertura do painel', 'alert');
+            document.getElementById('alertTransmitter').classList.add('show');
+            document.getElementById('loraStatus').textContent = 'Sem Sinal';
+            document.getElementById('loraStatus').className = 'status-value offline';
           }
         }
 
