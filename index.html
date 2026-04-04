@@ -1210,30 +1210,56 @@
           }
           if (topic === TOPICS.dados) {
             const isCached = payload.cached === true;
-            lastDataMessageTime = Date.now();
-            secondsWithoutData = 0;
-            if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
-            lastReceptorStatusTime = Date.now();
-            let sensorOK = payload.sensor_ok;
-            const distancia = parseFloat(payload.distance);
-            const percentual = parseInt(payload.percentage);
-            if (sensorOK !== false) {
-              if (distancia < 0 || distancia === 0 || percentual < 0) sensorOK = false;
-              if (ultimoValorValido !== null && (percentual - ultimoValorValido.percentage) < -50) sensorOK = false;
-            }
-            if (sensorOK) {
-              ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
-              leiturasConsecutivasErradas = 0;
+
+            if (isCached) {
+              // ── DADO EM CACHE ──
+              // Mostra os valores na tela imediatamente mas NÃO atualiza
+              // os timers de timeout nem marca o transmissor como ativo.
+              // O painel continuará monitorando normalmente e vai mostrar
+              // "sem sinal" quando o timeout expirar (transmissor desligado).
+              let sensorOK = payload.sensor_ok;
+              const distancia = parseFloat(payload.distance);
+              const percentual = parseInt(payload.percentage);
+              if (sensorOK !== false) {
+                if (distancia < 0 || distancia === 0 || percentual < 0) sensorOK = false;
+              }
+              if (sensorOK) {
+                ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
+              }
+              payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
+              processarDados(payload, sensorOK, true);
+              // Receptor online pois o ESP32 está enviando (ele que mandou o cache)
+              if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
+              lastReceptorStatusTime = Date.now();
+              // NÃO atualiza lastDataMessageTime nem transmitterActive
+
             } else {
-              leiturasConsecutivasErradas++;
+              // ── DADO AO VIVO ──
+              lastDataMessageTime = Date.now();
+              secondsWithoutData = 0;
+              if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
+              lastReceptorStatusTime = Date.now();
+              let sensorOK = payload.sensor_ok;
+              const distancia = parseFloat(payload.distance);
+              const percentual = parseInt(payload.percentage);
+              if (sensorOK !== false) {
+                if (distancia < 0 || distancia === 0 || percentual < 0) sensorOK = false;
+                if (ultimoValorValido !== null && (percentual - ultimoValorValido.percentage) < -50) sensorOK = false;
+              }
+              if (sensorOK) {
+                ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
+                leiturasConsecutivasErradas = 0;
+              } else {
+                leiturasConsecutivasErradas++;
+              }
+              if (!transmitterActive) {
+                transmitterActive = true;
+                adicionarLog('✅ Sinal do transmissor restaurado');
+                document.getElementById('alertTransmitter').classList.remove('show');
+              }
+              payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
+              processarDados(payload, sensorOK, false);
             }
-            if (!transmitterActive) {
-              transmitterActive = true;
-              adicionarLog('✅ Sinal do transmissor restaurado');
-              document.getElementById('alertTransmitter').classList.remove('show');
-            }
-            payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
-            processarDados(payload, sensorOK, isCached);
           } else if (topic === TOPICS.status) {
             lastReceptorStatusTime = Date.now();
             processarStatus(payload);
