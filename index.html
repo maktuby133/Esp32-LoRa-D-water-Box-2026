@@ -696,10 +696,13 @@
     </div>
 
     <div id="alertTransmitter" class="alert-banner alert-transmitter">
-      <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR (<span id="timeoutSeconds">0</span>s)
+      <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR — offline há <span id="timeoutSeconds">0</span>s
     </div>
     <div id="alertReceptor" class="alert-banner alert-receptor">
-      <i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO
+      <i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO — verifique energia e WiFi do receptor
+    </div>
+    <div id="alertReceptorNeverSeen" class="alert-banner" style="display:none; background:#e0e7ff; color:#1e3a8a; border:2px solid #3b82f6; padding:5px 12px; border-radius:8px; text-align:center; font-weight:600; font-size:0.9rem;">
+      <i class="fas fa-clock"></i> Aguardando receptor... nenhum dado recebido ainda
     </div>
     <div id="alertSensor" class="alert-banner alert-sensor">
       <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR ULTRASSÔNICO
@@ -709,7 +712,7 @@
     </div>
 
     <div class="status-panel">
-      <div class="status-item">
+      <div class="status-item" id="receptorStatusItem">
         <span class="status-label">Receptor WiFi</span>
         <span class="status-value" id="receptorStatus">Aguardando...</span>
       </div>
@@ -905,19 +908,36 @@
 
     function atualizarStatusReceptor(online, texto) {
       const receptorStatus = document.getElementById('receptorStatus');
+      const receptorItem   = document.getElementById('receptorStatusItem');
       receptorOnline = online;
       if (online) {
         receptorStatus.textContent = texto || 'Online';
-        receptorStatus.className = 'status-value online';
+        receptorStatus.className   = 'status-value online';
+        receptorItem.style.background = '';
+        receptorItem.style.border     = '';
         document.getElementById('alertReceptor').classList.remove('show');
+        document.getElementById('alertReceptorNeverSeen').style.display = 'none';
         document.getElementById('volumeCard').classList.remove('offline');
         document.getElementById('distanceCard').classList.remove('offline');
         document.getElementById('levelCard').classList.remove('offline');
       } else {
-        if (lastDataMessageTime) {
-          receptorStatus.textContent = 'Offline';
-          receptorStatus.className = 'status-value offline';
+        // Nunca recebeu dado — "aguardando"
+        if (!lastDataMessageTime) {
+          receptorStatus.textContent = 'Aguardando...';
+          receptorStatus.className   = 'status-value warning';
+          receptorItem.style.background = 'linear-gradient(135deg,#fff7e6,#fef3c7)';
+          receptorItem.style.border     = '2px solid #ff9e00';
+          document.getElementById('alertReceptorNeverSeen').style.display = 'block';
+          document.getElementById('alertReceptor').classList.remove('show');
+        } else {
+          // Já teve dados mas perdeu contato
+          const segsOffline = Math.floor((Date.now() - Math.max(lastDataMessageTime, lastReceptorStatusTime || 0)) / 1000);
+          receptorStatus.textContent = `Offline ${segsOffline}s`;
+          receptorStatus.className   = 'status-value offline';
+          receptorItem.style.background = 'linear-gradient(135deg,#fee2e2,#fecaca)';
+          receptorItem.style.border     = '2px solid #e63946';
           document.getElementById('alertReceptor').classList.add('show');
+          document.getElementById('alertReceptorNeverSeen').style.display = 'none';
           zerarInterfaceOffline('receptor');
         }
       }
@@ -934,11 +954,17 @@
 
     function iniciarVerificacaoTimeout() {
       if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
+
+      // Se nunca recebeu nenhum dado, mostra "aguardando" imediatamente
+      if (!lastDataMessageTime && !lastReceptorStatusTime) {
+        atualizarStatusReceptor(false);
+      }
+
       timeoutCheckInterval = setInterval(() => {
         if (document.hidden) return;
         const agora = Date.now();
 
-        // Verifica timeout do transmissor
+        // ── Transmissor ──
         if (lastDataMessageTime) {
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
@@ -953,13 +979,25 @@
           }
         }
 
-        // Verifica timeout do receptor (agora 45s)
+        // ── Receptor ──
         const ultimoContato = Math.max(lastDataMessageTime || 0, lastReceptorStatusTime || 0);
-        if (ultimoContato > 0) {
+
+        if (ultimoContato === 0) {
+          // Nunca recebeu nada — mantém estado "aguardando"
+          if (receptorOnline) atualizarStatusReceptor(false);
+        } else {
           const tempoSemContato = agora - ultimoContato;
           if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
             atualizarStatusReceptor(false);
-            adicionarLog(`⚠️ Receptor sem resposta (${Math.floor(tempoSemContato/1000)}s)`, 'warning');
+            adicionarLog(`⚠️ Receptor sem resposta há ${Math.floor(tempoSemContato/1000)}s`, 'warning');
+          }
+          // Atualiza o contador de tempo offline continuamente no painel
+          if (!receptorOnline && lastDataMessageTime) {
+            const segsOffline = Math.floor(tempoSemContato / 1000);
+            const el = document.getElementById('receptorStatus');
+            if (el && el.textContent.startsWith('Offline')) {
+              el.textContent = `Offline ${segsOffline}s`;
+            }
           }
         }
       }, 1000);
