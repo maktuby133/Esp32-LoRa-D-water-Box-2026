@@ -883,6 +883,19 @@
       return 10;
     }
 
+    function limparIndicadoresSinal() {
+      // Zera indicadores que dependem de conexão ativa — não mostrar dados obsoletos
+      const bars = document.querySelectorAll('.signal-bar-item');
+      bars.forEach(bar => bar.classList.remove('active'));
+      document.getElementById('signalText').textContent = '--';
+      document.getElementById('wifiRssi').textContent = '-- dBm';
+      document.getElementById('lastUpdate').textContent = '--:--:--';
+      const fill = document.getElementById('batFill');
+      const lbl  = document.getElementById('batPercLabel');
+      if (fill) fill.style.width = '0%';
+      if (lbl)  lbl.textContent = '--%';
+    }
+
     function zerarInterfaceOffline(motivo) {
       const water = document.getElementById('waterLevel');
       if (motivo === 'receptor') {
@@ -1306,6 +1319,8 @@
               }
               payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
               processarDados(payload, sensorOK, true);
+              // Limpa indicadores de sinal — retained não reflete estado atual
+              limparIndicadoresSinal();
               // NÃO atualiza lastDataMessageTime, lastReceptorStatusTime nem transmitterActive
 
             } else {
