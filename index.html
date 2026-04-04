@@ -860,7 +860,7 @@
     // ========== TIMEOUTS ==========
     // Transmissor dorme 30s entre envios. Timeout = 4 ciclos (120s) para tolerar
     // atrasos de rede, reconexão WiFi/MQTT e variações do deep-sleep timer.
-    const TRANSMITTER_TIMEOUT = 120000;  // 120s — 4× o intervalo de sleep (30s)
+    const TRANSMITTER_TIMEOUT = 60000;  // 120s — 4× o intervalo de sleep (30s)
     const RECEPTOR_TIMEOUT    = 90000;   // 90s — heartbeat do receptor é a cada 30s
 
     // Último contato do receptor (qualquer mensagem: dado ou heartbeat)
