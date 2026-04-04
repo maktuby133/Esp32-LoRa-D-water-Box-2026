@@ -851,14 +851,16 @@
       port:     8884,
       username: 'esp32-Project',
       password: '061084Cca',
-      clientId: 'dash-lora-01'
+      clientId: 'dash-lora-' + Math.random().toString(36).substr(2, 8)
     };
 
     let TOPICS = { dados: '', status: '', comandos: '' };
     let deviceMac = '';
 
     // ========== TIMEOUTS ==========
-    const TRANSMITTER_TIMEOUT = 90000;   // 90s — 3× o intervalo de sleep (30s), com folga de rede
+    // Transmissor dorme 30s entre envios. Timeout = 4 ciclos (120s) para tolerar
+    // atrasos de rede, reconexão WiFi/MQTT e variações do deep-sleep timer.
+    const TRANSMITTER_TIMEOUT = 120000;  // 120s — 4× o intervalo de sleep (30s)
     const RECEPTOR_TIMEOUT    = 90000;   // 90s — heartbeat do receptor é a cada 30s
 
     // Último contato do receptor (qualquer mensagem: dado ou heartbeat)
@@ -1005,7 +1007,7 @@
           transmitterActive = false;
           secondsWithoutData = 0;
         } else if (lastDataMessageTime) {
-          // Já recebeu dado antes — conta a partir do último dado
+          // Já recebeu dado antes (ou inicializado com retained) — conta a partir do último dado
           const tempoSemDados = agora - lastDataMessageTime;
           secondsWithoutData = Math.floor(tempoSemDados / 1000);
           document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
@@ -1015,7 +1017,8 @@
             document.getElementById('alertTransmitter').classList.add('show');
             document.getElementById('loraStatus').textContent = 'Sem Sinal';
             document.getElementById('loraStatus').className = 'status-value offline';
-            zerarInterfaceOffline('transmitter');
+            // Só zera interface se NÃO houver dado retained visível
+            if (!dadoRetained) zerarInterfaceOffline('transmitter');
           }
         } else {
           // Nunca recebeu dado — conta a partir da conexão do dashboard
@@ -1107,10 +1110,16 @@
         document.getElementById('currentLevel').textContent = currentData.level + '*';
       } else {
         if (dadoRetained) {
-          water.style.height = '';
-          water.textContent = 'Aguardando...';
-          water.style.opacity = '1';
-          water.className = 'water aguardando';
+          // CORREÇÃO: mostra o nível real do dado em cache, com aparência levemente opaca
+          water.style.height = pct + '%';
+          water.textContent = pct + '% ⏳';
+          water.style.opacity = '0.75';
+          water.className = 'water';
+          if (pct <= 10) water.classList.add('critical');
+          else if (pct <= 25) water.classList.add('low');
+          else if (pct <= 50) water.classList.add('medium');
+          else if (pct <= 80) water.classList.add('good');
+          else water.classList.add('full');
         } else {
           water.style.height = pct + '%';
           water.textContent = pct + '%';
@@ -1122,11 +1131,11 @@
           else if (pct <= 80) water.classList.add('good');
           else water.classList.add('full');
         }
-        document.getElementById('currentVolume').textContent = dadoRetained ? '--' : currentData.liters;
-        document.getElementById('currentDistance').textContent = dadoRetained ? '--' : currentData.distance.toFixed(1);
-        document.getElementById('currentLevel').textContent = dadoRetained ? '--' : currentData.level;
-        document.getElementById('sensorStatus').textContent = dadoRetained ? '---' : 'OK';
-        document.getElementById('sensorStatus').className = dadoRetained ? 'status-value' : 'status-value online';
+        document.getElementById('currentVolume').textContent = currentData.liters;
+        document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1);
+        document.getElementById('currentLevel').textContent = currentData.level;
+        document.getElementById('sensorStatus').textContent = dadoRetained ? 'CACHE' : 'OK';
+        document.getElementById('sensorStatus').className = dadoRetained ? 'status-value warning' : 'status-value online';
         document.getElementById('sensorStatusItem').classList.remove('sensor-error');
         document.getElementById('volumeCard').classList.remove('error');
         document.getElementById('distanceCard').classList.remove('error');
@@ -1135,14 +1144,23 @@
       document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
       if (dadoRetained) {
         document.getElementById('wifiRssi').textContent = '-- dBm';
-        document.getElementById('lastUpdate').textContent = '--:--:--';
+        document.getElementById('lastUpdate').textContent = '(cache)';
         const bars = document.querySelectorAll('.signal-bar-item');
-        bars.forEach(bar => bar.classList.remove('active'));
-        document.getElementById('signalText').textContent = '--';
+        const activeBars = Math.ceil((currentData.quality / 100) * 5);
+        bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
+        document.getElementById('signalText').textContent = currentData.quality + '%';
+        const pctBat = currentData.batPercent || 0;
+        const vBat   = currentData.batVoltage || 0;
         const fill = document.getElementById('batFill');
         const lbl  = document.getElementById('batPercLabel');
-        if (fill) fill.style.width = '0%';
-        if (lbl)  lbl.textContent = '--%';
+        if (fill && lbl) {
+          fill.style.width = pctBat + '%';
+          if      (pctBat <= 15) fill.style.background = '#e63946';
+          else if (pctBat <= 35) fill.style.background = '#ff9e00';
+          else                   fill.style.background = '#38b000';
+          lbl.textContent = pctBat + '%';
+          lbl.title = vBat.toFixed(2) + 'V';
+        }
       } else {
         document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
         document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
@@ -1290,12 +1308,16 @@
         try {
           const payload = JSON.parse(message.toString());
 
-          // Rejeita mensagens retained do tópico /status (heartbeat antigo pode marcar
-          // o receptor como online falsamente quando ele está desligado).
-          // O tópico /dados com retain é sempre aceito — contém a última leitura real.
+          // CORREÇÃO: Aceita heartbeat retained do /status para restaurar estado do receptor
+          // ao recarregar a página — sem isso, o receptor fica "Aguardando..." por até 30s.
+          // O LWT (online=false) retained SIM é ignorado — evita marcar offline falsamente.
           if (packet && packet.retain && topic === TOPICS.status) {
-            console.warn('🚫 Heartbeat retained ignorado (evita falso online)');
-            return;
+            if (payload.online === false && payload.heartbeat !== true) {
+              console.warn('🚫 LWT retained ignorado (online=false via LWT)');
+              return;
+            }
+            // heartbeat retained: aceita para restaurar status online imediatamente
+            console.info('📡 Heartbeat retained aceito — restaurando status do receptor');
           }
 
           // Valida deviceID
@@ -1323,6 +1345,9 @@
 
             if (isCached || isRetained) {
               // ── DADO EM CACHE / RETAINED ──
+              // CORREÇÃO: mostra os valores reais imediatamente ao carregar a página.
+              // dadoRetained=true serve apenas para indicar visualmente que é dado antigo —
+              // os valores reais são exibidos na interface.
               dadoRetained = true;
               let sensorOK = payload.sensor_ok;
               const distancia = parseFloat(payload.distance);
@@ -1335,7 +1360,17 @@
               }
               payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
               processarDados(payload, sensorOK, true);
-              // NÃO atualiza lastDataMessageTime, lastReceptorStatusTime nem transmitterActive
+
+              // CORREÇÃO: inicializa lastDataMessageTime com o tempo do dado retained,
+              // descontando a idade estimada (usa timestamp do payload se disponível).
+              // Isso evita que o timeout do transmissor dispare imediatamente após o load.
+              if (lastDataMessageTime === null) {
+                // Usa timestamp do payload se disponível (millis() do ESP32 — relativo, não epoch)
+                // Como não temos epoch real, usamos "agora - 1 ciclo de sleep" como estimativa conservadora
+                lastDataMessageTime = Date.now() - 35000; // 35s atrás — dentro do timeout de 120s
+                secondsWithoutData = 35;
+                adicionarLog('📦 Dado retido carregado — aguardando próximo ciclo ao vivo', 'warning');
+              }
 
             } else {
               // ── DADO AO VIVO (não retained) ──
