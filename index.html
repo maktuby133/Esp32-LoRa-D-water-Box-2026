@@ -872,6 +872,7 @@
     let leiturasConsecutivasErradas = 0;
     let ultimoValorValido = null;
     let pageHiddenAt = null;
+    let dadoRetained = false;  // true enquanto só há dado retained — sem confirmação ao vivo
 
     // ==================== FUNÇÕES AUXILIARES ====================
     function calcularQualidadeSinal(rssi) {
@@ -881,19 +882,6 @@
       if (rssi >= -100) return 40;
       if (rssi >= -110) return 20;
       return 10;
-    }
-
-    function limparIndicadoresSinal() {
-      // Zera indicadores que dependem de conexão ativa — não mostrar dados obsoletos
-      const bars = document.querySelectorAll('.signal-bar-item');
-      bars.forEach(bar => bar.classList.remove('active'));
-      document.getElementById('signalText').textContent = '--';
-      document.getElementById('wifiRssi').textContent = '-- dBm';
-      document.getElementById('lastUpdate').textContent = '--:--:--';
-      const fill = document.getElementById('batFill');
-      const lbl  = document.getElementById('batPercLabel');
-      if (fill) fill.style.width = '0%';
-      if (lbl)  lbl.textContent = '--%';
     }
 
     function zerarInterfaceOffline(motivo) {
@@ -1112,41 +1100,60 @@
         document.getElementById('currentLevel').textContent = currentData.level + '*';
       } else {
         water.style.height = pct + '%';
-        water.textContent = pct + '%';
+        water.textContent = dadoRetained ? pct + '% *' : pct + '%';
         water.className = 'water';
+        if (dadoRetained) water.style.opacity = '0.6';
+        else              water.style.opacity = '1';
         if (pct <= 10) water.classList.add('critical');
         else if (pct <= 25) water.classList.add('low');
         else if (pct <= 50) water.classList.add('medium');
         else if (pct <= 80) water.classList.add('good');
         else water.classList.add('full');
-        document.getElementById('currentVolume').textContent = currentData.liters;
-        document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1);
-        document.getElementById('currentLevel').textContent = currentData.level;
-        document.getElementById('sensorStatus').textContent = 'OK';
-        document.getElementById('sensorStatus').className = 'status-value online';
+        document.getElementById('currentVolume').textContent = dadoRetained ? currentData.liters + '*' : currentData.liters;
+        document.getElementById('currentDistance').textContent = dadoRetained ? currentData.distance.toFixed(1) + '*' : currentData.distance.toFixed(1);
+        document.getElementById('currentLevel').textContent = dadoRetained ? currentData.level + '*' : currentData.level;
+        if (dadoRetained) {
+          document.getElementById('sensorStatus').textContent = 'Antigo';
+          document.getElementById('sensorStatus').className = 'status-value warning';
+        } else {
+          document.getElementById('sensorStatus').textContent = 'OK';
+          document.getElementById('sensorStatus').className = 'status-value online';
+        }
         document.getElementById('sensorStatusItem').classList.remove('sensor-error');
         document.getElementById('volumeCard').classList.remove('error');
         document.getElementById('distanceCard').classList.remove('error');
         document.getElementById('levelCard').classList.remove('error');
       }
       document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
-      document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
-      document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
-      const bars = document.querySelectorAll('.signal-bar-item');
-      const activeBars = Math.ceil((currentData.quality / 100) * 5);
-      bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
-      document.getElementById('signalText').textContent = currentData.quality + '%';
-      const pctBat = currentData.batPercent || 0;
-      const vBat   = currentData.batVoltage || 0;
-      const fill   = document.getElementById('batFill');
-      const lbl    = document.getElementById('batPercLabel');
-      if (fill && lbl) {
-        fill.style.width = pctBat + '%';
-        if      (pctBat <= 15) fill.style.background = '#e63946';
-        else if (pctBat <= 35) fill.style.background = '#ff9e00';
-        else                   fill.style.background = '#38b000';
-        lbl.textContent = pctBat + '%';
-        lbl.title = vBat.toFixed(2) + 'V';
+      if (dadoRetained) {
+        document.getElementById('wifiRssi').textContent = '-- dBm';
+        document.getElementById('lastUpdate').textContent = '--:--:--';
+        const bars = document.querySelectorAll('.signal-bar-item');
+        bars.forEach(bar => bar.classList.remove('active'));
+        document.getElementById('signalText').textContent = '--';
+        const fill = document.getElementById('batFill');
+        const lbl  = document.getElementById('batPercLabel');
+        if (fill) fill.style.width = '0%';
+        if (lbl)  lbl.textContent = '--%';
+      } else {
+        document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
+        const bars = document.querySelectorAll('.signal-bar-item');
+        const activeBars = Math.ceil((currentData.quality / 100) * 5);
+        bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
+        document.getElementById('signalText').textContent = currentData.quality + '%';
+        const pctBat = currentData.batPercent || 0;
+        const vBat   = currentData.batVoltage || 0;
+        const fill   = document.getElementById('batFill');
+        const lbl    = document.getElementById('batPercLabel');
+        if (fill && lbl) {
+          fill.style.width = pctBat + '%';
+          if      (pctBat <= 15) fill.style.background = '#e63946';
+          else if (pctBat <= 35) fill.style.background = '#ff9e00';
+          else                   fill.style.background = '#38b000';
+          lbl.textContent = pctBat + '%';
+          lbl.title = vBat.toFixed(2) + 'V';
+        }
       }
     }
 
@@ -1308,6 +1315,7 @@
 
             if (isCached || isRetained) {
               // ── DADO EM CACHE / RETAINED ──
+              dadoRetained = true;
               let sensorOK = payload.sensor_ok;
               const distancia = parseFloat(payload.distance);
               const percentual = parseInt(payload.percentage);
@@ -1319,12 +1327,11 @@
               }
               payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
               processarDados(payload, sensorOK, true);
-              // Limpa indicadores de sinal — retained não reflete estado atual
-              limparIndicadoresSinal();
               // NÃO atualiza lastDataMessageTime, lastReceptorStatusTime nem transmitterActive
 
             } else {
               // ── DADO AO VIVO (não retained) ──
+              dadoRetained = false;
               lastDataMessageTime = Date.now();
               secondsWithoutData = 0;
               // NÃO atualiza lastReceptorStatusTime — apenas o heartbeat faz isso
