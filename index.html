@@ -1282,12 +1282,19 @@
             }
           }
           if (topic === TOPICS.dados) {
-            lastReceptorContactTime = Date.now();  // qualquer dado = receptor está vivo
-            if (!receptorOnline) atualizarStatusReceptor(true, 'Online');  // cached ou ao vivo — receptor está ligado
             const isCached = payload.cached === true;
+            const isRetained = packet && packet.retain;
 
-            if (isCached) {
-              // ── DADO EM CACHE ──
+            // Dado retained (cached ou ao vivo antigo): mostra valores na tela mas
+            // NÃO marca receptor como online nem atualiza lastReceptorContactTime.
+            // Só dado ao vivo (não retained) prova que o receptor está ligado agora.
+            if (!isRetained) {
+              lastReceptorContactTime = Date.now();
+              if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
+            }
+
+            if (isCached || isRetained) {
+              // ── DADO EM CACHE / RETAINED ──
               let sensorOK = payload.sensor_ok;
               const distancia = parseFloat(payload.distance);
               const percentual = parseInt(payload.percentage);
@@ -1302,7 +1309,7 @@
               // NÃO atualiza lastDataMessageTime, lastReceptorStatusTime nem transmitterActive
 
             } else {
-              // ── DADO AO VIVO ──
+              // ── DADO AO VIVO (não retained) ──
               lastDataMessageTime = Date.now();
               secondsWithoutData = 0;
               // NÃO atualiza lastReceptorStatusTime — apenas o heartbeat faz isso
