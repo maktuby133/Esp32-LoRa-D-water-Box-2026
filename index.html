@@ -286,6 +286,7 @@
     }
 
     @keyframes wave { 0% { transform: translateX(0) rotate(0deg); } 100% { transform: translateX(-50%) rotate(360deg); } }
+    @keyframes spin  { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
     .water.critical { background: linear-gradient(to top, #dc2626, #ef4444); animation: pulse-red 1s infinite; }
     .water.low { background: linear-gradient(to top, #ea580c, #fb923c); }
@@ -692,8 +693,15 @@
     <div class="header">
       <h1><i class="fas fa-water"></i> Monitor de Caixa d'Água</h1>
       <span class="device-badge" id="deviceBadge" onclick="trocarDispositivo()" title="Clique para trocar"><i class="fas fa-microchip"></i> <span id="deviceBadgeText">--</span></span>
-      <div class="mqtt-badge connecting" id="mqttStatus">
-        <i class="fas fa-broadcast-tower"></i> <span>Conectando...</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px;">
+        <div class="mqtt-badge connecting" id="mqttStatus">
+          <i class="fas fa-broadcast-tower"></i> <span>Conectando...</span>
+        </div>
+        <div id="autoRefreshBadge" style="display:inline-flex;align-items:center;gap:5px;background:#e3f2fd;color:#023e8a;padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;border:1px solid #90caf9;cursor:pointer;" onclick="toggleAutoRefresh()" title="Clique para ativar/desativar">
+          <i class="fas fa-sync-alt" id="autoRefreshIcon"></i>
+          <span id="autoRefreshLabel">Auto: OFF</span>
+          <span id="autoRefreshCountdown" style="font-size:0.68rem;opacity:0.8;"></span>
+        </div>
       </div>
     </div>
 
@@ -1320,6 +1328,7 @@
       });
       client.on('message', (topic, message, packet) => {
         try {
+          lastAnyMessageTime = Date.now(); // watchdog — prova que MQTT está vivo
           const payload = JSON.parse(message.toString());
 
           // CORREÇÃO: Aceita heartbeat retained do /status para restaurar estado do receptor
@@ -1501,17 +1510,128 @@
       console.log('deviceMac:', deviceMac);
     }
 
+    // ==================== AUTO-REFRESH ====================
+    const AUTO_REFRESH_KEY     = 'autoRefreshEnabled';
+    const AUTO_REFRESH_INTERVAL = 60;   // segundos entre cada refresh automático
+    let autoRefreshEnabled  = false;
+    let autoRefreshTimer    = null;
+    let autoRefreshSeconds  = AUTO_REFRESH_INTERVAL;
+
+    function iniciarAutoRefresh() {
+      // Restaura preferência salva
+      try {
+        autoRefreshEnabled = localStorage.getItem(AUTO_REFRESH_KEY) === 'true';
+      } catch(e) { autoRefreshEnabled = false; }
+      atualizarBadgeAutoRefresh();
+      if (autoRefreshEnabled) iniciarContagemAutoRefresh();
+    }
+
+    function toggleAutoRefresh() {
+      autoRefreshEnabled = !autoRefreshEnabled;
+      try { localStorage.setItem(AUTO_REFRESH_KEY, autoRefreshEnabled); } catch(e) {}
+      atualizarBadgeAutoRefresh();
+      if (autoRefreshEnabled) {
+        autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
+        iniciarContagemAutoRefresh();
+        adicionarLog(`🔄 Auto-refresh ativado (${AUTO_REFRESH_INTERVAL}s)`);
+      } else {
+        if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+        adicionarLog('⏹️ Auto-refresh desativado');
+      }
+    }
+
+    function atualizarBadgeAutoRefresh() {
+      const badge    = document.getElementById('autoRefreshBadge');
+      const label    = document.getElementById('autoRefreshLabel');
+      const icon     = document.getElementById('autoRefreshIcon');
+      const countdown = document.getElementById('autoRefreshCountdown');
+      if (autoRefreshEnabled) {
+        badge.style.background  = '#d4edda';
+        badge.style.color       = '#155724';
+        badge.style.borderColor = '#c3e6cb';
+        label.textContent       = 'Auto: ON';
+        icon.style.animation    = 'spin 2s linear infinite';
+        countdown.textContent   = autoRefreshSeconds + 's';
+      } else {
+        badge.style.background  = '#e3f2fd';
+        badge.style.color       = '#023e8a';
+        badge.style.borderColor = '#90caf9';
+        label.textContent       = 'Auto: OFF';
+        icon.style.animation    = 'none';
+        countdown.textContent   = '';
+      }
+    }
+
+    function iniciarContagemAutoRefresh() {
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
+      autoRefreshTimer = setInterval(() => {
+        if (document.hidden) {
+          // Não recarrega se a aba está em segundo plano — reseta o contador
+          autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
+          return;
+        }
+        autoRefreshSeconds--;
+        document.getElementById('autoRefreshCountdown').textContent = autoRefreshSeconds + 's';
+        if (autoRefreshSeconds <= 0) {
+          adicionarLog('🔄 Recarregando página automaticamente...');
+          setTimeout(() => location.reload(), 300);
+        }
+      }, 1000);
+    }
+
+    // ==================== WATCHDOG MQTT ====================
+    // Detecta congelamento: se o MQTT estiver conectado mas sem nenhuma mensagem
+    // por mais de 3× o intervalo esperado, reconecta automaticamente sem recarregar.
+    const MQTT_WATCHDOG_INTERVAL = 180000; // 3 min sem nenhuma mensagem = reconecta
+    let lastAnyMessageTime = null;
+    let mqttWatchdogTimer  = null;
+
+    function iniciarMqttWatchdog() {
+      if (mqttWatchdogTimer) clearInterval(mqttWatchdogTimer);
+      mqttWatchdogTimer = setInterval(() => {
+        if (!client || document.hidden) return;
+        // Se MQTT desconectou, a biblioteca já tenta reconectar — não precisa fazer nada
+        if (!client.connected) return;
+        // Se nunca recebeu mensagem, não há o que checar ainda
+        if (!lastAnyMessageTime) return;
+        const semMensagem = Date.now() - lastAnyMessageTime;
+        if (semMensagem > MQTT_WATCHDOG_INTERVAL) {
+          adicionarLog('⚠️ Watchdog: sem mensagens por ' + Math.floor(semMensagem/60000) + 'min — reconectando MQTT...', 'warning');
+          try {
+            client.end(true, () => {
+              setTimeout(() => connectMQTT(), 1000);
+            });
+          } catch(e) {
+            connectMQTT();
+          }
+          lastAnyMessageTime = Date.now(); // evita reconexões em loop
+        }
+      }, 30000); // verifica a cada 30s
+    }
+
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) pageHiddenAt = Date.now();
-      else if (pageHiddenAt !== null) {
+      if (document.hidden) {
+        pageHiddenAt = Date.now();
+      } else if (pageHiddenAt !== null) {
         const hiddenFor = Date.now() - pageHiddenAt;
-        if (lastDataMessageTime) lastDataMessageTime += hiddenFor;
+        if (lastDataMessageTime)    lastDataMessageTime    += hiddenFor;
         if (lastReceptorStatusTime) lastReceptorStatusTime += hiddenFor;
+        if (lastAnyMessageTime)     lastAnyMessageTime     += hiddenFor;
+        if (lastReceptorContactTime) lastReceptorContactTime += hiddenFor;
+        // Reseta contagem do auto-refresh ao voltar para a aba
+        if (autoRefreshEnabled) {
+          autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
+          document.getElementById('autoRefreshCountdown').textContent = autoRefreshSeconds + 's';
+        }
         pageHiddenAt = null;
       }
     });
 
     iniciarTela();
+    iniciarAutoRefresh();
+    iniciarMqttWatchdog();
   </script>
 </body>
 </html>
