@@ -208,27 +208,6 @@
     .signal-bar-item:nth-child(4) { height: 13px; }
     .signal-bar-item:nth-child(5) { height: 16px; }
 
-    /* ── CONTAGEM REGRESSIVA PRÓXIMA LEITURA ────────────── */
-    #nextReadingBar {
-      height: 3px;
-      background: #e9ecef;
-      border-radius: 2px;
-      margin-top: 4px;
-      overflow: hidden;
-    }
-    #nextReadingProgress {
-      height: 100%;
-      background: linear-gradient(90deg, var(--primary), var(--secondary));
-      border-radius: 2px;
-      transition: width 1s linear;
-      width: 0%;
-    }
-    #nextReadingLabel {
-      font-size: 0.65rem;
-      color: var(--gray);
-      text-align: center;
-      margin-top: 2px;
-    }
 
     .alert-banner {
       display: none;
@@ -454,20 +433,7 @@
 
     .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-shrink: 0; }
 
-    .debug-btn {
-      position: fixed;
-      bottom: 20px; right: 20px;
-      width: 50px; height: 50px;
-      border-radius: 50%;
-      background: var(--primary);
-      color: white;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      transition: all 0.3s;
-      z-index: 1000;
-    }
-    .debug-btn:hover { transform: scale(1.1); background: var(--primary-dark); }
+
 
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
     .modal.show { display: flex; }
@@ -510,8 +476,6 @@
     .device-badge { display: inline-flex; align-items: center; gap: 5px; background: #e3f2fd; color: #023e8a; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; cursor: pointer; border: 1px solid #90caf9; transition: all 0.2s; }
     .device-badge:hover { background: #bbdefb; }
 
-    #autoRefreshBadge { display:inline-flex;align-items:center;gap:5px;background:#e3f2fd;color:#023e8a;padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;border:1px solid #90caf9;cursor:pointer; }
-
     /* ── BADGE "dado em cache" ─────────────────────────── */
     #cacheBadge { display:none; align-items:center; gap:5px; background:#fff3cd; color:#856404; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; border:1px solid #ffc107; }
     #cacheBadge.show { display:inline-flex; }
@@ -534,7 +498,6 @@
       .signal-dbm { font-size: 0.72rem; min-width: 38px; }
       .signal-percent { font-size: 0.72rem; }
       .alert-banner { font-size: 0.78rem; padding: 7px 10px; }
-      .debug-btn { width: 42px; height: 42px; bottom: 12px; right: 12px; }
       #mqttDiagBanner { font-size: 0.75rem; word-break: break-word; }
       #mqttDiagBanner code { font-size: 0.68rem; word-break: break-all; }
     }
@@ -591,17 +554,6 @@
         <span id="cacheBadge"><i class="fas fa-database"></i> Dado retido</span>
         <!-- Hora da última atualização em destaque -->
         <span id="lastUpdateBig"><i class="fas fa-clock"></i> <span id="lastUpdateBigText">aguardando...</span></span>
-      </div>
-      <!-- Barra de progresso: próxima leitura esperada em ~10s -->
-      <div id="nextReadingBar"><div id="nextReadingProgress"></div></div>
-      <div id="nextReadingLabel"></div>
-      <!-- Auto refresh -->
-      <div style="margin-top:4px;">
-        <div id="autoRefreshBadge" onclick="toggleAutoRefresh()" title="Clique para ativar/desativar">
-          <i class="fas fa-sync-alt" id="autoRefreshIcon"></i>
-          <span id="autoRefreshLabel">Auto: OFF</span>
-          <span id="autoRefreshCountdown" style="font-size:0.68rem;opacity:0.8;"></span>
-        </div>
       </div>
     </div>
 
@@ -753,9 +705,6 @@
     </div>
   </div>
 
-  <button class="debug-btn" onclick="debugData()" title="Debug">
-    <i class="fas fa-bug"></i>
-  </button>
 
   <script>
   // ╔══════════════════════════════════════════════════════╗
@@ -784,7 +733,6 @@
   const SLEEP_SECONDS        = 10;          // ← sincronizado com o firmware
   const TRANSMITTER_TIMEOUT  = 60000;       // 60s = 5 ciclos de 10s
   const RECEPTOR_TIMEOUT     = 90000;       // 90s = 3× heartbeat de 30s
-  const NEXT_READING_WINDOW  = SLEEP_SECONDS * 1000; // ms
 
   let client                 = null;
   let chart                  = null;
@@ -804,9 +752,6 @@
   let pageHiddenAt           = null;
   let dadoRetained           = false;
 
-  // Barra de progresso "próxima leitura"
-  let nextReadingTimer       = null;
-  let nextReadingSeconds     = 0;
 
   // ── Loading overlay ──────────────────────────────────
   function ocultarLoading(motivo) {
@@ -816,27 +761,6 @@
     setTimeout(() => ov.classList.add('hidden'), 300);
   }
 
-  // ── Barra de progresso: próxima leitura ──────────────
-  function iniciarBarraProximaLeitura() {
-    if (nextReadingTimer) clearInterval(nextReadingTimer);
-    nextReadingSeconds = 0;
-    const bar   = document.getElementById('nextReadingProgress');
-    const label = document.getElementById('nextReadingLabel');
-    nextReadingTimer = setInterval(() => {
-      if (document.hidden) return;
-      nextReadingSeconds++;
-      const pct = Math.min((nextReadingSeconds / SLEEP_SECONDS) * 100, 100);
-      bar.style.width = pct + '%';
-      const restante = Math.max(SLEEP_SECONDS - nextReadingSeconds, 0);
-      label.textContent = restante > 0
-        ? `Próxima leitura em ~${restante}s`
-        : 'Aguardando próxima leitura...';
-      // Quando ultrapassar muito o ciclo, pisca amarelo
-      if (nextReadingSeconds > SLEEP_SECONDS * 3) {
-        bar.style.background = 'linear-gradient(90deg, #ff9e00, #fbbf24)';
-      }
-    }, 1000);
-  }
 
   // ── Última atualização em destaque ───────────────────
   function atualizarLastUpdateBig(hora, isCached) {
@@ -1343,9 +1267,6 @@
             lastDataMessageTime    = Date.now();
             secondsWithoutData     = 0;
 
-            // Inicia barra de progresso para próxima leitura esperada
-            iniciarBarraProximaLeitura();
-
             let sensorOK     = payload.sensor_ok;
             const distancia  = parseFloat(payload.distance);
             const percentual = parseInt(payload.percentage);
@@ -1447,80 +1368,6 @@
     alert(msg);
   }
 
-  function debugData() {
-    console.log('=== DEBUG ===');
-    console.log('receptorOnline:', receptorOnline, 'transmitterActive:', transmitterActive);
-    console.log('SLEEP_SECONDS:', SLEEP_SECONDS, 'TRANSMITTER_TIMEOUT:', TRANSMITTER_TIMEOUT+'ms');
-    console.log('lastDataMessageTime:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : null);
-    console.log('lastReceptorContactTime:', lastReceptorContactTime ? new Date(lastReceptorContactTime).toLocaleTimeString() : null);
-    console.log('dadoRetained:', dadoRetained, 'deviceMac:', deviceMac);
-  }
-
-  // ╔══════════════════════════════════════════════════════╗
-  // ║               AUTO-REFRESH                           ║
-  // ╚══════════════════════════════════════════════════════╝
-  const AUTO_REFRESH_KEY      = 'autoRefreshEnabled';
-  const AUTO_REFRESH_INTERVAL = 60;
-  let autoRefreshEnabled  = false;
-  let autoRefreshTimer    = null;
-  let autoRefreshSeconds  = AUTO_REFRESH_INTERVAL;
-
-  function iniciarAutoRefresh() {
-    try { autoRefreshEnabled = localStorage.getItem(AUTO_REFRESH_KEY) === 'true'; } catch(e) {}
-    atualizarBadgeAutoRefresh();
-    if (autoRefreshEnabled) iniciarContagemAutoRefresh();
-  }
-
-  function toggleAutoRefresh() {
-    autoRefreshEnabled = !autoRefreshEnabled;
-    try { localStorage.setItem(AUTO_REFRESH_KEY, autoRefreshEnabled); } catch(e) {}
-    atualizarBadgeAutoRefresh();
-    if (autoRefreshEnabled) {
-      autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
-      iniciarContagemAutoRefresh();
-      adicionarLog(`🔄 Auto-refresh ativado (${AUTO_REFRESH_INTERVAL}s)`);
-    } else {
-      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-      autoRefreshTimer = null;
-      adicionarLog('⏹️ Auto-refresh desativado');
-    }
-  }
-
-  function atualizarBadgeAutoRefresh() {
-    const badge    = document.getElementById('autoRefreshBadge');
-    const label    = document.getElementById('autoRefreshLabel');
-    const icon     = document.getElementById('autoRefreshIcon');
-    const countdown = document.getElementById('autoRefreshCountdown');
-    if (autoRefreshEnabled) {
-      badge.style.background  = '#d4edda';
-      badge.style.color       = '#155724';
-      badge.style.borderColor = '#c3e6cb';
-      label.textContent       = 'Auto: ON';
-      icon.style.animation    = 'spin 2s linear infinite';
-      countdown.textContent   = autoRefreshSeconds + 's';
-    } else {
-      badge.style.background  = '#e3f2fd';
-      badge.style.color       = '#023e8a';
-      badge.style.borderColor = '#90caf9';
-      label.textContent       = 'Auto: OFF';
-      icon.style.animation    = 'none';
-      countdown.textContent   = '';
-    }
-  }
-
-  function iniciarContagemAutoRefresh() {
-    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-    autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
-    autoRefreshTimer = setInterval(() => {
-      if (document.hidden) { autoRefreshSeconds = AUTO_REFRESH_INTERVAL; return; }
-      autoRefreshSeconds--;
-      document.getElementById('autoRefreshCountdown').textContent = autoRefreshSeconds + 's';
-      if (autoRefreshSeconds <= 0) {
-        adicionarLog('🔄 Recarregando página automaticamente...');
-        setTimeout(() => location.reload(), 300);
-      }
-    }, 1000);
-  }
 
   // ╔══════════════════════════════════════════════════════╗
   // ║        WATCHDOG MQTT (reconexão silenciosa)          ║
@@ -1554,17 +1401,12 @@
       if (lastReceptorStatusTime)  lastReceptorStatusTime  += hiddenFor;
       if (lastAnyMessageTime)      lastAnyMessageTime      += hiddenFor;
       if (lastReceptorContactTime) lastReceptorContactTime += hiddenFor;
-      if (autoRefreshEnabled) {
-        autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
-        document.getElementById('autoRefreshCountdown').textContent = autoRefreshSeconds + 's';
-      }
       pageHiddenAt = null;
     }
   });
 
   // ── BOOT ─────────────────────────────────────────────
   iniciarTela();
-  iniciarAutoRefresh();
   iniciarMqttWatchdog();
   </script>
 </body>
