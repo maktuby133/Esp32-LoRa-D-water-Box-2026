@@ -3,16 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>🌊 Monitor Caixa d'Água - HiveMQ</title>
+  <title>🌊 Monitor Caixa d'Água</title>
   
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
-    /* ========== SEU CSS ORIGINAL COMPLETO (COLE AQUI) ========== */
-    /* Por brevidade, estou reutilizando o CSS do último código enviado.
-       Se preferir, mantenha exatamente o mesmo que você já tinha. */
     :root {
       --primary: #0077b6;
       --primary-dark: #023e8a;
@@ -36,6 +33,47 @@
       padding: 6px;
       color: var(--dark);
     }
+
+    /* ── SKELETON LOADING ─────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position:  400px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+      display: inline-block;
+    }
+    .skeleton-text  { height: 14px; width: 60px; }
+    .skeleton-value { height: 18px; width: 40px; }
+
+    /* ── LOADING OVERLAY ─────────────────────────────── */
+    #loadingOverlay {
+      position: fixed; inset: 0;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(4px);
+      z-index: 8000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      transition: opacity 0.4s ease;
+    }
+    #loadingOverlay.hidden { opacity: 0; pointer-events: none; }
+    .loading-spinner {
+      width: 48px; height: 48px;
+      border: 4px solid #e9ecef;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .loading-text { color: var(--primary-dark); font-weight: 600; font-size: 0.95rem; }
+    .loading-sub  { color: var(--gray); font-size: 0.78rem; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .container {
       max-width: 1400px; margin: 0 auto;
@@ -84,9 +122,25 @@
       margin-top: 5px;
       transition: all 0.3s;
     }
-
     .mqtt-badge.disconnected { background: var(--danger); }
-    .mqtt-badge.connecting { background: var(--warning); }
+    .mqtt-badge.connecting   { background: var(--warning); }
+
+    /* ── ÚLTIMA ATUALIZAÇÃO em destaque ─────────────────── */
+    #lastUpdateBig {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #f0f4ff;
+      color: var(--primary-dark);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-top: 4px;
+      border: 1px solid #c7d9ff;
+      transition: all 0.3s;
+    }
+    #lastUpdateBig.fresh { background: #d4edda; color: #155724; border-color: #c3e6cb; }
 
     .btn {
       padding: 8px 16px;
@@ -100,16 +154,14 @@
       align-items: center;
       gap: 6px;
     }
-
     .btn-reboot {
       background: var(--danger);
       color: white;
     }
-
     .btn-reboot:hover {
       background: #d62839;
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(230, 57, 70, 0.3);
+      box-shadow: 0 4px 12px rgba(230,57,70,0.3);
     }
 
     .status-panel {
@@ -119,7 +171,6 @@
       flex-shrink: 0;
       margin-top: 6px;
     }
-
     .status-item {
       display: flex;
       flex-direction: row;
@@ -133,15 +184,15 @@
       min-width: 0;
       white-space: nowrap;
       overflow: hidden;
+      transition: all 0.3s;
     }
-
     .status-label { font-weight:600; color:var(--gray); font-size:0.52rem; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:1; }
     .status-value { font-weight:700; font-size:0.7rem; text-align:right; white-space:nowrap; flex-shrink:0; }
 
-    .online { color: var(--success); }
-    .offline { color: var(--danger); animation: blink 1.5s infinite; }
-    .warning { color: var(--warning); }
-    .sensor-error { color: var(--danger); animation: blink 1.5s infinite; }
+    .online        { color: var(--success); }
+    .offline       { color: var(--danger); animation: blink 1.5s infinite; }
+    .warning-color { color: var(--warning); }
+    .sensor-error  { color: var(--danger); animation: blink 1.5s infinite; }
 
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
@@ -157,6 +208,28 @@
     .signal-bar-item:nth-child(4) { height: 13px; }
     .signal-bar-item:nth-child(5) { height: 16px; }
 
+    /* ── CONTAGEM REGRESSIVA PRÓXIMA LEITURA ────────────── */
+    #nextReadingBar {
+      height: 3px;
+      background: #e9ecef;
+      border-radius: 2px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    #nextReadingProgress {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      border-radius: 2px;
+      transition: width 1s linear;
+      width: 0%;
+    }
+    #nextReadingLabel {
+      font-size: 0.65rem;
+      color: var(--gray);
+      text-align: center;
+      margin-top: 2px;
+    }
+
     .alert-banner {
       display: none;
       padding: 5px 12px;
@@ -167,10 +240,9 @@
       animation: slideInDown 0.5s ease, pulse-border 2s infinite;
     }
     .alert-banner.show { display: block; }
-    .alert-transmitter { background: #fecaca; color: #7f1d1d; border: 2px solid #ef4444; }
-    .alert-receptor { background: #fee2e2; color: #991b1b; border: 2px solid #f87171; }
-    .alert-sensor { background: #fef3c7; color: #92400e; border: 2px solid #fbbf24; }
-    .alert-wrong-device { background: #e0e7ff; color: #1e3a8a; border: 2px solid #3b82f6; }
+    .alert-transmitter  { background: #fecaca; color: #7f1d1d; border: 2px solid #ef4444; }
+    .alert-receptor     { background: #fee2e2; color: #991b1b; border: 2px solid #f87171; }
+    .alert-sensor       { background: #fef3c7; color: #92400e; border: 2px solid #fbbf24; }
 
     @keyframes slideInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulse-border { 0%, 100% { border-width: 2px; } 50% { border-width: 4px; } }
@@ -184,7 +256,6 @@
       align-items: stretch;
       height: 370px;
     }
-
     @media (max-width: 600px) { 
       .main-content { grid-template-columns: 1fr; height: auto; }
     }
@@ -199,7 +270,6 @@
       overflow: hidden;
       min-height: 0;
     }
-
     .card-header {
       text-align: center;
       margin-bottom: 8px;
@@ -223,7 +293,6 @@
       align-items: center;
       justify-content: center;
     }
-
     .tank-image {
       position: absolute;
       top: 50%; left: 50%;
@@ -234,7 +303,6 @@
       pointer-events: none;
       filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
     }
-
     .tank {
       position: absolute;
       left: 50%; transform: translateX(-50%);
@@ -243,16 +311,15 @@
       border-radius: 12px;
       overflow: hidden;
       z-index: 2;
-      background: rgba(20, 40, 60, 0.30);
+      background: rgba(20,40,60,0.30);
       backdrop-filter: blur(1px);
       box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
     }
-
     .water {
       position: absolute;
       bottom: 0; width: 100%;
       background: linear-gradient(to top, var(--water-deep) 0%, var(--water-blue) 100%);
-      transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: height 1.2s cubic-bezier(0.4,0,0.2,1);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -264,7 +331,6 @@
       min-height: 20px;
       overflow: hidden;
     }
-
     .water::before {
       content: '';
       position: absolute;
@@ -274,7 +340,6 @@
       border-radius: 40%;
       animation: wave 2s infinite linear;
     }
-
     .water::after {
       content: '';
       position: absolute;
@@ -284,63 +349,28 @@
       border-radius: 40%;
       animation: wave 3s infinite linear reverse;
     }
-
     @keyframes wave { 0% { transform: translateX(0) rotate(0deg); } 100% { transform: translateX(-50%) rotate(360deg); } }
-    @keyframes spin  { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    .water.critical { background: linear-gradient(to top, #dc2626, #ef4444); animation: pulse-red 1s infinite; }
-    .water.low { background: linear-gradient(to top, #ea580c, #fb923c); }
-    .water.medium { background: linear-gradient(to top, #ca8a04, #fbbf24); }
-    .water.good { background: linear-gradient(to top, #0284c7, #38bdf8); }
-    .water.full { background: linear-gradient(to top, #0369a1, #0ea5e9); }
-    .water.sensor-error { 
-      background: linear-gradient(to top, #7f1d1d, #dc2626) !important; 
-      animation: pulse-red 0.5s infinite; 
-    }
-    .water.offline-receptor { 
-      background: linear-gradient(to top, #374151, #6b7280) !important; 
-      height: 0% !important;
-      animation: none;
-    }
-    .water.offline-transmitter { 
-      background: linear-gradient(to top, #451a1a, #7f1d1d) !important; 
-      height: 0% !important;
-      animation: none;
-    }
-    .water.aguardando {
-      background: linear-gradient(to top, #374151, #6b7280) !important;
-      height: 32px !important;
-      animation: none;
-      font-size: 0.7rem;
-      opacity: 0.7;
-    }
+    .water.critical    { background: linear-gradient(to top, #dc2626, #ef4444); animation: pulse-red 1s infinite; }
+    .water.low         { background: linear-gradient(to top, #ea580c, #fb923c); }
+    .water.medium      { background: linear-gradient(to top, #ca8a04, #fbbf24); }
+    .water.good        { background: linear-gradient(to top, #0284c7, #38bdf8); }
+    .water.full        { background: linear-gradient(to top, #0369a1, #0ea5e9); }
+    .water.sensor-error { background: linear-gradient(to top, #7f1d1d, #dc2626) !important; animation: pulse-red 0.5s infinite; }
+    .water.offline-receptor   { background: linear-gradient(to top, #374151, #6b7280) !important; height: 0% !important; animation: none; }
+    .water.offline-transmitter { background: linear-gradient(to top, #451a1a, #7f1d1d) !important; height: 0% !important; animation: none; }
+    .water.aguardando  { background: linear-gradient(to top, #374151, #6b7280) !important; height: 32px !important; animation: none; font-size: 0.7rem; opacity: 0.7; }
 
     @keyframes pulse-red { 
-      0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(220, 38, 38, 0.5); } 
-      50% { opacity: 0.8; box-shadow: 0 0 20px rgba(220, 38, 38, 0.8); } 
+      0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(220,38,38,0.5); } 
+      50%       { opacity: 0.8; box-shadow: 0 0 20px rgba(220,38,38,0.8); } 
     }
 
-    .tank-marks {
-      position: absolute;
-      left: 50%; transform: translateX(-50%);
-      width: 70px;
-      top: 40px; bottom: 48px;
-      z-index: 3;
-      pointer-events: none;
-    }
-    .tank-mark {
-      position: absolute;
-      right: -32px;
-      font-size: 0.65rem;
-      color: var(--gray);
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
+    .tank-marks { position: absolute; left: 50%; transform: translateX(-50%); width: 70px; top: 40px; bottom: 48px; z-index: 3; pointer-events: none; }
+    .tank-mark { position: absolute; right: -32px; font-size: 0.65rem; color: var(--gray); font-weight: 600; display: flex; align-items: center; gap: 4px; }
     .tank-mark::before { content: ''; width: 8px; height: 1px; background: var(--gray); }
-    .tank-mark.top { top: 0; }
-    .tank-mark.mid { top: 50%; transform: translateY(-50%); }
+    .tank-mark.top    { top: 0; }
+    .tank-mark.mid    { top: 50%; transform: translateY(-50%); }
     .tank-mark.bottom { bottom: 0; }
 
     .info-grid {
@@ -350,7 +380,6 @@
       margin-top: 0;
       flex-shrink: 0;
     }
-
     .info-card {
       background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
       padding: 1px 4px;
@@ -363,64 +392,43 @@
       flex-direction: column;
       justify-content: center;
     }
-    .info-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-      border-color: var(--primary);
-      background: white;
-    }
-    .info-card.error {
-      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-      border-color: var(--danger);
-      animation: pulse-border 1.5s infinite;
-    }
-    .info-card.offline {
-      background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
-      border-color: var(--gray);
-      opacity: 0.7;
-    }
+    .info-card:hover        { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-color: var(--primary); background: white; }
+    .info-card.error        { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-color: var(--danger); animation: pulse-border 1.5s infinite; }
+    .info-card.offline      { background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%); border-color: var(--gray); opacity: 0.7; }
+    .info-card.just-updated { animation: flashGreen 0.6s ease; }
+    @keyframes flashGreen { 0% { background: #d4edda; } 100% { background: linear-gradient(135deg, #f8f9fa, #e9ecef); } }
     .info-card-label { font-size: 0.58rem; color: var(--gray); font-weight: 600; text-transform: uppercase; margin-bottom: 1px; }
     .info-card-value { font-size: 0.9rem; font-weight: 700; color: var(--primary-dark); }
-    .info-card-unit { font-size: 0.65rem; color: var(--gray); }
-    .info-card.error .info-card-value { color: var(--danger); }
-    .info-card.error .info-card-label { color: var(--danger); }
+    .info-card-unit  { font-size: 0.65rem; color: var(--gray); }
+    .info-card.error .info-card-value  { color: var(--danger); }
+    .info-card.error .info-card-label  { color: var(--danger); }
     .info-card.offline .info-card-value { color: var(--gray); }
 
-    #nivelChart { display: block; width: 100% !important; }
+    #nivelChart   { display: block; width: 100% !important; }
     #chartWrapper { height: 340px; }
-
     @media (max-width: 600px) {
       #chartWrapper { height: 220px; }
-      #chartCard { height: auto !important; overflow: hidden; }
+      #chartCard    { height: auto !important; overflow: hidden; }
     }
 
-    .table-container {
-      overflow-x: auto;
-      margin-top: 6px;
-      border-radius: 8px;
-      border: 1px solid #e9ecef;
-      max-height: 200px;
-      overflow-y: auto;
-    }
+    .table-container { overflow-x: auto; margin-top: 6px; border-radius: 8px; border: 1px solid #e9ecef; max-height: 200px; overflow-y: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
     thead { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
-    th { padding: 5px 7px; text-align: left; font-weight: 600; white-space: nowrap; }
-    td { padding: 4px 7px; border-bottom: 1px solid #e9ecef; }
+    th    { padding: 5px 7px; text-align: left; font-weight: 600; white-space: nowrap; }
+    td    { padding: 4px 7px; border-bottom: 1px solid #e9ecef; }
     tbody tr:hover { background: #f8f9fa; }
     tbody tr:last-child td { border-bottom: none; }
+    /* flash de nova linha */
+    tbody tr.new-row { animation: rowFlash 0.8s ease; }
+    @keyframes rowFlash { 0% { background: #d4edda; } 100% { background: transparent; } }
 
-    .status-badge {
-      padding: 4px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      display: inline-block;
-    }
+    .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
     .badge-normal { background: #d4edda; color: #155724; }
-    .badge-error { background: #f8d7da; color: #721c24; }
+    .badge-error  { background: #f8d7da; color: #721c24; }
+    .badge-cache  { background: #fff3cd; color: #856404; }
 
-    .signal-cell { display: flex; align-items: center; gap: 8px; }
-    .signal-dbm { font-weight: 700; font-size: 0.85rem; color: var(--primary-dark); min-width: 45px; }
+    .signal-cell    { display: flex; align-items: center; gap: 8px; }
+    .signal-dbm     { font-weight: 700; font-size: 0.85rem; color: var(--primary-dark); min-width: 45px; }
     .signal-percent { font-weight: 600; font-size: 0.85rem; color: var(--gray); }
 
     #updateHistory { max-height: 120px; overflow-y: auto; }
@@ -434,22 +442,17 @@
       display: flex;
       gap: 10px;
       font-size: 0.72rem;
+      animation: slideIn 0.3s ease;
     }
-    .update-entry.alert { background: #fee2e2; border-left-color: var(--danger); animation: pulse-alert 2s infinite; }
+    .update-entry.alert   { background: #fee2e2; border-left-color: var(--danger); animation: pulse-alert 2s infinite; }
     .update-entry.warning { background: #fef3c7; border-left-color: var(--warning); }
-    @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes slideIn    { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes pulse-alert { 0%, 100% { background: #fee2e2; } 50% { background: #fecaca; } }
-    .update-time { color: var(--primary); font-weight: 600; min-width: 60px; font-size: 0.75rem; }
+    .update-time        { color: var(--primary); font-weight: 600; min-width: 60px; font-size: 0.75rem; }
     .update-entry.alert .update-time { color: var(--danger); }
-    .update-text { color: var(--dark); flex: 1; }
+    .update-text        { color: var(--dark); flex: 1; }
 
-    .log-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      flex-shrink: 0;
-    }
+    .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-shrink: 0; }
 
     .debug-btn {
       position: fixed;
@@ -466,78 +469,52 @@
     }
     .debug-btn:hover { transform: scale(1.1); background: var(--primary-dark); }
 
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 2000;
-      align-items: center;
-      justify-content: center;
-    }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
     .modal.show { display: flex; }
-    .modal-content {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      max-width: 400px;
-      width: 90%;
-      text-align: center;
-    }
+    .modal-content { background: white; padding: 20px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; }
     .modal h3 { margin-bottom: 15px; color: var(--danger); }
-    .modal p { margin-bottom: 20px; color: var(--gray); }
+    .modal p  { margin-bottom: 20px; color: var(--gray); }
     .modal-buttons { display: flex; gap: 10px; justify-content: center; }
-    .btn-cancel { background: #e9ecef; color: var(--dark); }
+    .btn-cancel  { background: #e9ecef; color: var(--dark); }
     .btn-confirm { background: var(--danger); color: white; }
 
-    .status-item.sensor-error {
-      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-      border: 2px solid var(--danger);
-      animation: pulse-border 1.5s infinite;
-    }
+    .status-item.sensor-error { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border: 2px solid var(--danger); animation: pulse-border 1.5s infinite; }
     .status-item.sensor-error .status-label,
-    .status-item.sensor-error .status-value {
-      color: var(--danger);
-    }
+    .status-item.sensor-error .status-value { color: var(--danger); }
 
-    .bat-icon-wrap {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .bat-body {
-      position: relative;
-      width: 32px;
-      height: 16px;
-      border: 2px solid #555;
-      border-radius: 3px;
-      background: #f0f0f0;
-      overflow: hidden;
-    }
-    .bat-body::after {
-      content: '';
-      position: absolute;
-      right: -6px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 4px;
-      height: 8px;
-      background: #555;
-      border-radius: 0 2px 2px 0;
-    }
-    .bat-fill {
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      border-radius: 1px;
-      transition: width 0.6s ease, background 0.6s ease;
-    }
-    .bat-label {
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--dark);
-      min-width: 34px;
-      text-align: right;
-    }
+    .bat-icon-wrap { display: flex; align-items: center; gap: 5px; }
+    .bat-body { position: relative; width: 32px; height: 16px; border: 2px solid #555; border-radius: 3px; background: #f0f0f0; overflow: hidden; }
+    .bat-body::after { content: ''; position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 4px; height: 8px; background: #555; border-radius: 0 2px 2px 0; }
+    .bat-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; transition: width 0.6s ease, background 0.6s ease; }
+    .bat-label { font-size: 0.75rem; font-weight: 700; color: var(--dark); min-width: 34px; text-align: right; }
+
+    /* ── TELA DE CÓDIGO ───────────────────────────────── */
+    #codigoScreen { display: none; position: fixed; inset: 0; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); z-index: 9999; align-items: center; justify-content: center; padding: 20px; }
+    #codigoScreen.show { display: flex; }
+    .codigo-card { background: white; padding: 36px 32px 28px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); width: 100%; max-width: 400px; text-align: center; animation: fadeUpCard 0.4s ease; }
+    @keyframes fadeUpCard { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    .codigo-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
+    .codigo-card h2 { color: #023e8a; font-size: 1.3rem; margin-bottom: 6px; }
+    .codigo-card p  { color: #6c757d; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5; }
+    .codigo-input-wrap { position: relative; margin-bottom: 18px; }
+    .codigo-input { width: 100%; padding: 14px 16px; font-size: 1.4rem; font-weight: 700; letter-spacing: 0.25em; text-align: center; text-transform: uppercase; border: 2px solid #e0e0e0; border-radius: 12px; outline: none; transition: border 0.3s; color: #023e8a; }
+    .codigo-input:focus { border-color: #0077b6; }
+    .codigo-input.erro  { border-color: #e63946; animation: shake 0.3s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+    .codigo-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, #0077b6, #023e8a); color: white; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .codigo-btn:hover    { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,119,182,0.35); }
+    .codigo-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .codigo-erro-msg { color: #e63946; font-size: 0.82rem; margin-top: 10px; min-height: 18px; font-weight: 600; }
+    .codigo-lembrar { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 14px; font-size: 0.82rem; color: #6c757d; cursor: pointer; }
+    .codigo-lembrar input { cursor: pointer; accent-color: #0077b6; }
+    .device-badge { display: inline-flex; align-items: center; gap: 5px; background: #e3f2fd; color: #023e8a; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; cursor: pointer; border: 1px solid #90caf9; transition: all 0.2s; }
+    .device-badge:hover { background: #bbdefb; }
+
+    #autoRefreshBadge { display:inline-flex;align-items:center;gap:5px;background:#e3f2fd;color:#023e8a;padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;border:1px solid #90caf9;cursor:pointer; }
+
+    /* ── BADGE "dado em cache" ─────────────────────────── */
+    #cacheBadge { display:none; align-items:center; gap:5px; background:#fff3cd; color:#856404; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; border:1px solid #ffc107; }
+    #cacheBadge.show { display:inline-flex; }
 
     @media (max-width: 480px) {
       body { padding: 5px; }
@@ -561,110 +538,21 @@
       #mqttDiagBanner { font-size: 0.75rem; word-break: break-word; }
       #mqttDiagBanner code { font-size: 0.68rem; word-break: break-all; }
     }
-
     @media (max-width: 360px) {
       .status-panel { grid-template-columns: repeat(3, 1fr); }
       .tank-wrapper { width: min(200px, 78vw); height: min(188px, 73vw); }
-      .header h1 { font-size: 0.8rem; }
+      .header h1   { font-size: 0.8rem; }
     }
-
-    #codigoScreen {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-      z-index: 9999;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    #codigoScreen.show { display: flex; }
-    .codigo-card {
-      background: white;
-      padding: 36px 32px 28px;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-      width: 100%;
-      max-width: 400px;
-      text-align: center;
-      animation: fadeUpCard 0.4s ease;
-    }
-    @keyframes fadeUpCard { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-    .codigo-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
-    .codigo-card h2 { color: #023e8a; font-size: 1.3rem; margin-bottom: 6px; }
-    .codigo-card p  { color: #6c757d; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5; }
-    .codigo-input-wrap { position: relative; margin-bottom: 18px; }
-    .codigo-input {
-      width: 100%;
-      padding: 14px 16px;
-      font-size: 1.4rem;
-      font-weight: 700;
-      letter-spacing: 0.25em;
-      text-align: center;
-      text-transform: uppercase;
-      border: 2px solid #e0e0e0;
-      border-radius: 12px;
-      outline: none;
-      transition: border 0.3s;
-      color: #023e8a;
-    }
-    .codigo-input:focus { border-color: #0077b6; }
-    .codigo-input.erro  { border-color: #e63946; animation: shake 0.3s ease; }
-    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
-    .codigo-btn {
-      width: 100%;
-      padding: 13px;
-      background: linear-gradient(135deg, #0077b6, #023e8a);
-      color: white;
-      border: none;
-      border-radius: 12px;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-    .codigo-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,119,182,0.35); }
-    .codigo-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    .codigo-erro-msg {
-      color: #e63946;
-      font-size: 0.82rem;
-      margin-top: 10px;
-      min-height: 18px;
-      font-weight: 600;
-    }
-    .codigo-lembrar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-      margin-top: 14px;
-      font-size: 0.82rem;
-      color: #6c757d;
-      cursor: pointer;
-    }
-    .codigo-lembrar input { cursor: pointer; accent-color: #0077b6; }
-    .device-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      background: #e3f2fd;
-      color: #023e8a;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      cursor: pointer;
-      border: 1px solid #90caf9;
-      transition: all 0.2s;
-    }
-    .device-badge:hover { background: #bbdefb; }
   </style>
 </head>
 <body>
+
+  <!-- Loading Overlay — aparece no boot e some ao receber o primeiro dado retained -->
+  <div id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Conectando ao broker MQTT...</div>
+    <div class="loading-sub" id="loadingSub">Aguardando dados retidos...</div>
+  </div>
 
   <!-- Tela de código -->
   <div id="codigoScreen" class="show">
@@ -692,12 +580,24 @@
   <div class="container" id="mainContainer" style="display:none">
     <div class="header">
       <h1><i class="fas fa-water"></i> Monitor de Caixa d'Água</h1>
-      <span class="device-badge" id="deviceBadge" onclick="trocarDispositivo()" title="Clique para trocar"><i class="fas fa-microchip"></i> <span id="deviceBadgeText">--</span></span>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px;">
+        <span class="device-badge" id="deviceBadge" onclick="trocarDispositivo()" title="Clique para trocar">
+          <i class="fas fa-microchip"></i> <span id="deviceBadgeText">--</span>
+        </span>
         <div class="mqtt-badge connecting" id="mqttStatus">
           <i class="fas fa-broadcast-tower"></i> <span>Conectando...</span>
         </div>
-        <div id="autoRefreshBadge" style="display:inline-flex;align-items:center;gap:5px;background:#e3f2fd;color:#023e8a;padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;border:1px solid #90caf9;cursor:pointer;" onclick="toggleAutoRefresh()" title="Clique para ativar/desativar">
+        <!-- Badge de dado em cache -->
+        <span id="cacheBadge"><i class="fas fa-database"></i> Dado retido</span>
+        <!-- Hora da última atualização em destaque -->
+        <span id="lastUpdateBig"><i class="fas fa-clock"></i> <span id="lastUpdateBigText">aguardando...</span></span>
+      </div>
+      <!-- Barra de progresso: próxima leitura esperada em ~10s -->
+      <div id="nextReadingBar"><div id="nextReadingProgress"></div></div>
+      <div id="nextReadingLabel"></div>
+      <!-- Auto refresh -->
+      <div style="margin-top:4px;">
+        <div id="autoRefreshBadge" onclick="toggleAutoRefresh()" title="Clique para ativar/desativar">
           <i class="fas fa-sync-alt" id="autoRefreshIcon"></i>
           <span id="autoRefreshLabel">Auto: OFF</span>
           <span id="autoRefreshCountdown" style="font-size:0.68rem;opacity:0.8;"></span>
@@ -721,9 +621,6 @@
     </div>
     <div id="alertSensor" class="alert-banner alert-sensor">
       <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR ULTRASSÔNICO
-    </div>
-    <div id="alertWrongDevice" class="alert-banner alert-wrong-device" style="display:none;">
-      <i class="fas fa-ban"></i> DADO DE OUTRO DISPOSITIVO IGNORADO
     </div>
 
     <div class="status-panel">
@@ -775,7 +672,7 @@
                src="https://ik.imagekit.io/o7q7lmyva/caixa_d_agua_1000_litros.png?updatedAt=1769916384477"
                alt="Caixa d'água">
           <div class="tank">
-            <div class="water" id="waterLevel" style="height:0%;">0%</div>
+            <div class="water" id="waterLevel" style="height:0%;">--</div>
           </div>
           <div class="tank-marks">
             <div class="tank-mark top">100%</div>
@@ -804,9 +701,10 @@
           </div>
         </div>
       </div>
+
       <div class="card" id="chartCard" style="min-height:0; overflow:hidden;">
         <div class="card-header">
-          <i class="fas fa-chart-line"></i> Histórico (24h)
+          <i class="fas fa-chart-line"></i> Histórico (sessão)
         </div>
         <div id="chartWrapper" style="flex:1; min-height:0; overflow:hidden;">
           <canvas id="nivelChart"></canvas>
@@ -817,11 +715,18 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0;margin-bottom:10px;" id="bottomGrid">
       <div class="card" style="overflow:hidden;">
         <div class="card-header" style="margin-bottom:5px;flex-shrink:0;"><i class="fas fa-history"></i> Últimas Leituras</div>
-        <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;flex-shrink:0;"><i class="fas fa-spinner fa-spin"></i> Aguardando dados...</div>
+        <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;flex-shrink:0;">
+          <i class="fas fa-spinner fa-spin"></i> Aguardando dados...
+        </div>
         <div id="historyTableContainer" style="display:none;max-height:180px;overflow-y:auto;overflow-x:auto;flex-shrink:0;">
           <div style="border-radius:8px;border:1px solid #e9ecef;">
-            <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
-              <thead><tr><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Horário</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Sensor</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Nível</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Volume</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Dist.</th><th style="padding:5px 7px;text-align:left;font-weight:600;white-space:nowrap;background:linear-gradient(135deg,#0077b6,#023e8a);color:white;">Sinal LoRa</th></tr></thead>
+            <table>
+              <thead>
+                <tr>
+                  <th>Horário</th><th>Sensor</th><th>Nível</th>
+                  <th>Volume</th><th>Dist.</th><th>Sinal LoRa</th>
+                </tr>
+              </thead>
               <tbody id="historyBody"></tbody>
             </table>
           </div>
@@ -853,785 +758,814 @@
   </button>
 
   <script>
-    // ==================== CONFIGURAÇÃO DO BROKER ====================
-    const MQTT_CONFIG = {
-      host:     '13efa30a8367496d82053ae1fec856fb.s1.eu.hivemq.cloud',
-      port:     8884,
-      username: 'esp32-Project',
-      password: '061084Cca',
-      clientId: 'dash-lora-' + Math.random().toString(36).substr(2, 8)
-    };
+  // ╔══════════════════════════════════════════════════════╗
+  // ║         CONFIGURAÇÃO DO BROKER MQTT                  ║
+  // ╚══════════════════════════════════════════════════════╝
+  const MQTT_CONFIG = {
+    host:     '13efa30a8367496d82053ae1fec856fb.s1.eu.hivemq.cloud',
+    port:     8884,
+    username: 'esp32-Project',
+    password: '061084Cca',
+    clientId: 'dash-lora-' + Math.random().toString(36).substr(2, 8)
+  };
 
-    let TOPICS = { dados: '', status: '', comandos: '' };
-    let deviceMac = '';
+  let TOPICS    = { dados: '', status: '', comandos: '' };
+  let deviceMac = '';
 
-    // ========== TIMEOUTS ==========
-    // Transmissor dorme 30s entre envios. Timeout = 4 ciclos (120s) para tolerar
-    // atrasos de rede, reconexão WiFi/MQTT e variações do deep-sleep timer.
-    const TRANSMITTER_TIMEOUT = 120000;  // 120s — 4× o intervalo de sleep (30s)
-    const RECEPTOR_TIMEOUT    = 90000;   // 90s — heartbeat do receptor é a cada 30s
+  // ╔══════════════════════════════════════════════════════╗
+  // ║   TIMEOUTS — ajustados para SLEEP_SECONDS = 10s     ║
+  // ║                                                      ║
+  // ║  TRANSMISSOR dorme 10s → ciclo real ~10–12s         ║
+  // ║  TIMEOUT = 5 ciclos (60s) = folga para rede/mqtt    ║
+  // ║                                                      ║
+  // ║  RECEPTOR heartbeat a cada 30s                       ║
+  // ║  TIMEOUT = 3× (90s)                                  ║
+  // ╚══════════════════════════════════════════════════════╝
+  const SLEEP_SECONDS        = 10;          // ← sincronizado com o firmware
+  const TRANSMITTER_TIMEOUT  = 60000;       // 60s = 5 ciclos de 10s
+  const RECEPTOR_TIMEOUT     = 90000;       // 90s = 3× heartbeat de 30s
+  const NEXT_READING_WINDOW  = SLEEP_SECONDS * 1000; // ms
 
-    // Último contato do receptor (qualquer mensagem: dado ou heartbeat)
-    let lastReceptorContactTime = null;
+  let client                 = null;
+  let chart                  = null;
+  let savedCapacityTotal     = 0;
+  let currentData            = {};
+  let historico              = [];
+  let lastDataMessageTime    = null;
+  let lastReceptorStatusTime = null;
+  let lastReceptorContactTime = null;
+  let receptorOnline         = false;
+  let transmitterActive      = false;
+  let timeoutCheckInterval   = null;
+  let secondsWithoutData     = 0;
+  let sensorErrorActive      = false;
+  let leiturasConsecutivasErradas = 0;
+  let ultimoValorValido      = null;
+  let pageHiddenAt           = null;
+  let dadoRetained           = false;
 
-    let client = null;
-    let chart = null;
-    let savedCapacityTotal = 0;
-    let currentData = {};
-    let historico = [];
-    let lastDataMessageTime = null;
-    let lastReceptorStatusTime = null;
-    let receptorOnline = false;
-    let transmitterActive = false;
-    let timeoutCheckInterval = null;
-    let secondsWithoutData = 0;
-    let sensorErrorActive = false;
-    let leiturasConsecutivasErradas = 0;
-    let ultimoValorValido = null;
-    let pageHiddenAt = null;
-    let dadoRetained = false;  // true enquanto só há dado retained — sem confirmação ao vivo
+  // Barra de progresso "próxima leitura"
+  let nextReadingTimer       = null;
+  let nextReadingSeconds     = 0;
 
-    // ==================== FUNÇÕES AUXILIARES ====================
-    function calcularQualidadeSinal(rssi) {
-      if (rssi >= -50) return 100;
-      if (rssi >= -70) return 80;
-      if (rssi >= -90) return 60;
-      if (rssi >= -100) return 40;
-      if (rssi >= -110) return 20;
-      return 10;
-    }
+  // ── Loading overlay ──────────────────────────────────
+  function ocultarLoading(motivo) {
+    const ov = document.getElementById('loadingOverlay');
+    if (!ov || ov.classList.contains('hidden')) return;
+    document.getElementById('loadingSub').textContent = motivo || 'Pronto!';
+    setTimeout(() => ov.classList.add('hidden'), 300);
+  }
 
-    function zerarInterfaceOffline(motivo) {
-      const water = document.getElementById('waterLevel');
-      if (motivo === 'receptor') {
-        water.className = 'water offline-receptor';
-        water.textContent = 'REC OFF';
-      } else {
-        water.className = 'water offline-transmitter';
-        water.textContent = 'SEM SINAL';
+  // ── Barra de progresso: próxima leitura ──────────────
+  function iniciarBarraProximaLeitura() {
+    if (nextReadingTimer) clearInterval(nextReadingTimer);
+    nextReadingSeconds = 0;
+    const bar   = document.getElementById('nextReadingProgress');
+    const label = document.getElementById('nextReadingLabel');
+    nextReadingTimer = setInterval(() => {
+      if (document.hidden) return;
+      nextReadingSeconds++;
+      const pct = Math.min((nextReadingSeconds / SLEEP_SECONDS) * 100, 100);
+      bar.style.width = pct + '%';
+      const restante = Math.max(SLEEP_SECONDS - nextReadingSeconds, 0);
+      label.textContent = restante > 0
+        ? `Próxima leitura em ~${restante}s`
+        : 'Aguardando próxima leitura...';
+      // Quando ultrapassar muito o ciclo, pisca amarelo
+      if (nextReadingSeconds > SLEEP_SECONDS * 3) {
+        bar.style.background = 'linear-gradient(90deg, #ff9e00, #fbbf24)';
       }
-      water.style.height = '0%';
-      document.getElementById('currentVolume').textContent = '--';
-      document.getElementById('currentDistance').textContent = '--';
-      document.getElementById('currentLevel').textContent = '--';
-      document.getElementById('volumeCard').classList.add('offline');
-      document.getElementById('distanceCard').classList.add('offline');
-      document.getElementById('levelCard').classList.add('offline');
-      const bars = document.querySelectorAll('.signal-bar-item');
-      bars.forEach(bar => bar.classList.remove('active'));
-      document.getElementById('signalText').textContent = 'OFF';
-      document.getElementById('loraStatus').textContent = motivo === 'receptor' ? 'Receptor Off' : 'Sem Sinal';
-      document.getElementById('loraStatus').className = 'status-value offline';
-      document.getElementById('wifiRssi').textContent = '-- dBm';
-      document.getElementById('sensorStatus').textContent = motivo === 'receptor' ? 'Receptor Off' : 'Sem Sinal';
-      document.getElementById('sensorStatus').className = 'status-value offline';
-    }
+    }, 1000);
+  }
 
-    function atualizarStatusReceptor(online, texto) {
-      const receptorStatus = document.getElementById('receptorStatus');
-      const receptorItem   = document.getElementById('receptorStatusItem');
-      receptorOnline = online;
-      if (online) {
-        window._receptorOfflineSince = null;
-        receptorStatus.textContent = texto || 'Online';
-        receptorStatus.className   = 'status-value online';
-        receptorItem.style.background = '';
-        receptorItem.style.border     = '';
+  // ── Última atualização em destaque ───────────────────
+  function atualizarLastUpdateBig(hora, isCached) {
+    const el    = document.getElementById('lastUpdateBig');
+    const texto = document.getElementById('lastUpdateBigText');
+    texto.textContent = isCached ? `${hora} (retido)` : hora;
+    el.className = isCached ? '' : 'fresh';
+    setTimeout(() => { if (!isCached) el.className = ''; }, 3000);
+  }
+
+  // ────────────────────────────────────────────────────
+  function calcularQualidadeSinal(rssi) {
+    if (rssi >= -50)  return 100;
+    if (rssi >= -70)  return 80;
+    if (rssi >= -90)  return 60;
+    if (rssi >= -100) return 40;
+    if (rssi >= -110) return 20;
+    return 10;
+  }
+
+  function zerarInterfaceOffline(motivo) {
+    const water = document.getElementById('waterLevel');
+    if (motivo === 'receptor') {
+      water.className  = 'water offline-receptor';
+      water.textContent = 'REC OFF';
+    } else {
+      water.className  = 'water offline-transmitter';
+      water.textContent = 'SEM SINAL';
+    }
+    water.style.height = '0%';
+    ['currentVolume','currentDistance','currentLevel'].forEach(id => {
+      document.getElementById(id).textContent = '--';
+    });
+    ['volumeCard','distanceCard','levelCard'].forEach(id => {
+      document.getElementById(id).classList.add('offline');
+    });
+    document.querySelectorAll('.signal-bar-item').forEach(b => b.classList.remove('active'));
+    document.getElementById('signalText').textContent = 'OFF';
+    document.getElementById('wifiRssi').textContent   = '-- dBm';
+    document.getElementById('sensorStatus').textContent = motivo === 'receptor' ? 'Receptor Off' : 'Sem Sinal';
+    document.getElementById('sensorStatus').className   = 'status-value offline';
+  }
+
+  function atualizarStatusReceptor(online, texto) {
+    const receptorStatus = document.getElementById('receptorStatus');
+    const receptorItem   = document.getElementById('receptorStatusItem');
+    receptorOnline = online;
+    if (online) {
+      window._receptorOfflineSince = null;
+      receptorStatus.textContent = texto || 'Online';
+      receptorStatus.className   = 'status-value online';
+      receptorItem.style.background = '';
+      receptorItem.style.border     = '';
+      document.getElementById('alertReceptor').classList.remove('show');
+      document.getElementById('alertReceptorNeverSeen').style.display = 'none';
+      ['volumeCard','distanceCard','levelCard'].forEach(id => {
+        document.getElementById(id).classList.remove('offline');
+      });
+    } else {
+      if (!lastReceptorContactTime) {
+        receptorStatus.textContent = 'Aguardando...';
+        receptorStatus.className   = 'status-value warning-color';
+        receptorItem.style.background = 'linear-gradient(135deg,#fff7e6,#fef3c7)';
+        receptorItem.style.border     = '2px solid #ff9e00';
+        document.getElementById('alertReceptorNeverSeen').style.display = 'block';
         document.getElementById('alertReceptor').classList.remove('show');
+      } else {
+        window._receptorOfflineSince = window._receptorOfflineSince || Date.now();
+        const segsOffline = Math.floor((Date.now() - window._receptorOfflineSince) / 1000);
+        receptorStatus.textContent = `Offline ${segsOffline}s`;
+        receptorStatus.className   = 'status-value offline';
+        receptorItem.style.background = 'linear-gradient(135deg,#fee2e2,#fecaca)';
+        receptorItem.style.border     = '2px solid #e63946';
+        document.getElementById('alertReceptor').classList.add('show');
         document.getElementById('alertReceptorNeverSeen').style.display = 'none';
-        document.getElementById('volumeCard').classList.remove('offline');
-        document.getElementById('distanceCard').classList.remove('offline');
-        document.getElementById('levelCard').classList.remove('offline');
+        zerarInterfaceOffline('receptor');
+      }
+    }
+  }
+
+  function processarStatus(payload) {
+    if (payload.online === true || payload.heartbeat === true || payload.status === 'online') {
+      if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
+    }
+  }
+
+  function iniciarVerificacaoTimeout() {
+    if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
+    const dashboardConnectTime = Date.now();
+    if (!receptorOnline) atualizarStatusReceptor(false);
+
+    timeoutCheckInterval = setInterval(() => {
+      if (document.hidden) return;
+      const agora = Date.now();
+
+      // ── Receptor ──
+      if (lastReceptorContactTime === null) {
+        if (receptorOnline) atualizarStatusReceptor(false);
       } else {
-        if (!lastReceptorContactTime) {
-          // Nunca recebeu nada — aguardando
-          receptorStatus.textContent = 'Aguardando...';
-          receptorStatus.className   = 'status-value warning';
-          receptorItem.style.background = 'linear-gradient(135deg,#fff7e6,#fef3c7)';
-          receptorItem.style.border     = '2px solid #ff9e00';
-          document.getElementById('alertReceptorNeverSeen').style.display = 'block';
-          document.getElementById('alertReceptor').classList.remove('show');
-        } else {
-          // Já teve contato mas perdeu
-          window._receptorOfflineSince = window._receptorOfflineSince || Date.now();
-          const segsOffline = Math.floor((Date.now() - window._receptorOfflineSince) / 1000);
-          receptorStatus.textContent = `Offline ${segsOffline}s`;
-          receptorStatus.className   = 'status-value offline';
-          receptorItem.style.background = 'linear-gradient(135deg,#fee2e2,#fecaca)';
-          receptorItem.style.border     = '2px solid #e63946';
-          document.getElementById('alertReceptor').classList.add('show');
-          document.getElementById('alertReceptorNeverSeen').style.display = 'none';
-          zerarInterfaceOffline('receptor');
+        const tempoSemContato = agora - lastReceptorContactTime;
+        if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
+          window._receptorOfflineSince = agora;
+          atualizarStatusReceptor(false);
+          adicionarLog('⚠️ Receptor sem resposta', 'warning');
         }
-      }
-    }
-
-    function processarStatus(payload) {
-      if (payload.online === true || payload.heartbeat === true || payload.status === 'online') {
-        if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
-      }
-      // online=false (LWT) é ignorado — o timeout cuida disso automaticamente
-    }
-
-    function iniciarVerificacaoTimeout() {
-      if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
-
-      const dashboardConnectTime = Date.now();
-
-      // Mostra aguardando ao iniciar
-      if (!receptorOnline) atualizarStatusReceptor(false);
-
-      timeoutCheckInterval = setInterval(() => {
-        if (document.hidden) return;
-        const agora = Date.now();
-
-        // ── Receptor ──
-        // Verifica receptor PRIMEIRO para saber o estado antes de avaliar o transmissor
-        if (lastReceptorContactTime === null) {
-          // Nunca recebeu nada ainda
-          if (receptorOnline) atualizarStatusReceptor(false);
-        } else {
-          const tempoSemContato = agora - lastReceptorContactTime;
-          if (tempoSemContato > RECEPTOR_TIMEOUT && receptorOnline) {
-            window._receptorOfflineSince = agora;
-            atualizarStatusReceptor(false);
-            adicionarLog('⚠️ Receptor sem resposta', 'warning');
-          }
-          if (!receptorOnline) {
-            const segsOffline = Math.floor((agora - (window._receptorOfflineSince || agora)) / 1000);
-            const el = document.getElementById('receptorStatus');
-            if (el && el.textContent.startsWith('Offline')) el.textContent = `Offline ${segsOffline}s`;
-            // Receptor offline — garante que alerta do transmissor não aparece
-            document.getElementById('alertTransmitter').classList.remove('show');
-          }
-        }
-
-        // ── Transmissor ──
-        // Só avalia timeout do transmissor se o receptor estiver online
-        // (se o receptor está offline, não tem como receber sinal do transmissor de qualquer forma)
         if (!receptorOnline) {
-          // Receptor offline: reseta estado do transmissor silenciosamente para
-          // não disparar alerta quando o receptor voltar com dados antigos
+          const segsOffline = Math.floor((agora - (window._receptorOfflineSince || agora)) / 1000);
+          const el = document.getElementById('receptorStatus');
+          if (el && el.textContent.startsWith('Offline')) el.textContent = `Offline ${segsOffline}s`;
+          document.getElementById('alertTransmitter').classList.remove('show');
+        }
+      }
+
+      // ── Transmissor ──
+      if (!receptorOnline) {
+        transmitterActive  = false;
+        secondsWithoutData = 0;
+      } else if (lastDataMessageTime) {
+        const tempoSemDados = agora - lastDataMessageTime;
+        secondsWithoutData  = Math.floor(tempoSemDados / 1000);
+        document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+        if (tempoSemDados > TRANSMITTER_TIMEOUT && (transmitterActive || dadoRetained) && !window._transmitterAlertFired) {
+          window._transmitterAlertFired = true;
           transmitterActive = false;
-          secondsWithoutData = 0;
-        } else if (lastDataMessageTime) {
-          // Já recebeu dado antes (ou inicializado com retained) — conta a partir do último dado
-          const tempoSemDados = agora - lastDataMessageTime;
-          secondsWithoutData = Math.floor(tempoSemDados / 1000);
-          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
-          // CORREÇÃO: dispara alerta se transmitterActive=true (dado ao vivo anterior)
-          // OU se dadoRetained=true (dado cached — transmissor pode estar desligado)
-          // Usa flag _transmitterAlertFired para não repetir o alerta
-          if (tempoSemDados > TRANSMITTER_TIMEOUT && (transmitterActive || dadoRetained) && !window._transmitterAlertFired) {
-            window._transmitterAlertFired = true;
-            transmitterActive = false;
-            adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
-            document.getElementById('alertTransmitter').classList.add('show');
-            document.getElementById('loraStatus').textContent = 'Sem Sinal';
-            document.getElementById('loraStatus').className = 'status-value offline';
-            if (!dadoRetained) zerarInterfaceOffline('transmitter');
-          }
-          // Reseta flag quando transmissor volta (dado ao vivo chegou)
-          if (transmitterActive && window._transmitterAlertFired) {
-            window._transmitterAlertFired = false;
-          }
-        } else {
-          // Nunca recebeu dado — conta a partir da conexão do dashboard
-          const tempoSemDados = agora - dashboardConnectTime;
-          secondsWithoutData = Math.floor(tempoSemDados / 1000);
-          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
-          if (tempoSemDados > TRANSMITTER_TIMEOUT && !window._transmitterAlertFired) {
-            window._transmitterAlertFired = true;
-            adicionarLog('⚠️ Transmissor não responde desde a abertura do painel', 'alert');
-            document.getElementById('alertTransmitter').classList.add('show');
-            document.getElementById('loraStatus').textContent = 'Sem Sinal';
-            document.getElementById('loraStatus').className = 'status-value offline';
-          }
+          adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
+          document.getElementById('alertTransmitter').classList.add('show');
+          document.getElementById('signalText').textContent = 'OFF';
+          if (!dadoRetained) zerarInterfaceOffline('transmitter');
         }
-      }, 1000);
-    }
-
-    function processarDados(payload, sensorOK, isCached = false) {
-      if (payload.config_volume_total > 0) savedCapacityTotal = payload.config_volume_total;
-      if (!sensorOK) {
-        currentData = {
-          percentage: ultimoValorValido ? ultimoValorValido.percentage : 0,
-          liters: ultimoValorValido ? ultimoValorValido.liters : 0,
-          distance: ultimoValorValido ? ultimoValorValido.distance : 0,
-          level: ultimoValorValido ? ultimoValorValido.level : 0,
-          rssi: payload.lora_rssi || -100,
-          quality: payload.signal_quality || 0,
-          wifiRssi: payload.wifi_rssi || 0,
-          sensorOk: false,
-          erro: true,
-          batVoltage: parseFloat(payload.bat_voltage) || 0,
-          batPercent: parseInt(payload.bat_percent) || 0
-        };
-        if (!sensorErrorActive && leiturasConsecutivasErradas >= 1) {
-          sensorErrorActive = true;
-          adicionarLog('🚨 Falha no sensor detectada!', 'alert');
-          document.getElementById('alertSensor').classList.add('show');
+        if (transmitterActive && window._transmitterAlertFired) {
+          window._transmitterAlertFired = false;
         }
       } else {
-        currentData = {
-          percentage: parseInt(payload.percentage) || 0,
-          liters: parseInt(payload.liters) || 0,
-          distance: parseFloat(payload.distance) || 0,
-          level: parseInt(payload.level) || 0,
-          rssi: payload.lora_rssi || -100,
-          quality: payload.signal_quality || 0,
-          wifiRssi: payload.wifi_rssi || 0,
-          sensorOk: true,
-          erro: false,
-          batVoltage: parseFloat(payload.bat_voltage) || 0,
-          batPercent: parseInt(payload.bat_percent) || 0,
-          datetime: payload.datetime || '--:--:--',
-          epoch: payload.epoch || 0
-        };
-        if (sensorErrorActive) {
-          sensorErrorActive = false;
-          leiturasConsecutivasErradas = 0;
-          adicionarLog('✅ Sensor normalizado');
-          document.getElementById('alertSensor').classList.remove('show');
+        const tempoSemDados = agora - dashboardConnectTime;
+        secondsWithoutData  = Math.floor(tempoSemDados / 1000);
+        document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+        if (tempoSemDados > TRANSMITTER_TIMEOUT && !window._transmitterAlertFired) {
+          window._transmitterAlertFired = true;
+          adicionarLog('⚠️ Transmissor não responde desde a abertura do painel', 'alert');
+          document.getElementById('alertTransmitter').classList.add('show');
+          document.getElementById('signalText').textContent = 'OFF';
         }
       }
-      const registro = {
-        timestamp: Date.now(),
-        percentage: currentData.percentage,
-        liters: currentData.liters,
-        distance: currentData.distance,
-        status: sensorOK ? 'normal' : 'sensor_error',
-        lora_signal: { quality: currentData.quality, rssi: currentData.rssi }
+    }, 1000);
+  }
+
+  function processarDados(payload, sensorOK, isCached) {
+    if (payload.config_volume_total > 0) savedCapacityTotal = payload.config_volume_total;
+
+    if (!sensorOK) {
+      currentData = {
+        percentage: ultimoValorValido ? ultimoValorValido.percentage : 0,
+        liters:     ultimoValorValido ? ultimoValorValido.liters     : 0,
+        distance:   ultimoValorValido ? ultimoValorValido.distance   : 0,
+        level:      ultimoValorValido ? ultimoValorValido.level      : 0,
+        rssi:       payload.lora_rssi || -100,
+        quality:    payload.signal_quality || 0,
+        wifiRssi:   payload.wifi_rssi || 0,
+        sensorOk:   false, erro: true,
+        batVoltage: parseFloat(payload.bat_voltage) || 0,
+        batPercent: parseInt(payload.bat_percent)   || 0
       };
-      historico.unshift(registro);
-      if (historico.length > 50) historico.pop();
-      atualizarInterface();
-      atualizarHistorico();
-      atualizarGrafico();
-    }
-
-    function atualizarInterface() {
-      const pct = currentData.percentage;
-      const water = document.getElementById('waterLevel');
-      if (currentData.erro) {
-        water.className = 'water sensor-error';
-        water.textContent = 'ERRO';
-        water.style.height = '10%';
-        document.getElementById('sensorStatus').textContent = 'FALHA';
-        document.getElementById('sensorStatus').className = 'status-value sensor-error';
-        document.getElementById('sensorStatusItem').classList.add('sensor-error');
-        document.getElementById('volumeCard').classList.add('error');
-        document.getElementById('distanceCard').classList.add('error');
-        document.getElementById('levelCard').classList.add('error');
-        document.getElementById('currentVolume').textContent = currentData.liters + '*';
-        document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1) + '*';
-        document.getElementById('currentLevel').textContent = currentData.level + '*';
-      } else {
-        if (dadoRetained) {
-          // CORREÇÃO: mostra o nível real do dado em cache, com aparência levemente opaca
-          water.style.height = pct + '%';
-          water.textContent = pct + '% ⏳';
-          water.style.opacity = '0.75';
-          water.className = 'water';
-          if (pct <= 10) water.classList.add('critical');
-          else if (pct <= 25) water.classList.add('low');
-          else if (pct <= 50) water.classList.add('medium');
-          else if (pct <= 80) water.classList.add('good');
-          else water.classList.add('full');
-        } else {
-          water.style.height = pct + '%';
-          water.textContent = pct + '%';
-          water.style.opacity = '1';
-          water.className = 'water';
-          if (pct <= 10) water.classList.add('critical');
-          else if (pct <= 25) water.classList.add('low');
-          else if (pct <= 50) water.classList.add('medium');
-          else if (pct <= 80) water.classList.add('good');
-          else water.classList.add('full');
-        }
-        document.getElementById('currentVolume').textContent = currentData.liters;
-        document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1);
-        document.getElementById('currentLevel').textContent = currentData.level;
-        document.getElementById('sensorStatus').textContent = dadoRetained ? 'CACHE' : 'OK';
-        document.getElementById('sensorStatus').className = dadoRetained ? 'status-value warning' : 'status-value online';
-        document.getElementById('sensorStatusItem').classList.remove('sensor-error');
-        document.getElementById('volumeCard').classList.remove('error');
-        document.getElementById('distanceCard').classList.remove('error');
-        document.getElementById('levelCard').classList.remove('error');
+      if (!sensorErrorActive && leiturasConsecutivasErradas >= 1) {
+        sensorErrorActive = true;
+        adicionarLog('🚨 Falha no sensor detectada!', 'alert');
+        document.getElementById('alertSensor').classList.add('show');
       }
-      document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
-      if (dadoRetained) {
-        document.getElementById('wifiRssi').textContent = '-- dBm';
-        document.getElementById('lastUpdate').textContent = '(cache)';
-        const bars = document.querySelectorAll('.signal-bar-item');
-        const activeBars = Math.ceil((currentData.quality / 100) * 5);
-        bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
-        document.getElementById('signalText').textContent = currentData.quality + '%';
-        const pctBat = currentData.batPercent || 0;
-        const vBat   = currentData.batVoltage || 0;
-        const fill = document.getElementById('batFill');
-        const lbl  = document.getElementById('batPercLabel');
-        if (fill && lbl) {
-          fill.style.width = pctBat + '%';
-          if      (pctBat <= 15) fill.style.background = '#e63946';
-          else if (pctBat <= 35) fill.style.background = '#ff9e00';
-          else                   fill.style.background = '#38b000';
-          lbl.textContent = pctBat + '%';
-          lbl.title = vBat.toFixed(2) + 'V';
-        }
-      } else {
-        document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
-        // Usa horário NTP do payload se disponível, senão hora local do navegador
-        const horaExibir = currentData.datetime && currentData.datetime !== '--:--:--'
-          ? currentData.datetime.split(' ')[0]   // só "HH:MM:SS"
-          : new Date().toLocaleTimeString('pt-BR');
-        document.getElementById('lastUpdate').textContent = horaExibir;
-        const bars = document.querySelectorAll('.signal-bar-item');
-        const activeBars = Math.ceil((currentData.quality / 100) * 5);
-        bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
-        document.getElementById('signalText').textContent = currentData.quality + '%';
-        const pctBat = currentData.batPercent || 0;
-        const vBat   = currentData.batVoltage || 0;
-        const fill   = document.getElementById('batFill');
-        const lbl    = document.getElementById('batPercLabel');
-        if (fill && lbl) {
-          fill.style.width = pctBat + '%';
-          if      (pctBat <= 15) fill.style.background = '#e63946';
-          else if (pctBat <= 35) fill.style.background = '#ff9e00';
-          else                   fill.style.background = '#38b000';
-          lbl.textContent = pctBat + '%';
-          lbl.title = vBat.toFixed(2) + 'V';
-        }
-      }
-    }
-
-    function atualizarHistorico() {
-      const container = document.getElementById('historyTableContainer');
-      const loading = document.getElementById('historyLoading');
-      const tbody = document.getElementById('historyBody');
-      if (historico.length === 0) return;
-      loading.style.display = 'none';
-      container.style.display = 'block';
-      tbody.innerHTML = '';
-      historico.slice(0, 5).forEach(item => {
-        const row = document.createElement('tr');
-        const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
-        let classeBadge = 'badge-normal', textoStatus = 'OK';
-        if (item.status === 'sensor_error') { classeBadge = 'badge-error'; textoStatus = 'FALHA'; }
-        row.innerHTML = `
-          <td>${hora}</td>
-          <td><span class="status-badge ${classeBadge}">${textoStatus}</span></td>
-          <td>${item.percentage}%</td>
-          <td>${item.liters}L</td>
-          <td>${item.distance.toFixed(1)}cm</td>
-          <td><div class="signal-cell"><span class="signal-dbm">${item.lora_signal.rssi} dBm</span><span class="signal-percent">(${item.lora_signal.quality}%)</span></div></td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
-
-    function atualizarGrafico() {
-      const ctx = document.getElementById('nivelChart');
-      if (!ctx) return;
-      const dadosValidos = historico.filter(i => i.status === 'normal').reverse();
-      if (dadosValidos.length === 0) return;
-      const porHora = {};
-      dadosValidos.forEach(i => {
-        const d = new Date(i.timestamp);
-        const chave = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
-        porHora[chave] = i;
-      });
-      const agregados = Object.values(porHora).sort((a, b) => a.timestamp - b.timestamp);
-      const labels = agregados.map(i => new Date(i.timestamp).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }));
-      const data = agregados.map(i => i.percentage);
-      const isMobile = window.innerWidth <= 600;
-      const chartOptions = {
-        responsive: true, maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(2, 62, 138, 0.92)', titleColor: '#90e0ef', bodyColor: '#ffffff', padding: 10, cornerRadius: 8, callbacks: { title: (items) => '🕐 ' + items[0].label, label: (item) => `  Nível: ${item.raw}%` } } },
-        scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', font: { size: isMobile ? 9 : 11 }, color: '#6c757d', maxTicksLimit: 6 }, grid: { color: 'rgba(0,0,0,0.06)' }, border: { dash: [4,4] } }, x: { display: true, ticks: { font: { size: isMobile ? 8 : 10 }, color: '#6c757d', maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: isMobile ? 6 : 12 }, grid: { display: false } } }
+    } else {
+      currentData = {
+        percentage: parseInt(payload.percentage)    || 0,
+        liters:     parseInt(payload.liters)        || 0,
+        distance:   parseFloat(payload.distance)    || 0,
+        level:      parseInt(payload.level)         || 0,
+        rssi:       payload.lora_rssi               || -100,
+        quality:    payload.signal_quality          || 0,
+        wifiRssi:   payload.wifi_rssi               || 0,
+        sensorOk:   true, erro: false,
+        batVoltage: parseFloat(payload.bat_voltage) || 0,
+        batPercent: parseInt(payload.bat_percent)   || 0,
+        datetime:   payload.datetime               || '--:--:--',
+        epoch:      payload.epoch                  || 0
       };
-      if (!chart) {
-        chart = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: 'Nível %', data, borderColor: '#0077b6', backgroundColor: (context) => { const gradient = context.chart.ctx.createLinearGradient(0,0,0,context.chart.height); gradient.addColorStop(0, 'rgba(0,119,182,0.35)'); gradient.addColorStop(1, 'rgba(0,119,182,0.02)'); return gradient; }, borderWidth: 2.5, fill: true, tension: 0.4, pointRadius: isMobile ? 3 : 4, pointBackgroundColor: '#0077b6', pointBorderColor: '#ffffff', pointBorderWidth: 2, pointHoverRadius: 6 }] }, options: chartOptions });
-      } else {
-        chart.data.labels = labels; chart.data.datasets[0].data = data; chart.update();
+      if (sensorErrorActive) {
+        sensorErrorActive           = false;
+        leiturasConsecutivasErradas = 0;
+        adicionarLog('✅ Sensor normalizado');
+        document.getElementById('alertSensor').classList.remove('show');
       }
     }
 
-    let _ultimoLogTexto = '';
-    let _ultimoLogTipo  = '';
-    function adicionarLog(texto, tipo = 'normal') {
-      // Não repete a mesma mensagem consecutivamente
-      if (texto === _ultimoLogTexto && tipo === _ultimoLogTipo) return;
-      _ultimoLogTexto = texto;
-      _ultimoLogTipo  = tipo;
+    const registro = {
+      timestamp:   Date.now(),
+      percentage:  currentData.percentage,
+      liters:      currentData.liters,
+      distance:    currentData.distance,
+      status:      sensorOK ? (isCached ? 'cached' : 'normal') : 'sensor_error',
+      lora_signal: { quality: currentData.quality, rssi: currentData.rssi }
+    };
+    historico.unshift(registro);
+    if (historico.length > 50) historico.pop();
 
-      const hora = new Date().toLocaleTimeString('pt-BR');
-      const div = document.createElement('div');
-      div.className = 'update-entry';
-      if (tipo === 'alert') div.classList.add('alert');
-      if (tipo === 'warning') div.classList.add('warning');
-      div.innerHTML = `<span class="update-time">${hora}</span><span class="update-text">${texto}</span>`;
-      const container = document.getElementById('updateHistory');
-      container.insertBefore(div, container.firstChild);
-      while (container.children.length > 20) container.removeChild(container.lastChild);
-    }
+    atualizarInterface(isCached);
+    atualizarHistorico(isCached);
+    atualizarGrafico();
+    ocultarLoading('Dados recebidos ✅');
+  }
 
-    function updateConnectionStatus(connected) {
-      const badge = document.getElementById('mqttStatus');
-      if (connected) {
-        badge.innerHTML = '<i class="fas fa-check-circle"></i> <span>MQTT Online</span>';
-        badge.className = 'mqtt-badge';
-      } else {
-        badge.innerHTML = '<i class="fas fa-times-circle"></i> <span>Offline</span>';
-        badge.className = 'mqtt-badge disconnected';
-      }
-    }
+  function atualizarInterface(isCached) {
+    const pct   = currentData.percentage;
+    const water = document.getElementById('waterLevel');
 
-    function connectMQTT() {
-      const url = `wss://${MQTT_CONFIG.host}:8884/mqtt`;
-      adicionarLog('🔄 Conectando ao HiveMQ...');
-      try {
-        client = mqtt.connect(url, {
-          username: MQTT_CONFIG.username,
-          password: MQTT_CONFIG.password,
-          clientId: MQTT_CONFIG.clientId,
-          protocol: 'wss',
-          clean: true,              // CORRIGIDO: sessão limpa evita receber mensagens antigas
-          rejectUnauthorized: false,
-          reconnectPeriod: 3000,
-          connectTimeout: 8000,
-          keepalive: 30
-        });
-      } catch(e) {
-        adicionarLog('❌ Falha ao iniciar MQTT: ' + e.message);
-        updateConnectionStatus(false);
-        return;
-      }
-      client.on('connect', () => {
-        updateConnectionStatus(true);
-        adicionarLog('✅ Dashboard conectado');
-        document.getElementById('mqttDiagBanner').style.display = 'none';
-        iniciarVerificacaoTimeout();
-        client.subscribe([TOPICS.dados, TOPICS.status], (err) => { if (!err) lastReceptorStatusTime = Date.now(); });
-      });
-      client.on('reconnect', () => adicionarLog('🔄 Reconectando ao broker...', 'warning'));
-      client.on('disconnect', () => { updateConnectionStatus(false); if (lastDataMessageTime) zerarInterfaceOffline('receptor'); });
-      client.on('error', (err) => {
-        const msg = err.message || String(err);
-        adicionarLog('❌ Erro MQTT: ' + msg);
-        updateConnectionStatus(false);
-        document.getElementById('mqttDiagBanner').style.display = 'block';
-        document.getElementById('mqttDiagMsg').textContent = msg;
-        document.getElementById('mqttDiagUser').textContent = MQTT_CONFIG.username;
-        if (lastDataMessageTime) zerarInterfaceOffline('receptor');
-      });
-      client.on('message', (topic, message, packet) => {
-        try {
-          lastAnyMessageTime = Date.now(); // watchdog — prova que MQTT está vivo
-          const payload = JSON.parse(message.toString());
+    if (currentData.erro) {
+      water.className   = 'water sensor-error';
+      water.textContent = 'ERRO';
+      water.style.height = '10%';
+      document.getElementById('sensorStatus').textContent = 'FALHA';
+      document.getElementById('sensorStatus').className   = 'status-value sensor-error';
+      document.getElementById('sensorStatusItem').classList.add('sensor-error');
+      ['volumeCard','distanceCard','levelCard'].forEach(id => document.getElementById(id).classList.add('error'));
+      document.getElementById('currentVolume').textContent   = currentData.liters + '*';
+      document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1) + '*';
+      document.getElementById('currentLevel').textContent    = currentData.level + '*';
+    } else {
+      water.style.height  = pct + '%';
+      water.style.opacity = isCached ? '0.75' : '1';
+      water.textContent   = isCached ? pct + '% ⏳' : pct + '%';
+      water.className     = 'water';
+      if      (pct <= 10) water.classList.add('critical');
+      else if (pct <= 25) water.classList.add('low');
+      else if (pct <= 50) water.classList.add('medium');
+      else if (pct <= 80) water.classList.add('good');
+      else                 water.classList.add('full');
 
-          // CORREÇÃO: Aceita heartbeat retained do /status para restaurar estado do receptor
-          // ao recarregar a página — sem isso, o receptor fica "Aguardando..." por até 30s.
-          // O LWT (online=false) retained SIM é ignorado — evita marcar offline falsamente.
-          if (packet && packet.retain && topic === TOPICS.status) {
-            if (payload.online === false && payload.heartbeat !== true) {
-              console.warn('🚫 LWT retained ignorado (online=false via LWT)');
-              return;
-            }
-            // heartbeat retained: aceita para restaurar status online imediatamente
-            console.info('📡 Heartbeat retained aceito — restaurando status do receptor');
-          }
+      document.getElementById('currentVolume').textContent   = currentData.liters;
+      document.getElementById('currentDistance').textContent = currentData.distance.toFixed(1);
+      document.getElementById('currentLevel').textContent    = currentData.level;
 
-          // Valida deviceID
-          if (topic === TOPICS.dados) {
-            if (payload.deviceID && deviceMac && payload.deviceID !== deviceMac) {
-              console.warn(`🚫 Pacote ignorado: deviceID ${payload.deviceID} não corresponde ao código ${deviceMac}`);
-              adicionarLog(`🚫 Dado ignorado: esperado ${deviceMac}, recebido ${payload.deviceID}`, 'warning');
-              const wrongAlert = document.getElementById('alertWrongDevice');
-              wrongAlert.style.display = 'block';
-              setTimeout(() => { wrongAlert.style.display = 'none'; }, 3000);
-              return;
-            }
-          }
-          if (topic === TOPICS.dados) {
-            const isCached = payload.cached === true;
-            const isRetained = packet && packet.retain;
-
-            // Dado retained (cached ou ao vivo antigo): mostra valores na tela mas
-            // NÃO marca receptor como online nem atualiza lastReceptorContactTime.
-            // Só dado ao vivo (não retained) prova que o receptor está ligado agora.
-            if (!isRetained) {
-              lastReceptorContactTime = Date.now();
-              if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
-            }
-
-            if (isCached || isRetained) {
-              // ── DADO EM CACHE / RETAINED ──
-              dadoRetained = true;
-              let sensorOK = payload.sensor_ok;
-              const distancia = parseFloat(payload.distance);
-              const percentual = parseInt(payload.percentage);
-              if (sensorOK !== false) {
-                if (distancia < 0 || distancia === 0 || percentual < 0) sensorOK = false;
-              }
-              if (sensorOK) {
-                ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
-              }
-              payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
-              processarDados(payload, sensorOK, true);
-
-              // Usa epoch NTP do payload para calcular idade real do dado retained.
-              // Se o dado tiver mais de TRANSMITTER_TIMEOUT segundos, dispara alerta imediatamente.
-              if (lastDataMessageTime === null) {
-                const epochPayload = payload.epoch || 0;
-                const agoraMs = Date.now();
-                if (epochPayload > 0) {
-                  // Temos horário NTP real — calculamos a idade exata
-                  const idadeMs = agoraMs - (epochPayload * 1000);
-                  if (idadeMs > TRANSMITTER_TIMEOUT) {
-                    // Dado muito antigo — transmissor estava desligado
-                    lastDataMessageTime = agoraMs - TRANSMITTER_TIMEOUT - 1000; // já expirado
-                    secondsWithoutData = Math.floor(idadeMs / 1000);
-                    adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — transmissor pode estar desligado`, 'alert');
-                    window._transmitterAlertFired = false; // permite disparar alerta no próximo tick
-                  } else {
-                    // Dado recente — transmissor provavelmente ligado
-                    lastDataMessageTime = agoraMs - idadeMs;
-                    secondsWithoutData = Math.floor(idadeMs / 1000);
-                    adicionarLog(`📦 Dado retido carregado (${Math.floor(idadeMs/1000)}s atrás) — aguardando próximo ciclo`, 'warning');
-                  }
-                } else {
-                  // Sem epoch NTP — estratégia conservadora: 35s antes do timeout
-                  const idadeSimulada = TRANSMITTER_TIMEOUT - 30000 - 5000;
-                  lastDataMessageTime = agoraMs - idadeSimulada;
-                  secondsWithoutData = Math.floor(idadeSimulada / 1000);
-                  adicionarLog('📦 Dado retido carregado — verificando transmissor...', 'warning');
-                }
-              }
-
-            } else {
-              // ── DADO AO VIVO (não retained) ──
-              dadoRetained = false;
-              lastDataMessageTime = Date.now();
-              secondsWithoutData = 0;
-              // NÃO atualiza lastReceptorStatusTime — apenas o heartbeat faz isso
-              let sensorOK = payload.sensor_ok;
-              const distancia = parseFloat(payload.distance);
-              const percentual = parseInt(payload.percentage);
-              if (sensorOK !== false) {
-                if (distancia < 0 || distancia === 0 || percentual < 0) sensorOK = false;
-                if (ultimoValorValido !== null && (percentual - ultimoValorValido.percentage) < -50) sensorOK = false;
-              }
-              if (sensorOK) {
-                ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
-                leiturasConsecutivasErradas = 0;
-              } else {
-                leiturasConsecutivasErradas++;
-              }
-              if (!transmitterActive) {
-                transmitterActive = true;
-                window._transmitterAlertFired = false;
-                adicionarLog('✅ Sinal do transmissor restaurado');
-                document.getElementById('alertTransmitter').classList.remove('show');
-              }
-              payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
-              processarDados(payload, sensorOK, false);
-            }
-          } else if (topic === TOPICS.status) {
-            lastReceptorContactTime = Date.now();  // heartbeat = receptor está vivo
-            processarStatus(payload);
-          }
-        } catch (e) { console.error('Erro ao processar mensagem:', e); }
+      const statusEl = document.getElementById('sensorStatus');
+      statusEl.textContent = isCached ? 'CACHE' : 'OK';
+      statusEl.className   = isCached ? 'status-value warning-color' : 'status-value online';
+      document.getElementById('sensorStatusItem').classList.remove('sensor-error');
+      ['volumeCard','distanceCard','levelCard'].forEach(id => {
+        document.getElementById(id).classList.remove('error', 'offline');
+        // Flash verde em dado ao vivo
+        if (!isCached) {
+          document.getElementById(id).classList.add('just-updated');
+          setTimeout(() => document.getElementById(id).classList.remove('just-updated'), 700);
+        }
       });
     }
 
-    // ==================== GERENCIAMENTO DE CÓDIGO ====================
-    const STORAGE_CODE_KEY = 'dispositivo_codigo';
-    function iniciarTela() {
-      try {
-        const salvo = localStorage.getItem(STORAGE_CODE_KEY);
-        if (salvo) ativarDispositivo(salvo);
-      } catch(e) {
-        console.warn('localStorage indisponível:', e);
-      }
-      document.getElementById('codigoInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmarCodigo(); });
-      document.getElementById('codigoInput').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''); });
-    }
-    function confirmarCodigo() {
-      const input = document.getElementById('codigoInput');
-      const codigo = input.value.trim().toUpperCase().replace(/[^A-F0-9]/g, '');
-      const erroEl = document.getElementById('codigoErro');
-      if (codigo.length !== 6) {
-        input.classList.add('erro'); erroEl.textContent = 'O código tem 6 caracteres (ex: A1B2C3)';
-        setTimeout(() => input.classList.remove('erro'), 600);
-        return;
-      }
-      erroEl.textContent = '';
-      if (document.getElementById('lembrarCodigo').checked) {
-        try { localStorage.setItem(STORAGE_CODE_KEY, codigo); } catch(e) { console.warn('localStorage indisponível:', e); }
-      }
-      ativarDispositivo(codigo);
-    }
-    function ativarDispositivo(codigo) {
-      deviceMac = codigo;
-      TOPICS = {
-        dados: 'caixas/agua/' + codigo + '/dados',
-        status: 'caixas/agua/' + codigo + '/status',
-        comandos: 'caixas/agua/' + codigo + '/comandos'
-      };
-      document.getElementById('deviceBadgeText').textContent = codigo;
-      document.getElementById('codigoScreen').classList.remove('show');
-      document.getElementById('mainContainer').style.display = 'block';
-      connectMQTT();
-    }
-    function trocarDispositivo() {
-      if (!confirm('Trocar de dispositivo? A página será recarregada.')) return;
-      try { localStorage.removeItem(STORAGE_CODE_KEY); } catch(e) { console.warn('localStorage indisponível:', e); }
-      location.reload();
-    }
-    function confirmarReboot() { document.getElementById('modalReboot').classList.add('show'); }
-    function fecharModal() { document.getElementById('modalReboot').classList.remove('show'); }
-    function executarReboot() { fecharModal(); if (client && client.connected) { client.publish(TOPICS.comandos, 'REBOOT'); adicionarLog('🔄 Comando REBOOT enviado'); } }
-    function showDetails(tipo) {
-      let msg = '';
-      switch(tipo) {
-        case 'volume': msg = `Volume: ${currentData.liters}L / ${savedCapacityTotal}L`; break;
-        case 'distance': msg = `Distância: ${currentData.distance}cm`; break;
-        case 'level': msg = `Altura: ${currentData.level}cm`; break;
-      }
-      alert(msg);
-    }
-    function debugData() {
-      console.log('=== DEBUG ===');
-      console.log('receptorOnline:', receptorOnline, 'transmitterActive:', transmitterActive);
-      console.log('lastDataMessageTime:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : null);
-      console.log('lastReceptorStatusTime:', lastReceptorStatusTime ? new Date(lastReceptorStatusTime).toLocaleTimeString() : null);
-      console.log('deviceMac:', deviceMac);
+    // Badge de cache
+    document.getElementById('cacheBadge').classList.toggle('show', isCached);
+
+    // Capacidade
+    document.getElementById('totalCapacity').textContent = savedCapacityTotal + ' L';
+
+    // Hora de atualização
+    const horaExibir = (!isCached && currentData.datetime && currentData.datetime !== '--:--:--')
+      ? currentData.datetime.split(' ')[0]
+      : new Date().toLocaleTimeString('pt-BR');
+    document.getElementById('lastUpdate').textContent = horaExibir;
+    atualizarLastUpdateBig(horaExibir, isCached);
+
+    if (isCached) {
+      document.getElementById('wifiRssi').textContent = '-- dBm';
+    } else {
+      document.getElementById('wifiRssi').textContent = currentData.wifiRssi + ' dBm';
     }
 
-    // ==================== AUTO-REFRESH ====================
-    const AUTO_REFRESH_KEY     = 'autoRefreshEnabled';
-    const AUTO_REFRESH_INTERVAL = 60;   // segundos entre cada refresh automático
-    let autoRefreshEnabled  = false;
-    let autoRefreshTimer    = null;
-    let autoRefreshSeconds  = AUTO_REFRESH_INTERVAL;
+    // Barras de sinal
+    const bars       = document.querySelectorAll('.signal-bar-item');
+    const activeBars = Math.ceil((currentData.quality / 100) * 5);
+    bars.forEach((bar, idx) => bar.classList.toggle('active', idx < activeBars));
+    document.getElementById('signalText').textContent = currentData.quality + '%';
 
-    function iniciarAutoRefresh() {
-      // Restaura preferência salva
-      try {
-        autoRefreshEnabled = localStorage.getItem(AUTO_REFRESH_KEY) === 'true';
-      } catch(e) { autoRefreshEnabled = false; }
-      atualizarBadgeAutoRefresh();
-      if (autoRefreshEnabled) iniciarContagemAutoRefresh();
+    // Bateria
+    const pctBat = currentData.batPercent || 0;
+    const vBat   = currentData.batVoltage || 0;
+    const fill   = document.getElementById('batFill');
+    const lbl    = document.getElementById('batPercLabel');
+    if (fill && lbl) {
+      fill.style.width      = pctBat + '%';
+      fill.style.background = pctBat <= 15 ? '#e63946' : pctBat <= 35 ? '#ff9e00' : '#38b000';
+      lbl.textContent       = pctBat + '%';
+      lbl.title             = vBat.toFixed(2) + 'V';
     }
+  }
 
-    function toggleAutoRefresh() {
-      autoRefreshEnabled = !autoRefreshEnabled;
-      try { localStorage.setItem(AUTO_REFRESH_KEY, autoRefreshEnabled); } catch(e) {}
-      atualizarBadgeAutoRefresh();
-      if (autoRefreshEnabled) {
-        autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
-        iniciarContagemAutoRefresh();
-        adicionarLog(`🔄 Auto-refresh ativado (${AUTO_REFRESH_INTERVAL}s)`);
-      } else {
-        if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-        autoRefreshTimer = null;
-        adicionarLog('⏹️ Auto-refresh desativado');
+  function atualizarHistorico(isCached) {
+    const container = document.getElementById('historyTableContainer');
+    const loading   = document.getElementById('historyLoading');
+    const tbody     = document.getElementById('historyBody');
+    if (historico.length === 0) return;
+    loading.style.display   = 'none';
+    container.style.display = 'block';
+
+    // Renderiza só as 5 mais recentes; insere no topo com flash
+    const slice = historico.slice(0, 5);
+    tbody.innerHTML = '';
+    slice.forEach((item, idx) => {
+      const row = document.createElement('tr');
+      if (idx === 0 && !isCached) row.classList.add('new-row');
+      const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
+      let classeBadge = 'badge-normal', textoStatus = 'OK';
+      if (item.status === 'sensor_error') { classeBadge = 'badge-error';  textoStatus = 'FALHA'; }
+      if (item.status === 'cached')       { classeBadge = 'badge-cache';  textoStatus = 'Cache'; }
+      row.innerHTML = `
+        <td>${hora}</td>
+        <td><span class="status-badge ${classeBadge}">${textoStatus}</span></td>
+        <td>${item.percentage}%</td>
+        <td>${item.liters}L</td>
+        <td>${item.distance.toFixed(1)}cm</td>
+        <td><div class="signal-cell"><span class="signal-dbm">${item.lora_signal.rssi} dBm</span><span class="signal-percent">(${item.lora_signal.quality}%)</span></div></td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  function atualizarGrafico() {
+    const ctx = document.getElementById('nivelChart');
+    if (!ctx) return;
+    const dadosValidos = historico.filter(i => i.status === 'normal').reverse();
+    if (dadosValidos.length === 0) return;
+    const porHora = {};
+    dadosValidos.forEach(i => {
+      const d    = new Date(i.timestamp);
+      const chave = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+      porHora[chave] = i;
+    });
+    const agregados = Object.values(porHora).sort((a,b) => a.timestamp - b.timestamp);
+    const labels = agregados.map(i => new Date(i.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}));
+    const data   = agregados.map(i => i.percentage);
+    const isMobile = window.innerWidth <= 600;
+    const chartOptions = {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: 'rgba(2,62,138,0.92)', titleColor: '#90e0ef', bodyColor: '#ffffff', padding: 10, cornerRadius: 8,
+          callbacks: { title: items => '🕐 ' + items[0].label, label: item => `  Nível: ${item.raw}%` } }
+      },
+      scales: {
+        y: { beginAtZero: true, max: 100, ticks: { callback: v => v+'%', font:{size: isMobile?9:11}, color:'#6c757d', maxTicksLimit:6 }, grid:{color:'rgba(0,0,0,0.06)'}, border:{dash:[4,4]} },
+        x: { display: true, ticks: { font:{size: isMobile?8:10}, color:'#6c757d', maxRotation:45, minRotation:0, autoSkip:true, maxTicksLimit: isMobile?6:12 }, grid:{display:false} }
       }
+    };
+    if (!chart) {
+      chart = new Chart(ctx, { type: 'line', data: { labels, datasets:[{
+        label:'Nível %', data, borderColor:'#0077b6',
+        backgroundColor: context => {
+          const gradient = context.chart.ctx.createLinearGradient(0,0,0,context.chart.height);
+          gradient.addColorStop(0,'rgba(0,119,182,0.35)');
+          gradient.addColorStop(1,'rgba(0,119,182,0.02)');
+          return gradient;
+        },
+        borderWidth:2.5, fill:true, tension:0.4,
+        pointRadius: isMobile?3:4, pointBackgroundColor:'#0077b6',
+        pointBorderColor:'#ffffff', pointBorderWidth:2, pointHoverRadius:6
+      }]}, options: chartOptions });
+    } else {
+      chart.data.labels = labels; chart.data.datasets[0].data = data; chart.update();
+    }
+  }
+
+  let _ultimoLogTexto = ''; let _ultimoLogTipo = '';
+  function adicionarLog(texto, tipo = 'normal') {
+    if (texto === _ultimoLogTexto && tipo === _ultimoLogTipo) return;
+    _ultimoLogTexto = texto; _ultimoLogTipo = tipo;
+    const hora = new Date().toLocaleTimeString('pt-BR');
+    const div  = document.createElement('div');
+    div.className = 'update-entry' + (tipo==='alert' ? ' alert' : tipo==='warning' ? ' warning' : '');
+    div.innerHTML = `<span class="update-time">${hora}</span><span class="update-text">${texto}</span>`;
+    const container = document.getElementById('updateHistory');
+    container.insertBefore(div, container.firstChild);
+    while (container.children.length > 20) container.removeChild(container.lastChild);
+  }
+
+  function updateConnectionStatus(connected) {
+    const badge = document.getElementById('mqttStatus');
+    if (connected) {
+      badge.innerHTML = '<i class="fas fa-check-circle"></i> <span>MQTT Online</span>';
+      badge.className = 'mqtt-badge';
+    } else {
+      badge.innerHTML = '<i class="fas fa-times-circle"></i> <span>Offline</span>';
+      badge.className = 'mqtt-badge disconnected';
+    }
+  }
+
+  function connectMQTT() {
+    const url = `wss://${MQTT_CONFIG.host}:8884/mqtt`;
+    adicionarLog('🔄 Conectando ao HiveMQ...');
+    document.getElementById('loadingSub').textContent = 'Conectando ao broker...';
+    try {
+      client = mqtt.connect(url, {
+        username:           MQTT_CONFIG.username,
+        password:           MQTT_CONFIG.password,
+        clientId:           MQTT_CONFIG.clientId,
+        protocol:           'wss',
+        clean:              true,
+        rejectUnauthorized: false,
+        reconnectPeriod:    3000,
+        connectTimeout:     8000,
+        keepalive:          30
+      });
+    } catch(e) {
+      adicionarLog('❌ Falha ao iniciar MQTT: ' + e.message);
+      updateConnectionStatus(false);
+      ocultarLoading('Erro de conexão');
+      return;
     }
 
-    function atualizarBadgeAutoRefresh() {
-      const badge    = document.getElementById('autoRefreshBadge');
-      const label    = document.getElementById('autoRefreshLabel');
-      const icon     = document.getElementById('autoRefreshIcon');
-      const countdown = document.getElementById('autoRefreshCountdown');
-      if (autoRefreshEnabled) {
-        badge.style.background  = '#d4edda';
-        badge.style.color       = '#155724';
-        badge.style.borderColor = '#c3e6cb';
-        label.textContent       = 'Auto: ON';
-        icon.style.animation    = 'spin 2s linear infinite';
-        countdown.textContent   = autoRefreshSeconds + 's';
-      } else {
-        badge.style.background  = '#e3f2fd';
-        badge.style.color       = '#023e8a';
-        badge.style.borderColor = '#90caf9';
-        label.textContent       = 'Auto: OFF';
-        icon.style.animation    = 'none';
-        countdown.textContent   = '';
-      }
-    }
-
-    function iniciarContagemAutoRefresh() {
-      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-      autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
-      autoRefreshTimer = setInterval(() => {
-        if (document.hidden) {
-          // Não recarrega se a aba está em segundo plano — reseta o contador
-          autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
-          return;
+    client.on('connect', () => {
+      updateConnectionStatus(true);
+      adicionarLog('✅ Dashboard conectado');
+      document.getElementById('mqttDiagBanner').style.display = 'none';
+      document.getElementById('loadingSub').textContent = 'Recebendo dados retidos...';
+      iniciarVerificacaoTimeout();
+      client.subscribe([TOPICS.dados, TOPICS.status], err => {
+        if (!err) {
+          lastReceptorStatusTime = Date.now();
+          // Se em 3s não chegou nada retained, esconde o loading mesmo assim
+          setTimeout(() => ocultarLoading('Aguardando transmissor...'), 3000);
         }
-        autoRefreshSeconds--;
-        document.getElementById('autoRefreshCountdown').textContent = autoRefreshSeconds + 's';
-        if (autoRefreshSeconds <= 0) {
-          adicionarLog('🔄 Recarregando página automaticamente...');
-          setTimeout(() => location.reload(), 300);
-        }
-      }, 1000);
-    }
-
-    // ==================== WATCHDOG MQTT ====================
-    // Detecta congelamento: se o MQTT estiver conectado mas sem nenhuma mensagem
-    // por mais de 3× o intervalo esperado, reconecta automaticamente sem recarregar.
-    const MQTT_WATCHDOG_INTERVAL = 180000; // 3 min sem nenhuma mensagem = reconecta
-    let lastAnyMessageTime = null;
-    let mqttWatchdogTimer  = null;
-
-    function iniciarMqttWatchdog() {
-      if (mqttWatchdogTimer) clearInterval(mqttWatchdogTimer);
-      mqttWatchdogTimer = setInterval(() => {
-        if (!client || document.hidden) return;
-        // Se MQTT desconectou, a biblioteca já tenta reconectar — não precisa fazer nada
-        if (!client.connected) return;
-        // Se nunca recebeu mensagem, não há o que checar ainda
-        if (!lastAnyMessageTime) return;
-        const semMensagem = Date.now() - lastAnyMessageTime;
-        if (semMensagem > MQTT_WATCHDOG_INTERVAL) {
-          adicionarLog('⚠️ Watchdog: sem mensagens por ' + Math.floor(semMensagem/60000) + 'min — reconectando MQTT...', 'warning');
-          try {
-            client.end(true, () => {
-              setTimeout(() => connectMQTT(), 1000);
-            });
-          } catch(e) {
-            connectMQTT();
-          }
-          lastAnyMessageTime = Date.now(); // evita reconexões em loop
-        }
-      }, 30000); // verifica a cada 30s
-    }
-
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        pageHiddenAt = Date.now();
-      } else if (pageHiddenAt !== null) {
-        const hiddenFor = Date.now() - pageHiddenAt;
-        if (lastDataMessageTime)    lastDataMessageTime    += hiddenFor;
-        if (lastReceptorStatusTime) lastReceptorStatusTime += hiddenFor;
-        if (lastAnyMessageTime)     lastAnyMessageTime     += hiddenFor;
-        if (lastReceptorContactTime) lastReceptorContactTime += hiddenFor;
-        // Reseta contagem do auto-refresh ao voltar para a aba
-        if (autoRefreshEnabled) {
-          autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
-          document.getElementById('autoRefreshCountdown').textContent = autoRefreshSeconds + 's';
-        }
-        pageHiddenAt = null;
-      }
+      });
     });
 
-    iniciarTela();
-    iniciarAutoRefresh();
-    iniciarMqttWatchdog();
+    client.on('reconnect',   ()  => adicionarLog('🔄 Reconectando ao broker...', 'warning'));
+    client.on('disconnect',  ()  => { updateConnectionStatus(false); if (lastDataMessageTime) zerarInterfaceOffline('receptor'); });
+    client.on('error', err => {
+      const msg = err.message || String(err);
+      adicionarLog('❌ Erro MQTT: ' + msg);
+      updateConnectionStatus(false);
+      document.getElementById('mqttDiagBanner').style.display = 'block';
+      document.getElementById('mqttDiagMsg').textContent  = msg;
+      document.getElementById('mqttDiagUser').textContent = MQTT_CONFIG.username;
+      ocultarLoading('Erro: ' + msg);
+      if (lastDataMessageTime) zerarInterfaceOffline('receptor');
+    });
+
+    client.on('message', (topic, message, packet) => {
+      try {
+        lastAnyMessageTime = Date.now();
+        const payload  = JSON.parse(message.toString());
+
+        // ── Filtro LWT no /status ──
+        if (packet && packet.retain && topic === TOPICS.status) {
+          if (payload.online === false && payload.heartbeat !== true) return;
+        }
+
+        // ── Filtro deviceID ──
+        if (topic === TOPICS.dados && payload.deviceID && deviceMac && payload.deviceID !== deviceMac) {
+          adicionarLog(`🚫 Dado ignorado: esperado ${deviceMac}, recebido ${payload.deviceID}`, 'warning');
+          return;
+        }
+
+        if (topic === TOPICS.dados) {
+          const isCached   = payload.cached === true;
+          const isRetained = packet && packet.retain;
+
+          if (!isRetained) {
+            lastReceptorContactTime = Date.now();
+            if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
+          }
+
+          if (isCached || isRetained) {
+            // ── DADO RETIDO / CACHE ──
+            dadoRetained = true;
+            let sensorOK = payload.sensor_ok;
+            const distancia  = parseFloat(payload.distance);
+            const percentual = parseInt(payload.percentage);
+            if (sensorOK !== false && (distancia < 0 || distancia === 0 || percentual < 0)) sensorOK = false;
+            if (sensorOK) {
+              ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
+            }
+            payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
+            processarDados(payload, sensorOK, true);
+
+            // Calcula idade do dado retido usando epoch NTP
+            if (lastDataMessageTime === null) {
+              const agora      = Date.now();
+              const epochPayload = payload.epoch || 0;
+              if (epochPayload > 0) {
+                const idadeMs = agora - (epochPayload * 1000);
+                if (idadeMs > TRANSMITTER_TIMEOUT) {
+                  lastDataMessageTime = agora - TRANSMITTER_TIMEOUT - 1000;
+                  secondsWithoutData  = Math.floor(idadeMs / 1000);
+                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — transmissor pode estar desligado`, 'alert');
+                  window._transmitterAlertFired = false;
+                } else {
+                  lastDataMessageTime = agora - idadeMs;
+                  secondsWithoutData  = Math.floor(idadeMs / 1000);
+                  adicionarLog(`📦 Dado retido carregado (${Math.floor(idadeMs/1000)}s atrás) — aguardando próximo ciclo`, 'warning');
+                }
+              } else {
+                lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT - 30000 - 5000);
+                adicionarLog('📦 Dado retido carregado — verificando transmissor...', 'warning');
+              }
+            }
+
+          } else {
+            // ── DADO AO VIVO ──
+            dadoRetained           = false;
+            lastDataMessageTime    = Date.now();
+            secondsWithoutData     = 0;
+
+            // Inicia barra de progresso para próxima leitura esperada
+            iniciarBarraProximaLeitura();
+
+            let sensorOK     = payload.sensor_ok;
+            const distancia  = parseFloat(payload.distance);
+            const percentual = parseInt(payload.percentage);
+            if (sensorOK !== false) {
+              if (distancia < 0 || distancia === 0 || percentual < 0) sensorOK = false;
+              if (ultimoValorValido !== null && (percentual - ultimoValorValido.percentage) < -50) sensorOK = false;
+            }
+            if (sensorOK) {
+              ultimoValorValido       = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
+              leiturasConsecutivasErradas = 0;
+            } else {
+              leiturasConsecutivasErradas++;
+            }
+            if (!transmitterActive) {
+              transmitterActive             = true;
+              window._transmitterAlertFired = false;
+              adicionarLog('✅ Sinal do transmissor restaurado');
+              document.getElementById('alertTransmitter').classList.remove('show');
+            }
+            payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
+            processarDados(payload, sensorOK, false);
+          }
+
+        } else if (topic === TOPICS.status) {
+          lastReceptorContactTime = Date.now();
+          ocultarLoading('Receptor online ✅');
+          processarStatus(payload);
+        }
+      } catch(e) { console.error('Erro ao processar mensagem:', e); }
+    });
+  }
+
+  // ╔══════════════════════════════════════════════════════╗
+  // ║            GERENCIAMENTO DE CÓDIGO                   ║
+  // ╚══════════════════════════════════════════════════════╝
+  const STORAGE_CODE_KEY = 'dispositivo_codigo';
+  function iniciarTela() {
+    try {
+      const salvo = localStorage.getItem(STORAGE_CODE_KEY);
+      if (salvo) ativarDispositivo(salvo);
+    } catch(e) {}
+    document.getElementById('codigoInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmarCodigo(); });
+    document.getElementById('codigoInput').addEventListener('input',   e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''); });
+  }
+
+  function confirmarCodigo() {
+    const input  = document.getElementById('codigoInput');
+    const codigo = input.value.trim().toUpperCase().replace(/[^A-F0-9]/g, '');
+    const erroEl = document.getElementById('codigoErro');
+    if (codigo.length !== 6) {
+      input.classList.add('erro');
+      erroEl.textContent = 'O código tem 6 caracteres (ex: A1B2C3)';
+      setTimeout(() => input.classList.remove('erro'), 600);
+      return;
+    }
+    erroEl.textContent = '';
+    if (document.getElementById('lembrarCodigo').checked) {
+      try { localStorage.setItem(STORAGE_CODE_KEY, codigo); } catch(e) {}
+    }
+    ativarDispositivo(codigo);
+  }
+
+  function ativarDispositivo(codigo) {
+    deviceMac = codigo;
+    TOPICS = {
+      dados:    'caixas/agua/' + codigo + '/dados',
+      status:   'caixas/agua/' + codigo + '/status',
+      comandos: 'caixas/agua/' + codigo + '/comandos'
+    };
+    document.getElementById('deviceBadgeText').textContent = codigo;
+    document.getElementById('codigoScreen').classList.remove('show');
+    document.getElementById('mainContainer').style.display = 'block';
+    connectMQTT();
+  }
+
+  function trocarDispositivo() {
+    if (!confirm('Trocar de dispositivo? A página será recarregada.')) return;
+    try { localStorage.removeItem(STORAGE_CODE_KEY); } catch(e) {}
+    location.reload();
+  }
+
+  function confirmarReboot() { document.getElementById('modalReboot').classList.add('show'); }
+  function fecharModal()     { document.getElementById('modalReboot').classList.remove('show'); }
+  function executarReboot()  {
+    fecharModal();
+    if (client && client.connected) {
+      client.publish(TOPICS.comandos, 'REBOOT');
+      adicionarLog('🔄 Comando REBOOT enviado');
+    }
+  }
+
+  function showDetails(tipo) {
+    let msg = '';
+    switch(tipo) {
+      case 'volume':   msg = `Volume: ${currentData.liters}L / ${savedCapacityTotal}L`; break;
+      case 'distance': msg = `Distância: ${currentData.distance}cm`; break;
+      case 'level':    msg = `Altura: ${currentData.level}cm`; break;
+    }
+    alert(msg);
+  }
+
+  function debugData() {
+    console.log('=== DEBUG ===');
+    console.log('receptorOnline:', receptorOnline, 'transmitterActive:', transmitterActive);
+    console.log('SLEEP_SECONDS:', SLEEP_SECONDS, 'TRANSMITTER_TIMEOUT:', TRANSMITTER_TIMEOUT+'ms');
+    console.log('lastDataMessageTime:', lastDataMessageTime ? new Date(lastDataMessageTime).toLocaleTimeString() : null);
+    console.log('lastReceptorContactTime:', lastReceptorContactTime ? new Date(lastReceptorContactTime).toLocaleTimeString() : null);
+    console.log('dadoRetained:', dadoRetained, 'deviceMac:', deviceMac);
+  }
+
+  // ╔══════════════════════════════════════════════════════╗
+  // ║               AUTO-REFRESH                           ║
+  // ╚══════════════════════════════════════════════════════╝
+  const AUTO_REFRESH_KEY      = 'autoRefreshEnabled';
+  const AUTO_REFRESH_INTERVAL = 60;
+  let autoRefreshEnabled  = false;
+  let autoRefreshTimer    = null;
+  let autoRefreshSeconds  = AUTO_REFRESH_INTERVAL;
+
+  function iniciarAutoRefresh() {
+    try { autoRefreshEnabled = localStorage.getItem(AUTO_REFRESH_KEY) === 'true'; } catch(e) {}
+    atualizarBadgeAutoRefresh();
+    if (autoRefreshEnabled) iniciarContagemAutoRefresh();
+  }
+
+  function toggleAutoRefresh() {
+    autoRefreshEnabled = !autoRefreshEnabled;
+    try { localStorage.setItem(AUTO_REFRESH_KEY, autoRefreshEnabled); } catch(e) {}
+    atualizarBadgeAutoRefresh();
+    if (autoRefreshEnabled) {
+      autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
+      iniciarContagemAutoRefresh();
+      adicionarLog(`🔄 Auto-refresh ativado (${AUTO_REFRESH_INTERVAL}s)`);
+    } else {
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+      adicionarLog('⏹️ Auto-refresh desativado');
+    }
+  }
+
+  function atualizarBadgeAutoRefresh() {
+    const badge    = document.getElementById('autoRefreshBadge');
+    const label    = document.getElementById('autoRefreshLabel');
+    const icon     = document.getElementById('autoRefreshIcon');
+    const countdown = document.getElementById('autoRefreshCountdown');
+    if (autoRefreshEnabled) {
+      badge.style.background  = '#d4edda';
+      badge.style.color       = '#155724';
+      badge.style.borderColor = '#c3e6cb';
+      label.textContent       = 'Auto: ON';
+      icon.style.animation    = 'spin 2s linear infinite';
+      countdown.textContent   = autoRefreshSeconds + 's';
+    } else {
+      badge.style.background  = '#e3f2fd';
+      badge.style.color       = '#023e8a';
+      badge.style.borderColor = '#90caf9';
+      label.textContent       = 'Auto: OFF';
+      icon.style.animation    = 'none';
+      countdown.textContent   = '';
+    }
+  }
+
+  function iniciarContagemAutoRefresh() {
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
+    autoRefreshTimer = setInterval(() => {
+      if (document.hidden) { autoRefreshSeconds = AUTO_REFRESH_INTERVAL; return; }
+      autoRefreshSeconds--;
+      document.getElementById('autoRefreshCountdown').textContent = autoRefreshSeconds + 's';
+      if (autoRefreshSeconds <= 0) {
+        adicionarLog('🔄 Recarregando página automaticamente...');
+        setTimeout(() => location.reload(), 300);
+      }
+    }, 1000);
+  }
+
+  // ╔══════════════════════════════════════════════════════╗
+  // ║        WATCHDOG MQTT (reconexão silenciosa)          ║
+  // ╚══════════════════════════════════════════════════════╝
+  const MQTT_WATCHDOG_INTERVAL = 180000;
+  let lastAnyMessageTime  = null;
+  let mqttWatchdogTimer   = null;
+
+  function iniciarMqttWatchdog() {
+    if (mqttWatchdogTimer) clearInterval(mqttWatchdogTimer);
+    mqttWatchdogTimer = setInterval(() => {
+      if (!client || document.hidden || !client.connected || !lastAnyMessageTime) return;
+      const semMensagem = Date.now() - lastAnyMessageTime;
+      if (semMensagem > MQTT_WATCHDOG_INTERVAL) {
+        adicionarLog('⚠️ Watchdog: sem mensagens por ' + Math.floor(semMensagem/60000) + 'min — reconectando...', 'warning');
+        try { client.end(true, () => setTimeout(() => connectMQTT(), 1000)); } catch(e) { connectMQTT(); }
+        lastAnyMessageTime = Date.now();
+      }
+    }, 30000);
+  }
+
+  // ╔══════════════════════════════════════════════════════╗
+  // ║    CORREÇÃO VISIBILIDADE — pausa timers em background║
+  // ╚══════════════════════════════════════════════════════╝
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      pageHiddenAt = Date.now();
+    } else if (pageHiddenAt !== null) {
+      const hiddenFor = Date.now() - pageHiddenAt;
+      if (lastDataMessageTime)     lastDataMessageTime     += hiddenFor;
+      if (lastReceptorStatusTime)  lastReceptorStatusTime  += hiddenFor;
+      if (lastAnyMessageTime)      lastAnyMessageTime      += hiddenFor;
+      if (lastReceptorContactTime) lastReceptorContactTime += hiddenFor;
+      if (autoRefreshEnabled) {
+        autoRefreshSeconds = AUTO_REFRESH_INTERVAL;
+        document.getElementById('autoRefreshCountdown').textContent = autoRefreshSeconds + 's';
+      }
+      pageHiddenAt = null;
+    }
+  });
+
+  // ── BOOT ─────────────────────────────────────────────
+  iniciarTela();
+  iniciarAutoRefresh();
+  iniciarMqttWatchdog();
   </script>
 </body>
 </html>
