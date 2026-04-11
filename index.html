@@ -802,6 +802,13 @@
     document.getElementById('wifiRssi').textContent   = '-- dBm';
     document.getElementById('sensorStatus').textContent = motivo === 'receptor' ? 'Receptor Off' : 'Sem Sinal';
     document.getElementById('sensorStatus').className   = 'status-value offline';
+    // Zera bateria TX quando transmissor offline
+    if (motivo === 'transmitter') {
+      const fill = document.getElementById('batFill');
+      const lbl  = document.getElementById('batPercLabel');
+      if (fill) { fill.style.width = '0%'; fill.style.background = '#6c757d'; }
+      if (lbl)  { lbl.textContent = '--%'; lbl.title = ''; }
+    }
   }
 
   function atualizarStatusReceptor(online, texto) {
@@ -887,8 +894,7 @@
           transmitterActive = false;
           adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
           document.getElementById('alertTransmitter').classList.add('show');
-          document.getElementById('signalText').textContent = 'OFF';
-          if (!dadoRetained) zerarInterfaceOffline('transmitter');
+          zerarInterfaceOffline('transmitter');
         }
         if (transmitterActive && window._transmitterAlertFired) {
           window._transmitterAlertFired = false;
