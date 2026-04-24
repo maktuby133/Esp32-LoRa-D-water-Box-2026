@@ -383,11 +383,10 @@
     .info-card.error .info-card-label  { color: var(--danger); }
     .info-card.offline .info-card-value { color: var(--gray); }
 
-    #nivelChart   { display: block; width: 100% !important; }
-    #chartWrapper { height: 340px; }
+    #histChart    { display: block; width: 100% !important; }
+    #histChartWrapper { height: 220px; }
     @media (max-width: 600px) {
-      #chartWrapper { height: 220px; }
-      #chartCard    { height: auto !important; overflow: hidden; }
+      #histChartWrapper { height: 160px; }
     }
 
     .table-container { overflow-x: auto; margin-top: 6px; border-radius: 8px; border: 1px solid #e9ecef; max-height: 200px; overflow-y: auto; }
@@ -506,49 +505,20 @@
       .tank-wrapper { width: min(200px, 78vw); height: min(188px, 73vw); }
       .header h1   { font-size: 0.8rem; }
     }
-    /* ── CARDS DE HISTÓRICO ──────────────────────────── */
-    .hist-card {
-      display: grid;
-      grid-template-columns: 72px 1fr 90px;
-      align-items: center;
-      gap: 8px;
-      background: #f8f9fa;
-      border: 1px solid #e9ecef;
-      border-radius: 9px;
-      padding: 6px 9px;
-      margin-bottom: 4px;
-      transition: all 0.2s;
-      animation: histSlideIn 0.3s ease;
+    /* ── GRÁFICO HISTÓRICO ───────────────────────────── */
+    #histChartCard { padding: 12px 14px 10px; }
+    .hist-period-btn {
+      font-size: 0.68rem; font-weight: 700;
+      padding: 3px 9px; border-radius: 6px;
+      border: 1.5px solid #dee2e6;
+      background: #f8f9fa; color: var(--gray);
+      cursor: pointer; transition: all 0.18s;
     }
-    @keyframes histSlideIn { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:translateX(0); } }
-    .hist-card:hover { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.07); border-color: #c7d9ff; }
-    .hist-card-new  { background: #f0fdf4; border-color: #86efac; }
-    .hist-card-new:hover { background: #f0fdf4; border-color: #4ade80; }
-
-    .hist-time-col  { display:flex; flex-direction:column; align-items:flex-start; gap:1px; }
-    .hist-time      { font-size:0.78rem; font-weight:700; color:var(--primary-dark); letter-spacing:0.01em; }
-    .hist-date      { font-size:0.62rem; color:var(--gray); font-weight:500; }
-    .hist-novo      { font-size:0.58rem; font-weight:800; background:var(--success); color:#fff; border-radius:4px; padding:1px 4px; margin-top:2px; letter-spacing:0.05em; }
-
-    .hist-bar-col   { display:flex; flex-direction:column; gap:3px; min-width:0; }
-    .hist-bar-wrap  { height:8px; background:#e9ecef; border-radius:4px; overflow:hidden; }
-    .hist-bar-fill  { height:100%; border-radius:4px; transition:width 0.6s ease; }
-    .hist-bar-labels{ display:flex; justify-content:space-between; align-items:baseline; }
-    .hist-pct       { font-size:0.82rem; font-weight:800; }
-    .hist-lit       { font-size:0.68rem; color:var(--gray); font-weight:600; }
-
-    .hist-meta-col  { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
-    .hist-dist      { font-size:0.65rem; color:var(--gray); font-weight:600; white-space:nowrap; }
-    .hist-sig       { font-size:0.63rem; color:var(--gray); white-space:nowrap; }
-
-    .hist-var       { font-size:0.62rem; font-weight:700; border-radius:4px; padding:1px 4px; }
-    .hist-var.up     { color:#166534; background:#dcfce7; }
-    .hist-var.down   { color:#991b1b; background:#fee2e2; }
-    .hist-var.stable { color:#854d0e; background:#fef9c3; }
-
-    .hist-badge     { font-size:0.58rem; font-weight:700; border-radius:4px; padding:1px 4px; }
-    .hist-badge.err   { background:#fee2e2; color:#991b1b; }
-    .hist-badge.cache { background:#fef3c7; color:#92400e; }
+    .hist-period-btn:hover { background: #e9ecef; color: var(--primary); }
+    .hist-period-btn.active {
+      background: var(--primary); color: #fff;
+      border-color: var(--primary); box-shadow: 0 2px 8px rgba(0,119,182,0.25);
+    }
 
   </style>
 </head>
@@ -698,27 +668,57 @@
         </div>
       </div>
 
-      <div class="card" id="chartCard" style="min-height:0; overflow:hidden;">
-        <div class="card-header">
-          <i class="fas fa-chart-line"></i> Histórico (sessão)
+    </div>
+
+    <!-- ── GRÁFICO HISTÓRICO — largura total ───────────────────────── -->
+    <div class="card" id="histChartCard" style="flex-shrink:0;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+        <div class="card-header" style="margin:0;">
+          <i class="fas fa-chart-area"></i> Histórico de Nível
         </div>
-        <div id="chartWrapper" style="flex:1; min-height:0; overflow:hidden;">
-          <canvas id="nivelChart"></canvas>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <!-- Legenda -->
+          <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--gray);font-weight:600;">
+            <span style="width:12px;height:3px;background:#0077b6;border-radius:2px;display:inline-block;"></span>Nível %
+          </span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--gray);font-weight:600;">
+            <span style="width:12px;height:3px;background:#38b000;border-radius:2px;display:inline-block;"></span>Litros
+          </span>
+          <!-- Seletor de período -->
+          <div style="display:flex;gap:3px;">
+            <button class="hist-period-btn active" id="btn30m" onclick="setPeriod(30)">30 min</button>
+            <button class="hist-period-btn" id="btn1h"  onclick="setPeriod(60)">1 h</button>
+            <button class="hist-period-btn" id="btnAll" onclick="setPeriod(0)">Tudo</button>
+          </div>
         </div>
+      </div>
+      <div id="histChartEmpty" style="display:none;padding:24px;text-align:center;color:var(--gray);font-size:0.82rem;">
+        <i class="fas fa-chart-line" style="font-size:1.8rem;opacity:0.3;display:block;margin-bottom:8px;"></i>
+        Aguardando leituras para montar o gráfico...
+      </div>
+      <div id="histChartWrapper" style="height:200px;position:relative;">
+        <canvas id="histChart"></canvas>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0;margin-bottom:10px;" id="bottomGrid">
       <div class="card" style="overflow:hidden;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;">
-          <div class="card-header" style="margin:0;"><i class="fas fa-history"></i> Últimas Leituras</div>
-          <span style="font-size:0.68rem;color:var(--gray);font-weight:600;" id="historyCount"></span>
+        <div class="card-header" style="margin-bottom:5px;flex-shrink:0;"><i class="fas fa-history"></i> Últimas Leituras</div>
+        <div id="historyLoading" style="padding:8px;text-align:center;color:var(--gray);font-size:0.8rem;flex-shrink:0;">
+          <i class="fas fa-spinner fa-spin"></i> Aguardando dados...
         </div>
-        <div id="historyLoading" style="padding:16px;text-align:center;color:var(--gray);font-size:0.8rem;flex-shrink:0;">
-          <i class="fas fa-satellite-dish fa-spin"></i><br><span style="font-size:0.75rem;">Aguardando primeiro pacote...</span>
-        </div>
-        <div id="historyCardsContainer" style="display:none;overflow-y:auto;max-height:195px;flex-direction:column;gap:5px;padding-right:2px;">
-          <div id="historyCards"></div>
+        <div id="historyTableContainer" style="display:none;max-height:180px;overflow-y:auto;overflow-x:auto;flex-shrink:0;">
+          <div style="border-radius:8px;border:1px solid #e9ecef;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Horário</th><th>Sensor</th><th>Nível</th>
+                  <th>Volume</th><th>Dist.</th><th>Sinal LoRa</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
       <div class="card" style="overflow:hidden;">
@@ -772,7 +772,7 @@
   const RECEPTOR_TIMEOUT     = 90000;       // 90s = 3× heartbeat de 30s
 
   let client                 = null;
-  let chart                  = null;
+  // histChart declarado dentro de atualizarGrafico
   let savedCapacityTotal     = 0;
   let currentData            = {};
   let historico              = [];
@@ -1094,123 +1094,195 @@
   }
 
   function atualizarHistorico(isCached) {
-    const container = document.getElementById('historyCardsContainer');
+    const container = document.getElementById('historyTableContainer');
     const loading   = document.getElementById('historyLoading');
-    const cards     = document.getElementById('historyCards');
+    const tbody     = document.getElementById('historyBody');
     if (historico.length === 0) return;
-
     loading.style.display   = 'none';
-    container.style.display = 'flex';
+    container.style.display = 'block';
 
-    const slice = historico.slice(0, 8);
-    document.getElementById('historyCount').textContent = `${historico.length} registro${historico.length !== 1 ? 's' : ''}`;
-
-    cards.innerHTML = '';
+    const slice = historico.slice(0, 5);
+    tbody.innerHTML = '';
     slice.forEach((item, idx) => {
-      const isNewer = idx === 0 && !isCached;
-      const hora    = new Date(item.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-      const data    = new Date(item.timestamp).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
-
-      // Variação em relação ao item anterior
-      let variacaoHtml = '';
-      if (idx < slice.length - 1) {
-        const anterior = slice[idx + 1];
-        const diff = item.percentage - anterior.percentage;
-        if (diff > 0)       variacaoHtml = `<span class="hist-var up">▲${diff}%</span>`;
-        else if (diff < 0)  variacaoHtml = `<span class="hist-var down">▼${Math.abs(diff)}%</span>`;
-        else                variacaoHtml = `<span class="hist-var stable">▬ estável</span>`;
-      }
-
-      // Cor da barra de nível
-      let barColor = '#0284c7';
-      if      (item.percentage <= 10) barColor = '#dc2626';
-      else if (item.percentage <= 25) barColor = '#ea580c';
-      else if (item.percentage <= 50) barColor = '#ca8a04';
-      else if (item.percentage <= 80) barColor = '#0284c7';
-      else                            barColor = '#0369a1';
-
-      // Badge de status
-      let badgeHtml = '';
-      if (item.status === 'sensor_error') badgeHtml = '<span class="hist-badge err">⚠ Sensor</span>';
-      else if (item.status === 'cached')  badgeHtml = '<span class="hist-badge cache">⏳ Cache</span>';
-
-      // Qualidade sinal
-      const rssi    = item.lora_signal.rssi;
-      const quality = item.lora_signal.quality;
-      let sigIcon = '📶';
-      if (quality <= 20) sigIcon = '📵';
-      else if (quality <= 50) sigIcon = '📶';
-
-      const card = document.createElement('div');
-      card.className = 'hist-card' + (isNewer ? ' hist-card-new' : '');
-      card.innerHTML = `
-        <div class="hist-time-col">
-          <div class="hist-time">${hora}</div>
-          <div class="hist-date">${data}</div>
-          ${isNewer ? '<div class="hist-novo">NOVO</div>' : ''}
-        </div>
-        <div class="hist-bar-col">
-          <div class="hist-bar-wrap">
-            <div class="hist-bar-fill" style="width:${item.percentage}%;background:${barColor};"></div>
-          </div>
-          <div class="hist-bar-labels">
-            <span class="hist-pct" style="color:${barColor};">${item.percentage}%</span>
-            <span class="hist-lit">${item.liters} L</span>
-          </div>
-        </div>
-        <div class="hist-meta-col">
-          <div class="hist-dist"><i class="fas fa-ruler-vertical" style="font-size:0.6rem;color:var(--gray);"></i> ${item.distance.toFixed(1)} cm</div>
-          <div class="hist-sig" title="RSSI: ${rssi} dBm / Qualidade: ${quality}%">${sigIcon} ${rssi} dBm</div>
-          <div style="display:flex;gap:4px;align-items:center;">${variacaoHtml}${badgeHtml}</div>
-        </div>
+      const row = document.createElement('tr');
+      if (idx === 0 && !isCached) row.classList.add('new-row');
+      const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
+      let classeBadge = 'badge-normal', textoStatus = 'OK';
+      if (item.status === 'sensor_error') { classeBadge = 'badge-error';  textoStatus = 'FALHA'; }
+      if (item.status === 'cached')       { classeBadge = 'badge-cache';  textoStatus = 'Cache'; }
+      row.innerHTML = `
+        <td>${hora}</td>
+        <td><span class="status-badge ${classeBadge}">${textoStatus}</span></td>
+        <td>${item.percentage}%</td>
+        <td>${item.liters}L</td>
+        <td>${item.distance.toFixed(1)}cm</td>
+        <td><div class="signal-cell"><span class="signal-dbm">${item.lora_signal.rssi} dBm</span><span class="signal-percent">(${item.lora_signal.quality}%)</span></div></td>
       `;
-      cards.appendChild(card);
+      tbody.appendChild(row);
     });
   }
 
+  // ── Gráfico Histórico ────────────────────────────────────────────────────
+  let histChart      = null;
+  let periodoMinutos = 30;   // período ativo: 30min, 60min ou 0=tudo
+
+  function setPeriod(min) {
+    periodoMinutos = min;
+    ['btn30m','btn1h','btnAll'].forEach(id => document.getElementById(id).classList.remove('active'));
+    const map = {30:'btn30m', 60:'btn1h', 0:'btnAll'};
+    document.getElementById(map[min]).classList.add('active');
+    atualizarGrafico();
+  }
+
   function atualizarGrafico() {
-    const ctx = document.getElementById('nivelChart');
-    if (!ctx) return;
-    const dadosValidos = historico.filter(i => i.status === 'normal').reverse();
-    if (dadosValidos.length === 0) return;
-    const porHora = {};
-    dadosValidos.forEach(i => {
-      const d    = new Date(i.timestamp);
-      const chave = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
-      porHora[chave] = i;
-    });
-    const agregados = Object.values(porHora).sort((a,b) => a.timestamp - b.timestamp);
-    const labels = agregados.map(i => new Date(i.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}));
-    const data   = agregados.map(i => i.percentage);
+    // ── filtra por período ──
+    let dados = historico.filter(i => i.status !== 'sensor_error');
+    if (periodoMinutos > 0) {
+      const corte = Date.now() - periodoMinutos * 60 * 1000;
+      dados = dados.filter(i => i.timestamp >= corte);
+    }
+    dados = dados.slice().reverse();  // mais antigo primeiro
+
+    const emptyEl   = document.getElementById('histChartEmpty');
+    const wrapperEl = document.getElementById('histChartWrapper');
+    if (dados.length < 2) {
+      emptyEl.style.display   = 'block';
+      wrapperEl.style.display = 'none';
+      return;
+    }
+    emptyEl.style.display   = 'none';
+    wrapperEl.style.display = 'block';
+
+    const labels    = dados.map(i => new Date(i.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'}));
+    const dataPct   = dados.map(i => i.percentage);
+    const dataLit   = dados.map(i => i.liters);
+    const maxLitros = Math.max(...dataLit, 1);
+
     const isMobile = window.innerWidth <= 600;
+
+    const makeGradient = (ctx, color1, color2) => {
+      const g = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+      g.addColorStop(0, color1);
+      g.addColorStop(1, color2);
+      return g;
+    };
+
     const chartOptions = {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: { backgroundColor: 'rgba(2,62,138,0.92)', titleColor: '#90e0ef', bodyColor: '#ffffff', padding: 10, cornerRadius: 8,
-          callbacks: { title: items => '🕐 ' + items[0].label, label: item => `  Nível: ${item.raw}%` } }
+        tooltip: {
+          backgroundColor: 'rgba(2,62,138,0.95)',
+          titleColor: '#90e0ef',
+          bodyColor:  '#ffffff',
+          padding: 12,
+          cornerRadius: 10,
+          borderColor: 'rgba(144,224,239,0.3)',
+          borderWidth: 1,
+          callbacks: {
+            title: items => '🕐 ' + items[0].label,
+            label: item => {
+              if (item.datasetIndex === 0)
+                return `  💧 Nível: ${item.raw}%`;
+              return `  🪣 Volume: ${item.raw} L`;
+            }
+          }
+        }
       },
       scales: {
-        y: { beginAtZero: true, max: 100, ticks: { callback: v => v+'%', font:{size: isMobile?9:11}, color:'#6c757d', maxTicksLimit:6 }, grid:{color:'rgba(0,0,0,0.06)'}, border:{dash:[4,4]} },
-        x: { display: true, ticks: { font:{size: isMobile?8:10}, color:'#6c757d', maxRotation:45, minRotation:0, autoSkip:true, maxTicksLimit: isMobile?6:12 }, grid:{display:false} }
+        x: {
+          ticks: {
+            font: { size: isMobile ? 8 : 10 },
+            color: '#6c757d',
+            maxRotation: 45,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: isMobile ? 5 : 10
+          },
+          grid: { display: false }
+        },
+        yPct: {
+          type: 'linear',
+          position: 'left',
+          min: 0, max: 100,
+          ticks: {
+            callback: v => v + '%',
+            font: { size: isMobile ? 9 : 11 },
+            color: '#0077b6',
+            maxTicksLimit: 6
+          },
+          grid: { color: 'rgba(0,0,0,0.05)', borderDash: [4,4] }
+        },
+        yLit: {
+          type: 'linear',
+          position: 'right',
+          min: 0,
+          suggestedMax: maxLitros * 1.1,
+          ticks: {
+            callback: v => v + ' L',
+            font: { size: isMobile ? 9 : 11 },
+            color: '#38b000',
+            maxTicksLimit: 6
+          },
+          grid: { display: false }
+        }
       }
     };
-    if (!chart) {
-      chart = new Chart(ctx, { type: 'line', data: { labels, datasets:[{
-        label:'Nível %', data, borderColor:'#0077b6',
-        backgroundColor: context => {
-          const gradient = context.chart.ctx.createLinearGradient(0,0,0,context.chart.height);
-          gradient.addColorStop(0,'rgba(0,119,182,0.35)');
-          gradient.addColorStop(1,'rgba(0,119,182,0.02)');
-          return gradient;
+
+    const ctx = document.getElementById('histChart');
+
+    if (!histChart) {
+      histChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Nível %',
+              data: dataPct,
+              yAxisID: 'yPct',
+              borderColor: '#0077b6',
+              backgroundColor: ctx2 => makeGradient(ctx2.chart.ctx, 'rgba(0,119,182,0.30)', 'rgba(0,119,182,0.02)'),
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.4,
+              pointRadius: isMobile ? 3 : 4,
+              pointBackgroundColor: '#0077b6',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointHoverRadius: 7,
+              pointHoverBackgroundColor: '#023e8a'
+            },
+            {
+              label: 'Litros',
+              data: dataLit,
+              yAxisID: 'yLit',
+              borderColor: '#38b000',
+              backgroundColor: ctx2 => makeGradient(ctx2.chart.ctx, 'rgba(56,176,0,0.18)', 'rgba(56,176,0,0.01)'),
+              borderWidth: 2,
+              fill: true,
+              tension: 0.4,
+              borderDash: [6, 3],
+              pointRadius: isMobile ? 2 : 3,
+              pointBackgroundColor: '#38b000',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointHoverRadius: 6,
+              pointHoverBackgroundColor: '#166534'
+            }
+          ]
         },
-        borderWidth:2.5, fill:true, tension:0.4,
-        pointRadius: isMobile?3:4, pointBackgroundColor:'#0077b6',
-        pointBorderColor:'#ffffff', pointBorderWidth:2, pointHoverRadius:6
-      }]}, options: chartOptions });
+        options: chartOptions
+      });
     } else {
-      chart.data.labels = labels; chart.data.datasets[0].data = data; chart.update();
+      histChart.data.labels                  = labels;
+      histChart.data.datasets[0].data        = dataPct;
+      histChart.data.datasets[1].data        = dataLit;
+      histChart.options.scales.yLit.suggestedMax = maxLitros * 1.1;
+      histChart.update('active');
     }
   }
 
