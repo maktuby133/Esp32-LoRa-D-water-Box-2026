@@ -722,16 +722,16 @@
   let deviceMac = '';
 
   // ╔══════════════════════════════════════════════════════╗
-  // ║   TIMEOUTS — ajustados para SLEEP_SECONDS = 10s     ║
+  // ║   TIMEOUTS — ajustados para SLEEP_SECONDS = 30s     ║
   // ║                                                      ║
-  // ║  TRANSMISSOR dorme 10s → ciclo real ~10–12s         ║
-  // ║  TIMEOUT = 5 ciclos (60s) = folga para rede/mqtt    ║
+  // ║  TRANSMISSOR dorme 30s → ciclo real ~33–36s         ║
+  // ║  TIMEOUT = 3 ciclos (~120s) = folga para rede/mqtt  ║
   // ║                                                      ║
   // ║  RECEPTOR heartbeat a cada 30s                       ║
   // ║  TIMEOUT = 3× (90s)                                  ║
   // ╚══════════════════════════════════════════════════════╝
   const SLEEP_SECONDS        = 30;          // ← sincronizado com o firmware
-  const TRANSMITTER_TIMEOUT = 120000; // 120s = ~3 ciclos de 35s com folga
+  const TRANSMITTER_TIMEOUT  = 120000;      // 120s = ~3 ciclos de 35s (corrigido: era 60s, desatualizado)
   const RECEPTOR_TIMEOUT     = 90000;       // 90s = 3× heartbeat de 30s
 
   let client                 = null;
@@ -1262,8 +1262,8 @@
                   adicionarLog(`📦 Dado retido carregado (${Math.floor(idadeMs/1000)}s atrás) — aguardando próximo ciclo`, 'warning');
                 }
               } else {
-                lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT - 30000 - 5000);
-                adicionarLog('📦 Dado retido carregado — verificando transmissor...', 'warning');
+                lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT / 2);
+                adicionarLog('📦 Dado retido carregado (sem epoch) — verificando transmissor...', 'warning');
               }
             }
 
