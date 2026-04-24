@@ -761,8 +761,8 @@
   // ║  TIMEOUT = 3× (90s)                                  ║
   // ╚══════════════════════════════════════════════════════╝
   const SLEEP_SECONDS        = 30;
-  const TRANSMITTER_TIMEOUT  = 300000;   // 5 min = ~9 ciclos — margem ampla para reconexões MQTT
-  const RECEPTOR_TIMEOUT     = 120000;   // 2 min = 4× heartbeat de 30s
+  const TRANSMITTER_TIMEOUT  = 300000;      // 5min = ~9 ciclos — margem ampla para reconexões MQTT
+  const RECEPTOR_TIMEOUT     = 120000;      // 2min = 4× heartbeat de 30s
 
   let client                 = null;
   // histChart declarado dentro de atualizarGrafico
@@ -1403,37 +1403,32 @@
             payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
             processarDados(payload, sensorOK, true);
 
-            // ── SEMPRE recalcula lastDataMessageTime pelo epoch ──
-            // Corrige falso offline após reconexão MQTT do browser:
-            // na reconexão o broker reenvia o último pacote como retained,
-            // e o timer precisa ser recalibrado com a idade real do dado.
-            const agora        = Date.now();
-            const epochPayload = payload.epoch || 0;
-            if (epochPayload > 0) {
-              const idadeMs = Math.max(0, agora - (epochPayload * 1000));
-              if (idadeMs < TRANSMITTER_TIMEOUT) {
-                // Dado dentro do timeout — recalibra timer com idade real
-                lastDataMessageTime = agora - idadeMs;
-                secondsWithoutData  = Math.floor(idadeMs / 1000);
-                if (idadeMs < (SLEEP_SECONDS + 10) * 1000) {
-                  // Dado muito recente — considera transmissor ativo
-                  transmitterActive = true;
+            // SEMPRE recalcula pelo epoch — corrige falso offline após reconexão MQTT
+            {
+              const agora        = Date.now();
+              const epochPayload = payload.epoch || 0;
+              if (epochPayload > 0) {
+                const idadeMs = Math.max(0, agora - (epochPayload * 1000));
+                if (idadeMs < TRANSMITTER_TIMEOUT) {
+                  lastDataMessageTime = agora - idadeMs;
+                  secondsWithoutData  = Math.floor(idadeMs / 1000);
+                  if (idadeMs < (SLEEP_SECONDS + 10) * 1000) {
+                    transmitterActive = true;
+                    window._transmitterAlertFired = false;
+                    document.getElementById('alertTransmitter').classList.remove('show');
+                  }
+                  adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás)`, 'warning');
+                } else {
+                  lastDataMessageTime = agora - TRANSMITTER_TIMEOUT + 30000;
+                  secondsWithoutData  = Math.floor(idadeMs / 1000);
                   window._transmitterAlertFired = false;
-                  document.getElementById('alertTransmitter').classList.remove('show');
+                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — aguardando próximo ciclo`, 'warning');
                 }
-                adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás)`, 'warning');
               } else {
-                // Dado muito antigo — dá 30s de carência
-                lastDataMessageTime = agora - TRANSMITTER_TIMEOUT + 30000;
-                secondsWithoutData  = Math.floor(idadeMs / 1000);
-                window._transmitterAlertFired = false;
-                adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — aguardando próximo ciclo`, 'warning');
-              }
-            } else {
-              // Sem epoch — só inicializa se ainda não tinha valor
-              if (lastDataMessageTime === null) {
-                lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT / 2);
-                adicionarLog('📦 Dado retido sem epoch — verificando transmissor...', 'warning');
+                if (lastDataMessageTime === null) {
+                  lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT / 2);
+                  adicionarLog('📦 Dado retido sem epoch — verificando transmissor...', 'warning');
+                }
               }
             }
 
