@@ -1337,6 +1337,8 @@
       return;
     }
 
+    client.removeAllListeners();
+
     client.on('connect', () => {
       updateConnectionStatus(true);
       adicionarLog('✅ Dashboard conectado');
