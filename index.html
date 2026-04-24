@@ -731,7 +731,7 @@
   // ║  TIMEOUT = 3× (90s)                                  ║
   // ╚══════════════════════════════════════════════════════╝
   const SLEEP_SECONDS        = 30;          // ← sincronizado com o firmware
-  const TRANSMITTER_TIMEOUT  = 60000;       // 60s = 5 ciclos de 10s
+  const TRANSMITTER_TIMEOUT = 120000; // 120s = ~3 ciclos de 35s com folga
   const RECEPTOR_TIMEOUT     = 90000;       // 90s = 3× heartbeat de 30s
 
   let client                 = null;
