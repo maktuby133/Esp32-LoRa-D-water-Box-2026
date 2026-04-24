@@ -944,7 +944,16 @@
   }
 
   function processarDados(payload, sensorOK, isCached) {
-    if (payload.config_volume_total > 0) savedCapacityTotal = payload.config_volume_total;
+    if (payload.config_volume_total > 0) {
+      const capacidadeAnterior = savedCapacityTotal;
+      savedCapacityTotal = payload.config_volume_total;
+      // Se a capacidade mudou (novo config do transmissor), força atualização do gráfico
+      if (capacidadeAnterior !== savedCapacityTotal && histChart) {
+        histChart.options.scales.yLit.max = savedCapacityTotal;
+        histChart.options.scales.yLit.suggestedMax = savedCapacityTotal;
+        histChart.update('active');
+      }
+    }
 
     if (!sensorOK) {
       currentData = {
@@ -1149,7 +1158,7 @@
     const labels    = dados.map(i => new Date(i.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'}));
     const dataPct   = dados.map(i => i.percentage);
     const dataLit   = dados.map(i => i.liters);
-    const maxLitros = Math.max(...dataLit, 1);
+    const maxLitros = savedCapacityTotal > 0 ? savedCapacityTotal : Math.max(...dataLit, 1);
 
     const isMobile = window.innerWidth <= 600;
 
@@ -1213,7 +1222,8 @@
           type: 'linear',
           position: 'right',
           min: 0,
-          suggestedMax: maxLitros * 1.1,
+          max: savedCapacityTotal > 0 ? savedCapacityTotal : undefined,
+          suggestedMax: savedCapacityTotal > 0 ? savedCapacityTotal : maxLitros * 1.1,
           ticks: {
             callback: v => v + ' L',
             font: { size: isMobile ? 9 : 11 },
@@ -1271,10 +1281,11 @@
         options: chartOptions
       });
     } else {
-      histChart.data.labels                  = labels;
-      histChart.data.datasets[0].data        = dataPct;
-      histChart.data.datasets[1].data        = dataLit;
-      histChart.options.scales.yLit.suggestedMax = maxLitros * 1.1;
+      histChart.data.labels                      = labels;
+      histChart.data.datasets[0].data            = dataPct;
+      histChart.data.datasets[1].data            = dataLit;
+      histChart.options.scales.yLit.max          = savedCapacityTotal > 0 ? savedCapacityTotal : undefined;
+      histChart.options.scales.yLit.suggestedMax = savedCapacityTotal > 0 ? savedCapacityTotal : maxLitros * 1.1;
       histChart.update('active');
     }
   }
