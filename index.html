@@ -383,10 +383,11 @@
     .info-card.error .info-card-label  { color: var(--danger); }
     .info-card.offline .info-card-value { color: var(--gray); }
 
-    #histChart    { display: block; width: 100% !important; }
-    #histChartWrapper { height: 220px; }
+    #histChart        { display: block; width: 100% !important; height: 100% !important; }
+    #histChartWrapper { flex: 1; min-height: 0; }
+    #histChartCard    { display: flex; flex-direction: column; min-height: 0; }
     @media (max-width: 600px) {
-      #histChartWrapper { height: 160px; }
+      #histChartCard { height: auto !important; }
     }
 
     .table-container { overflow-x: auto; margin-top: 6px; border-radius: 8px; border: 1px solid #e9ecef; max-height: 200px; overflow-y: auto; }
@@ -668,36 +669,28 @@
         </div>
       </div>
 
-    </div>
-
-    <!-- ── GRÁFICO HISTÓRICO — largura total ───────────────────────── -->
-    <div class="card" id="histChartCard" style="flex-shrink:0;margin-bottom:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-        <div class="card-header" style="margin:0;">
-          <i class="fas fa-chart-area"></i> Histórico de Nível
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-          <!-- Legenda -->
-          <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--gray);font-weight:600;">
-            <span style="width:12px;height:3px;background:#0077b6;border-radius:2px;display:inline-block;"></span>Nível %
-          </span>
-          <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--gray);font-weight:600;">
-            <span style="width:12px;height:3px;background:#38b000;border-radius:2px;display:inline-block;"></span>Litros
-          </span>
-          <!-- Seletor de período -->
-          <div style="display:flex;gap:3px;">
-            <button class="hist-period-btn active" id="btn30m" onclick="setPeriod(30)">30 min</button>
-            <button class="hist-period-btn" id="btn1h"  onclick="setPeriod(60)">1 h</button>
+      <!-- Gráfico histórico — mesma posição e tamanho do card original -->
+      <div class="card" id="histChartCard" style="min-height:0;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px;margin-bottom:6px;flex-shrink:0;">
+          <div class="card-header" style="margin:0;"><i class="fas fa-chart-area"></i> Histórico de Nível</div>
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+            <span style="display:flex;align-items:center;gap:3px;font-size:0.65rem;color:var(--gray);font-weight:600;">
+              <span style="width:10px;height:2px;background:#0077b6;border-radius:2px;display:inline-block;"></span>%
+            </span>
+            <span style="display:flex;align-items:center;gap:3px;font-size:0.65rem;color:var(--gray);font-weight:600;">
+              <span style="width:10px;height:2px;background:#38b000;border-radius:2px;display:inline-block;"></span>L
+            </span>
+            <button class="hist-period-btn active" id="btn30m" onclick="setPeriod(30)">30m</button>
+            <button class="hist-period-btn" id="btn1h"  onclick="setPeriod(60)">1h</button>
             <button class="hist-period-btn" id="btnAll" onclick="setPeriod(0)">Tudo</button>
           </div>
         </div>
-      </div>
-      <div id="histChartEmpty" style="display:none;padding:24px;text-align:center;color:var(--gray);font-size:0.82rem;">
-        <i class="fas fa-chart-line" style="font-size:1.8rem;opacity:0.3;display:block;margin-bottom:8px;"></i>
-        Aguardando leituras para montar o gráfico...
-      </div>
-      <div id="histChartWrapper" style="height:200px;position:relative;">
-        <canvas id="histChart"></canvas>
+        <div id="histChartEmpty" style="display:none;flex:1;align-items:center;justify-content:center;text-align:center;color:var(--gray);font-size:0.78rem;">
+          <div><i class="fas fa-chart-line" style="font-size:1.6rem;opacity:0.25;display:block;margin-bottom:6px;"></i>Aguardando leituras...</div>
+        </div>
+        <div id="histChartWrapper" style="flex:1;min-height:0;overflow:hidden;position:relative;">
+          <canvas id="histChart"></canvas>
+        </div>
       </div>
     </div>
 
