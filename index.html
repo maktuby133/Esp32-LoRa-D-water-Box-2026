@@ -761,7 +761,7 @@
   // ║  TIMEOUT = 3× (90s)                                  ║
   // ╚══════════════════════════════════════════════════════╝
   const SLEEP_SECONDS        = 30;          // ← sincronizado com o firmware
-  const TRANSMITTER_TIMEOUT  = 120000;      // 120s = ~3 ciclos de 35s (corrigido: era 60s, desatualizado)
+  const TRANSMITTER_TIMEOUT  = 180000;      // 180s = ~5 ciclos de 33s (evita falso offline ao abrir painel)
   const RECEPTOR_TIMEOUT     = 90000;       // 90s = 3× heartbeat de 30s
 
   let client                 = null;
@@ -1410,9 +1410,9 @@
               if (epochPayload > 0) {
                 const idadeMs = agora - (epochPayload * 1000);
                 if (idadeMs > TRANSMITTER_TIMEOUT) {
-                  lastDataMessageTime = agora - TRANSMITTER_TIMEOUT - 1000;
+                  lastDataMessageTime = agora - TRANSMITTER_TIMEOUT + 30000; // dá 30s antes de disparar alerta
                   secondsWithoutData  = Math.floor(idadeMs / 1000);
-                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — transmissor pode estar desligado`, 'alert');
+                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — aguardando próximo ciclo`, 'warning');
                   window._transmitterAlertFired = false;
                 } else {
                   lastDataMessageTime = agora - idadeMs;
