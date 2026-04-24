@@ -1337,8 +1337,6 @@
       return;
     }
 
-    client.removeAllListeners();
-
     client.on('connect', () => {
       updateConnectionStatus(true);
       adicionarLog('✅ Dashboard conectado');
@@ -1405,33 +1403,67 @@
             payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
             processarDados(payload, sensorOK, true);
 
-            // Calcula idade do dado retido usando epoch NTP
-            if (lastDataMessageTime === null) {
-              const agora      = Date.now();
+            // ── Calcula idade do dado retido usando epoch NTP ──────────────
+            // CORREÇÃO: sempre recalcula — não apenas quando lastDataMessageTime===null.
+            // Isso resolve o falso offline após reconexão MQTT do browser:
+            // quando o broker reenvia o último pacote como retained na reconexão,
+            // o lastDataMessageTime precisa ser atualizado com base no epoch real,
+            // caso contrário o timer continua contando desde a sessão anterior.
+            {
+              const agora        = Date.now();
               const epochPayload = payload.epoch || 0;
+              const cicloMs      = (SLEEP_SECONDS + 6) * 1000; // margem de 6s por ciclo
+
               if (epochPayload > 0) {
                 const idadeMs = agora - (epochPayload * 1000);
-                if (idadeMs > TRANSMITTER_TIMEOUT) {
-                  lastDataMessageTime = agora - TRANSMITTER_TIMEOUT + 30000; // dá 30s antes de disparar alerta
-                  secondsWithoutData  = Math.floor(idadeMs / 1000);
-                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — aguardando próximo ciclo`, 'warning');
+
+                if (idadeMs < 0) {
+                  // Epoch no futuro — clock desajustado, trata como recente
+                  lastDataMessageTime = agora;
+                  transmitterActive   = true;
                   window._transmitterAlertFired = false;
-                } else {
+                  adicionarLog('📦 Dado retido carregado (recente)', 'warning');
+
+                } else if (idadeMs <= cicloMs) {
+                  // ★ DADO RECENTE (dentro de 1 ciclo) — atualiza como se fosse ao vivo
+                  // Isso evita o falso offline quando o browser reconecta e recebe
+                  // o mesmo pacote marcado como retained pelo broker.
                   lastDataMessageTime = agora - idadeMs;
                   secondsWithoutData  = Math.floor(idadeMs / 1000);
-                  adicionarLog(`📦 Dado retido carregado (${Math.floor(idadeMs/1000)}s atrás) — aguardando próximo ciclo`, 'warning');
+                  transmitterActive   = true;
+                  window._transmitterAlertFired = false;
+                  document.getElementById('alertTransmitter').classList.remove('show');
+                  adicionarLog(`📦 Dado retido recente (${Math.floor(idadeMs/1000)}s atrás) — transmissor OK`, 'warning');
+
+                } else if (idadeMs < TRANSMITTER_TIMEOUT) {
+                  // Dado antigo mas dentro do timeout — marca o tempo real
+                  lastDataMessageTime = agora - idadeMs;
+                  secondsWithoutData  = Math.floor(idadeMs / 1000);
+                  adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás) — aguardando próximo ciclo`, 'warning');
+
+                } else {
+                  // Dado muito antigo — dá 30s de carência antes de disparar alerta
+                  lastDataMessageTime = agora - TRANSMITTER_TIMEOUT + 30000;
+                  secondsWithoutData  = Math.floor(idadeMs / 1000);
+                  window._transmitterAlertFired = false;
+                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — aguardando próximo ciclo`, 'warning');
                 }
               } else {
-                lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT / 2);
-                adicionarLog('📦 Dado retido carregado (sem epoch) — verificando transmissor...', 'warning');
+                // Sem epoch — não sabe a idade, dá metade do timeout de carência
+                if (lastDataMessageTime === null) {
+                  lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT / 2);
+                  adicionarLog('📦 Dado retido carregado (sem epoch) — verificando transmissor...', 'warning');
+                }
               }
             }
 
           } else {
             // ── DADO AO VIVO ──
             dadoRetained           = false;
-            lastDataMessageTime    = Date.now();
+            lastDataMessageTime    = Date.now();  // sempre atualiza
             secondsWithoutData     = 0;
+            transmitterActive      = true;        // sempre marca ativo
+            window._transmitterAlertFired = false; // sempre reseta flag de alerta
 
             let sensorOK     = payload.sensor_ok;
             const distancia  = parseFloat(payload.distance);
@@ -1446,12 +1478,9 @@
             } else {
               leiturasConsecutivasErradas++;
             }
-            if (!transmitterActive) {
-              transmitterActive             = true;
-              window._transmitterAlertFired = false;
-              adicionarLog('✅ Sinal do transmissor restaurado');
-              document.getElementById('alertTransmitter').classList.remove('show');
-            }
+            // Remove alerta de transmissor offline se estava ativo
+            document.getElementById('alertTransmitter').classList.remove('show');
+            adicionarLog('✅ Sinal do transmissor OK');
             payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
             processarDados(payload, sensorOK, false);
           }
