@@ -1383,7 +1383,7 @@
 
         if (topic === TOPICS.dados) {
           const isCached   = payload.cached === true;
-          const isRetained = packet && packet.retain;
+          const isRetained = false; // ignora flag retain, trata tudo como ao vivo
 
           if (!isRetained) {
             lastReceptorContactTime = Date.now();
