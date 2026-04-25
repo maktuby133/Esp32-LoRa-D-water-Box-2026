@@ -751,9 +751,6 @@
   let TOPICS    = { dados: '', status: '', comandos: '' };
   let deviceMac = '';
 
-  // ── GOOGLE SHEETS API ──────────────────────────────────
-  const SHEETS_API = 'https://script.google.com/macros/s/AKfycbzCJtxrAJR7AozWL4Q7E4kjcAQT-KrQXP_8P-EXCd-34l01DwWYxu0kwLtva6ytgGFp/exec';
-
   // ╔══════════════════════════════════════════════════════╗
   // ║   TIMEOUTS — ajustados para SLEEP_SECONDS = 30s     ║
   // ║                                                      ║
@@ -1329,9 +1326,9 @@
         protocol:           'wss',
         clean:              true,
         rejectUnauthorized: false,
-        reconnectPeriod:    3000,
-        connectTimeout:     8000,
-        keepalive:          30
+        reconnectPeriod:    5000,
+        connectTimeout:     15000,
+        keepalive:          60
       });
     } catch(e) {
       adicionarLog('❌ Falha ao iniciar MQTT: ' + e.message);
