@@ -751,6 +751,9 @@
   let TOPICS    = { dados: '', status: '', comandos: '' };
   let deviceMac = '';
 
+  // ── GOOGLE SHEETS API ──────────────────────────────────
+  const SHEETS_API = 'https://script.google.com/macros/s/AKfycbzCJtxrAJR7AozWL4Q7E4kjcAQT-KrQXP_8P-EXCd-34l01DwWYxu0kwLtva6ytgGFp/exec';
+
   // ╔══════════════════════════════════════════════════════╗
   // ║   TIMEOUTS — ajustados para SLEEP_SECONDS = 30s     ║
   // ║                                                      ║
@@ -1099,13 +1102,9 @@
     const container = document.getElementById('historyTableContainer');
     const loading   = document.getElementById('historyLoading');
     const tbody     = document.getElementById('historyBody');
+    if (historico.length === 0) return;
     loading.style.display   = 'none';
     container.style.display = 'block';
-    
-    if (historico.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--gray); padding:20px;">Nenhum registro ainda</td></tr>';
-      return;
-    }
 
     const slice = historico.slice(0, 5);
     tbody.innerHTML = '';
