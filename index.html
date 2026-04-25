@@ -1099,9 +1099,13 @@
     const container = document.getElementById('historyTableContainer');
     const loading   = document.getElementById('historyLoading');
     const tbody     = document.getElementById('historyBody');
-    if (historico.length === 0) return;
     loading.style.display   = 'none';
     container.style.display = 'block';
+    
+    if (historico.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--gray); padding:20px;">Nenhum registro ainda</td></tr>';
+      return;
+    }
 
     const slice = historico.slice(0, 5);
     tbody.innerHTML = '';
@@ -1326,9 +1330,9 @@
         protocol:           'wss',
         clean:              true,
         rejectUnauthorized: false,
-        reconnectPeriod:    5000,
-        connectTimeout:     15000,
-        keepalive:          60
+        reconnectPeriod:    3000,
+        connectTimeout:     8000,
+        keepalive:          30
       });
     } catch(e) {
       adicionarLog('❌ Falha ao iniciar MQTT: ' + e.message);
