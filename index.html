@@ -1384,11 +1384,12 @@
 
         // Ordena do mais recente para o mais antigo (padrão do array historico[])
         historico.sort((a, b) => b.timestamp - a.timestamp);
-        if (historico.length > 200) historico.length = 200;
+        if (historico.length > 1500) historico.length = 1500;
 
         // Atualiza tabela e gráfico com os dados históricos
         atualizarHistorico(false);
         atualizarGrafico();
+        console.log('[Sheets] historico total:', historico.length, '| inseridos:', inseridos, '| mais antigo:', new Date(historico[historico.length-1]?.timestamp).toLocaleTimeString());
         adicionarLog(`📊 ${inseridos} registros carregados do Sheets`);
       })
       .catch(err => {
