@@ -1322,9 +1322,17 @@
   // ╚══════════════════════════════════════════════════════╝
   function carregarHistoricoSheets(deviceCode) {
     const url = `${SHEETS_URL}?device=${deviceCode}&limit=50`;
+    console.log('[Sheets] Buscando:', url);
     fetch(url)
-      .then(r => r.json())
-      .then(json => {
+      .then(r => {
+        console.log('[Sheets] HTTP status:', r.status, r.ok);
+        return r.text();
+      })
+      .then(text => {
+        console.log('[Sheets] Resposta bruta:', text.slice(0, 300));
+        let json;
+        try { json = JSON.parse(text); } catch(e) { console.error('[Sheets] JSON inválido:', e); return; }
+        console.log('[Sheets] status:', json.status, '| count:', json.count, '| primeiro:', JSON.stringify(json.data && json.data[0]));
         if (json.status !== 'ok' || !json.data || json.data.length === 0) return;
 
         // Converte cada linha do Sheets para o formato do array historico[]
@@ -1371,7 +1379,7 @@
         adicionarLog(`📊 ${inseridos} registros carregados do Sheets`);
       })
       .catch(err => {
-        console.warn('Sheets fetch falhou:', err);
+        console.error('[Sheets] ERRO no fetch:', err);
         adicionarLog('⚠️ Não foi possível carregar histórico do Sheets', 'warning');
       });
   }
