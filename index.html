@@ -859,6 +859,10 @@
       ['volumeCard','distanceCard','levelCard'].forEach(id => {
         document.getElementById(id).classList.remove('offline');
       });
+      // Re-renderiza interface com dados atuais se existirem (recupera do zerarInterfaceOffline)
+      if (currentData && currentData.percentage !== undefined) {
+        atualizarInterface(dadoRetained);
+      }
     } else {
       if (!lastReceptorContactTime) {
         receptorStatus.textContent = 'Aguardando...';
