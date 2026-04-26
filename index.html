@@ -1326,26 +1326,33 @@
   }
 
   // ── NOTIFICAÇÕES PUSH ────────────────────────────────────────────────────
-  let notifPermissao = false;
-  let _notifCriticaFired = false;
+  let notifPermissao    = false;
+  let _notifCriticaFired    = false;
   let _notifEnchimentoFired = false;
-  let swRegistration = null; // referência ao Service Worker registrado
+  let _swRegistration   = null; // registration do Service Worker
 
-  // ── Registra o Service Worker (necessário para notificações com aba fechada) ──
-  function registrarServiceWorker() {
-    if (!('serviceWorker' in navigator)) {
-      console.warn('[SW] Service Worker não suportado neste navegador');
-      return;
-    }
+  // Registra o SW assim que possível — necessário para notificações em background
+  function _registrarSW() {
+    if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('sw.js')
       .then(reg => {
-        swRegistration = reg;
-        console.log('[SW] Registrado com sucesso. Scope:', reg.scope);
-        adicionarLog('✅ Service Worker registrado (notificações em background ativas)');
+        _swRegistration = reg;
+        // Garante que o SW está ativo (pode estar em 'installing' ou 'waiting')
+        const sw = reg.active || reg.installing || reg.waiting;
+        if (sw && sw.state !== 'activated') {
+          sw.addEventListener('statechange', e => {
+            if (e.target.state === 'activated') {
+              _swRegistration = reg;
+              console.log('[SW] Ativado e pronto');
+            }
+          });
+        }
+        console.log('[SW] Registrado. Estado:', (reg.active ? 'active' : reg.installing ? 'installing' : 'waiting'));
+        adicionarLog('✅ Notificações em background ativas (Service Worker)');
       })
       .catch(err => {
-        console.warn('[SW] Falha ao registrar:', err);
-        adicionarLog('⚠️ Service Worker não registrado: ' + err.message, 'warning');
+        console.warn('[SW] Falha ao registrar:', err.message);
+        adicionarLog('⚠️ SW não registrado — notificações só funcionam com aba aberta', 'warning');
       });
   }
 
@@ -1354,7 +1361,7 @@
     if (Notification.permission === 'granted') {
       notifPermissao = true;
       notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
-      registrarServiceWorker(); // garante SW registrado ao carregar com permissão já concedida
+      _registrarSW();
       return;
     }
     if (Notification.permission !== 'denied') {
@@ -1364,55 +1371,52 @@
           notifAtiva = true;
           localStorage.setItem('notif_ativa', 'true');
           adicionarLog('🔔 Notificações ativadas');
-          registrarServiceWorker(); // registra SW após permissão concedida
+          _registrarSW();
         }
       });
     }
   }
 
   /**
-   * Envia notificação usando Service Worker (funciona com aba fechada/minimizada)
-   * ou cai para Notification API clássica como fallback.
+   * Envia notificação.
+   * — Com SW ativo: usa registration.showNotification() → funciona em background e aba fechada
+   * — Sem SW: usa new Notification() → só funciona com aba aberta
    */
-  function enviarNotificacao(titulo, corpo, icone) {
+  function enviarNotificacao(titulo, corpo, tag) {
     if (!notifPermissao || Notification.permission !== 'granted') return;
 
-    const tag = titulo; // evita duplicatas
+    const _tag  = tag  || titulo;
+    const _icon = 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png';
+    const opts  = {
+      body:     corpo,
+      icon:     _icon,
+      badge:    _icon,
+      tag:      _tag,
+      renotify: true,   // IMPORTANTE: permite re-disparar mesma tag (alertas repetidos)
+      vibrate:  [200, 100, 200]
+    };
 
-    // ── Tenta via Service Worker (funciona em background/aba fechada) ──
-    const swReady = swRegistration && swRegistration.active;
-    if (swReady) {
-      swRegistration.active.postMessage({
-        type:   'NOTIFICAR',
-        titulo: titulo,
-        corpo:  corpo,
-        tag:    tag
-      });
+    // ── Caminho 1: SW registration direta (melhor — funciona em background) ──
+    const reg = _swRegistration;
+    if (reg) {
+      reg.showNotification(titulo, opts).catch(e => console.warn('[SW] showNotification falhou:', e));
       return;
     }
 
-    // ── Fallback: verifica se há SW registrado no navigator ──
+    // ── Caminho 2: SW já instalado pelo navegador, pega pelo controller ──
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type:   'NOTIFICAR',
-        titulo: titulo,
-        corpo:  corpo,
-        tag:    tag
+      navigator.serviceWorker.ready.then(r => {
+        _swRegistration = r;
+        r.showNotification(titulo, opts).catch(e => console.warn('[SW] showNotification (ready) falhou:', e));
       });
       return;
     }
 
-    // ── Último recurso: Notification API clássica (só funciona com aba aberta) ──
+    // ── Caminho 3: fallback clássico (só aba aberta) ──
     try {
-      const n = new Notification(titulo, {
-        body:     corpo,
-        icon:     icone || 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
-        badge:    'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
-        tag:      tag,
-        renotify: false
-      });
+      const n = new Notification(titulo, opts);
       n.onclick = () => { window.focus(); n.close(); };
-    } catch(e) { console.warn('Notificação falhou:', e); }
+    } catch(e) { console.warn('[Notif] Falhou:', e); }
   }
 
   const NOTIF_REPEAT_MS = 1 * 60 * 1000; // repete a cada 1min até confirmar
@@ -2006,14 +2010,10 @@
   let NIVEL_ENCHENDO = parseInt(localStorage.getItem('notif_enchendo') || '80');
   let notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
   // Sincroniza notifPermissao com permissão real do navegador ao carregar
+  // e registra o SW imediatamente se já tem permissão
   if (Notification && Notification.permission === 'granted') {
     notifPermissao = true;
-    // Registra SW imediatamente para ativação mais rápida
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js')
-        .then(reg => { swRegistration = swRegistration || reg; console.log('[SW] Pré-registrado'); })
-        .catch(e => console.warn('[SW] Pré-registro falhou:', e));
-    }
+    _registrarSW();
   }
 
   function abrirModalNotif() {
@@ -2039,6 +2039,7 @@
         notifPermissao = (p === 'granted');
         document.getElementById('toggleNotif').checked = notifPermissao;
         atualizarToggleVisual(notifPermissao);
+        if (notifPermissao) _registrarSW(); // registra SW ao conceder permissão pelo toggle
         atualizarStatusNotif();
       });
     }
