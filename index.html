@@ -744,7 +744,7 @@
       <div class="card" style="overflow:hidden;">
         <div class="log-header" style="flex-shrink:0;">
           <div class="card-header" style="margin:0;"><i class="fas fa-bell"></i> Log de Eventos</div>
-          <button class="btn btn-reboot" onclick="confirmarReboot()"><i class="fas fa-power-off"></i> Reiniciar</button>
+          <button class="btn btn-reboot" style="background:linear-gradient(135deg,#7b2cbf,#5a189a);" onclick="abrirModalNotif()"><i class="fas fa-bell"></i> Notificações</button>
         </div>
         <div id="updateHistory" style="max-height:150px;overflow-y:auto;flex-shrink:0;"></div>
       </div>
@@ -797,13 +797,52 @@
     </div>
   </div>
 
-  <div id="modalReboot" class="modal">
-    <div class="modal-content">
-      <h3><i class="fas fa-exclamation-triangle"></i> Reiniciar Receptor?</h3>
-      <p>O dispositivo ESP32 será reiniciado remotamente via MQTT. Isso pode levar 30 segundos.</p>
-      <div class="modal-buttons">
-        <button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button>
-        <button class="btn btn-confirm" onclick="executarReboot()">Sim, Reiniciar</button>
+  <div id="modalNotif" class="modal">
+    <div class="modal-content" style="max-width:340px;">
+      <h3><i class="fas fa-bell"></i> Configurar Notificações</h3>
+      <p style="font-size:0.82rem;color:var(--gray);margin-bottom:14px;">Receba alertas no celular mesmo com o painel fechado.</p>
+
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--primary-dark);display:block;margin-bottom:4px;">
+            ⚠️ Nível crítico (abaixo de)
+          </label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="sliderCritico" min="5" max="50" step="5" value="20"
+              oninput="document.getElementById('valCritico').textContent=this.value+'%'"
+              style="flex:1;">
+            <span id="valCritico" style="font-weight:800;color:#e63946;min-width:36px;">20%</span>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:0.78rem;font-weight:700;color:var(--primary-dark);display:block;margin-bottom:4px;">
+            💧 Caixa abastecida (acima de)
+          </label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="sliderEnchimento" min="50" max="100" step="5" value="80"
+              oninput="document.getElementById('valEnchimento').textContent=this.value+'%'"
+              style="flex:1;">
+            <span id="valEnchimento" style="font-weight:800;color:#38b000;min-width:36px;">80%</span>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:#f8f9fa;border-radius:10px;">
+          <span style="font-size:0.8rem;font-weight:600;">Notificações ativas</span>
+          <label style="position:relative;display:inline-block;width:42px;height:24px;">
+            <input type="checkbox" id="toggleNotif" onchange="toggleNotificacoes(this.checked)" style="opacity:0;width:0;height:0;">
+            <span id="sliderToggle" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:24px;transition:.3s;">
+              <span style="position:absolute;content:'';height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;display:block;" id="sliderThumb"></span>
+            </span>
+          </label>
+        </div>
+
+        <div id="notifStatusMsg" style="font-size:0.75rem;text-align:center;color:var(--gray);"></div>
+      </div>
+
+      <div class="modal-buttons" style="margin-top:16px;">
+        <button class="btn btn-cancel" onclick="fecharModalNotif()">Fechar</button>
+        <button class="btn btn-confirm" onclick="salvarConfigNotif()">Salvar</button>
       </div>
     </div>
   </div>
@@ -1299,15 +1338,12 @@
   }
 
   function verificarNotificacoes(pct) {
-    if (!notifPermissao) return;
-    const NIVEL_CRITICO   = 20;
-    const NIVEL_ENCHENDO  = 80;
-
+    if (!notifAtiva || !notifPermissao) return;
     // Alerta de nível crítico (dispara uma vez até normalizar)
     if (pct <= NIVEL_CRITICO && !_notifCriticaFired) {
       _notifCriticaFired = true;
       enviarNotificacao(
-        '⚠️ Caixa d'água crítica!',
+        '⚠️ Caixa d\'água crítica!',
         `Nível em ${pct}% — abaixo de ${NIVEL_CRITICO}%. Verifique o abastecimento.`
       );
       adicionarLog(`🔔 Notificação enviada: nível crítico (${pct}%)`, 'warning');
@@ -1856,8 +1892,79 @@
     location.reload();
   }
 
-  function confirmarReboot() { document.getElementById('modalReboot').classList.add('show'); }
-  function fecharModal()     { document.getElementById('modalReboot').classList.remove('show'); }
+  // ── MODAL NOTIFICAÇÕES ───────────────────────────────────────────────────
+  let NIVEL_CRITICO  = parseInt(localStorage.getItem('notif_critico')  || '20');
+  let NIVEL_ENCHENDO = parseInt(localStorage.getItem('notif_enchendo') || '80');
+  let notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
+
+  function abrirModalNotif() {
+    const modal = document.getElementById('modalNotif');
+    // Carrega valores salvos nos controles
+    document.getElementById('sliderCritico').value     = NIVEL_CRITICO;
+    document.getElementById('valCritico').textContent  = NIVEL_CRITICO + '%';
+    document.getElementById('sliderEnchimento').value  = NIVEL_ENCHENDO;
+    document.getElementById('valEnchimento').textContent = NIVEL_ENCHENDO + '%';
+    const toggle = document.getElementById('toggleNotif');
+    toggle.checked = notifAtiva;
+    atualizarToggleVisual(notifAtiva);
+    atualizarStatusNotif();
+    modal.classList.add('show');
+  }
+
+  function fecharModalNotif() { document.getElementById('modalNotif').classList.remove('show'); }
+
+  function toggleNotificacoes(ativo) {
+    atualizarToggleVisual(ativo);
+    if (ativo && Notification.permission !== 'granted') {
+      Notification.requestPermission().then(p => {
+        notifPermissao = (p === 'granted');
+        document.getElementById('toggleNotif').checked = notifPermissao;
+        atualizarToggleVisual(notifPermissao);
+        atualizarStatusNotif();
+      });
+    }
+    atualizarStatusNotif();
+  }
+
+  function atualizarToggleVisual(ativo) {
+    const bg    = document.getElementById('sliderToggle');
+    const thumb = document.getElementById('sliderThumb');
+    if (bg && thumb) {
+      bg.style.background    = ativo ? '#7b2cbf' : '#ccc';
+      thumb.style.transform  = ativo ? 'translateX(18px)' : 'translateX(0)';
+    }
+  }
+
+  function atualizarStatusNotif() {
+    const msg = document.getElementById('notifStatusMsg');
+    if (!('Notification' in window)) {
+      msg.textContent = '❌ Seu navegador não suporta notificações';
+    } else if (Notification.permission === 'denied') {
+      msg.textContent = '🚫 Permissão negada — habilite nas configurações do navegador';
+    } else if (Notification.permission === 'granted') {
+      msg.textContent = '✅ Permissão concedida';
+    } else {
+      msg.textContent = '⏳ Permissão ainda não solicitada';
+    }
+  }
+
+  function salvarConfigNotif() {
+    const ativo = document.getElementById('toggleNotif').checked;
+    NIVEL_CRITICO  = parseInt(document.getElementById('sliderCritico').value);
+    NIVEL_ENCHENDO = parseInt(document.getElementById('sliderEnchimento').value);
+    notifAtiva     = ativo && Notification.permission === 'granted';
+    notifPermissao = notifAtiva;
+    localStorage.setItem('notif_critico',  NIVEL_CRITICO);
+    localStorage.setItem('notif_enchendo', NIVEL_ENCHENDO);
+    localStorage.setItem('notif_ativa',    notifAtiva);
+    // Reseta flags para reavaliar com novos limites
+    _notifCriticaFired   = false;
+    _notifEnchimentoFired = false;
+    adicionarLog(`🔔 Notificações salvas — crítico: ${NIVEL_CRITICO}%, abastecida: ${NIVEL_ENCHENDO}%`);
+    fecharModalNotif();
+  }
+
+  function fecharModal() { fecharModalNotif(); }  // compat
   function executarReboot()  {
     fecharModal();
     if (client && client.connected) {
