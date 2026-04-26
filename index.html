@@ -1324,12 +1324,17 @@
     if (!('Notification' in window)) return;
     if (Notification.permission === 'granted') {
       notifPermissao = true;
+      notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
       return;
     }
     if (Notification.permission !== 'denied') {
       Notification.requestPermission().then(p => {
         notifPermissao = (p === 'granted');
-        if (notifPermissao) adicionarLog('🔔 Notificações ativadas');
+        if (notifPermissao) {
+          notifAtiva = true;
+          localStorage.setItem('notif_ativa', 'true');
+          adicionarLog('🔔 Notificações ativadas');
+        }
       });
     }
   }
@@ -1349,6 +1354,7 @@
   }
 
   function verificarNotificacoes(pct) {
+    console.log('[NOTIF] pct:', pct, '| notifAtiva:', notifAtiva, '| notifPermissao:', notifPermissao, '| permission:', Notification?.permission, '| CRITICO:', NIVEL_CRITICO);
     if (!notifAtiva || !notifPermissao) return;
     // Alerta de nível crítico (dispara uma vez até normalizar)
     if (pct <= NIVEL_CRITICO && !_notifCriticaFired) {
@@ -1557,11 +1563,11 @@
               borderWidth: 2.5,
               fill: true,
               tension: 0.4,
-              pointRadius: isMobile ? 3 : 4,
+              pointRadius: 0,
               pointBackgroundColor: '#0077b6',
               pointBorderColor: '#ffffff',
               pointBorderWidth: 2,
-              pointHoverRadius: 7,
+              pointHoverRadius: 6,
               pointHoverBackgroundColor: '#023e8a'
             },
             {
@@ -1574,11 +1580,11 @@
               fill: true,
               tension: 0.4,
               borderDash: [6, 3],
-              pointRadius: isMobile ? 2 : 3,
+              pointRadius: 0,
               pointBackgroundColor: '#38b000',
               pointBorderColor: '#ffffff',
               pointBorderWidth: 2,
-              pointHoverRadius: 6,
+              pointHoverRadius: 5,
               pointHoverBackgroundColor: '#166534'
             },
             {
@@ -1907,6 +1913,8 @@
   let NIVEL_CRITICO  = parseInt(localStorage.getItem('notif_critico')  || '20');
   let NIVEL_ENCHENDO = parseInt(localStorage.getItem('notif_enchendo') || '80');
   let notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
+  // Sincroniza notifPermissao com permissão real do navegador ao carregar
+  if (Notification && Notification.permission === 'granted') notifPermissao = true;
 
   function abrirModalNotif() {
     const modal = document.getElementById('modalNotif');
