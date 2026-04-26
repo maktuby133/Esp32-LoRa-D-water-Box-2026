@@ -682,6 +682,7 @@
             </span>
             <button class="hist-period-btn active" id="btn30m" onclick="setPeriod(30)">30m</button>
             <button class="hist-period-btn" id="btn1h"  onclick="setPeriod(60)">1h</button>
+            <button class="hist-period-btn" id="btn6h"  onclick="setPeriod(360)">6h</button>
             <button class="hist-period-btn" id="btnAll" onclick="setPeriod(0)">Tudo</button>
           </div>
         </div>
@@ -748,11 +749,10 @@
     clientId: 'dash-lora-' + Math.random().toString(36).substr(2, 8)
   };
 
+  const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzCJtxrAJR7AozWL4Q7E4kjcAQT-KrQXP_8P-EXCd-34l01DwWYxu0kwLtva6ytgGFp/exec';
+
   let TOPICS    = { dados: '', status: '', comandos: '' };
   let deviceMac = '';
-
-  // ── GOOGLE SHEETS API ──────────────────────────────────
-  const SHEETS_API = 'https://script.google.com/macros/s/AKfycbzCJtxrAJR7AozWL4Q7E4kjcAQT-KrQXP_8P-EXCd-34l01DwWYxu0kwLtva6ytgGFp/exec';
 
   // ╔══════════════════════════════════════════════════════╗
   // ║   TIMEOUTS — ajustados para SLEEP_SECONDS = 30s     ║
@@ -1106,7 +1106,7 @@
     loading.style.display   = 'none';
     container.style.display = 'block';
 
-    const slice = historico.slice(0, 5);
+    const slice = historico.slice(0, 20);
     tbody.innerHTML = '';
     slice.forEach((item, idx) => {
       const row = document.createElement('tr');
@@ -1133,8 +1133,8 @@
 
   function setPeriod(min) {
     periodoMinutos = min;
-    ['btn30m','btn1h','btnAll'].forEach(id => document.getElementById(id).classList.remove('active'));
-    const map = {30:'btn30m', 60:'btn1h', 0:'btnAll'};
+    ['btn30m','btn1h','btn6h','btnAll'].forEach(id => document.getElementById(id).classList.remove('active'));
+    const map = {30:'btn30m', 60:'btn1h', 360:'btn6h', 0:'btnAll'};
     document.getElementById(map[min]).classList.add('active');
     atualizarGrafico();
   }
@@ -1315,6 +1315,65 @@
       badge.innerHTML = '<i class="fas fa-times-circle"></i> <span>Offline</span>';
       badge.className = 'mqtt-badge disconnected';
     }
+  }
+
+  // ╔══════════════════════════════════════════════════════╗
+  // ║         HISTÓRICO DO GOOGLE SHEETS                   ║
+  // ╚══════════════════════════════════════════════════════╝
+  function carregarHistoricoSheets(deviceCode) {
+    const url = `${SHEETS_URL}?device=${deviceCode}&limit=50`;
+    fetch(url)
+      .then(r => r.json())
+      .then(json => {
+        if (json.status !== 'ok' || !json.data || json.data.length === 0) return;
+
+        // Converte cada linha do Sheets para o formato do array historico[]
+        // As linhas já vêm do mais recente para o mais antigo (doGet faz slice reverso)
+        const registros = json.data.map(r => {
+          // datetime do Sheets vem como string tipo "Mon Apr 21 2025 14:30:00 GMT..."
+          const ts = r.datetime ? new Date(r.datetime).getTime() : Date.now();
+          const pct  = parseInt(r.percentage) || 0;
+          const lit  = parseInt(r.liters)     || 0;
+          const dist = parseFloat(r.distance) || 0;
+          const sOK  = r.sensor_ok === true || r.sensor_ok === 'true' || r.sensor_ok === 1;
+          return {
+            timestamp:   ts,
+            percentage:  pct,
+            liters:      lit,
+            distance:    dist,
+            level:       parseInt(r.level) || 0,
+            status:      sOK ? 'normal' : 'sensor_error',
+            lora_signal: { quality: calcularQualidadeSinal(parseFloat(r.rssi) || -100), rssi: parseFloat(r.rssi) || -100 },
+            fromSheets:  true
+          };
+        });
+
+        // Só insere registros do Sheets que não existem ainda no array em memória
+        // (evita duplicar pontos que já chegaram via MQTT)
+        const tsEmMemoria = new Set(historico.map(h => h.timestamp));
+        let inseridos = 0;
+        registros.forEach(reg => {
+          if (!tsEmMemoria.has(reg.timestamp)) {
+            historico.push(reg);
+            inseridos++;
+          }
+        });
+
+        if (inseridos === 0) return;
+
+        // Ordena do mais recente para o mais antigo (padrão do array historico[])
+        historico.sort((a, b) => b.timestamp - a.timestamp);
+        if (historico.length > 200) historico.length = 200;
+
+        // Atualiza tabela e gráfico com os dados históricos
+        atualizarHistorico(false);
+        atualizarGrafico();
+        adicionarLog(`📊 ${inseridos} registros carregados do Sheets`);
+      })
+      .catch(err => {
+        console.warn('Sheets fetch falhou:', err);
+        adicionarLog('⚠️ Não foi possível carregar histórico do Sheets', 'warning');
+      });
   }
 
   function connectMQTT() {
@@ -1511,6 +1570,7 @@
     document.getElementById('codigoScreen').classList.remove('show');
     document.getElementById('mainContainer').style.display = 'block';
     connectMQTT();
+    carregarHistoricoSheets(codigo);
   }
 
   function trocarDispositivo() {
