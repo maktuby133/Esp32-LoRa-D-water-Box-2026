@@ -765,7 +765,7 @@
   // ╚══════════════════════════════════════════════════════╝
   const SLEEP_SECONDS        = 30;
   const TRANSMITTER_TIMEOUT  = 300000;      // 5min = ~9 ciclos — margem ampla para reconexões MQTT
-  const RECEPTOR_TIMEOUT     = 180000;      // 3min = 6× heartbeat de 30s
+  const RECEPTOR_TIMEOUT     = 300000;      // 5min — mesma margem do transmissor
 
   let client                 = null;
   // histChart declarado dentro de atualizarGrafico
@@ -899,6 +899,9 @@
     timeoutCheckInterval = setInterval(() => {
       if (document.hidden) return;
       const agora = Date.now();
+      const semReceptor = lastReceptorContactTime ? Math.floor((agora - lastReceptorContactTime)/1000) : 'null';
+      const semDados    = lastDataMessageTime     ? Math.floor((agora - lastDataMessageTime)/1000)     : 'null';
+      console.log('[TIMEOUT]', new Date().toLocaleTimeString(), 'receptorOnline:', receptorOnline, 'semReceptor:', semReceptor+'s', 'transmitterActive:', transmitterActive, 'semDados:', semDados+'s');
 
       // ── Receptor ──
       if (lastReceptorContactTime === null) {
@@ -1449,6 +1452,7 @@
       try {
         lastAnyMessageTime = Date.now();
         const payload  = JSON.parse(message.toString());
+        console.log('[MSG]', new Date().toLocaleTimeString(), topic, 'retain:', packet?.retain, 'cached:', payload.cached, 'pct:', payload.percentage);
 
         // ── Filtro LWT no /status ──
         if (packet && packet.retain && topic === TOPICS.status) {
@@ -1465,10 +1469,9 @@
           const isCached   = payload.cached === true;
           const isRetained = false; // ignora flag retain, trata tudo como ao vivo
 
-          if (!isRetained) {
-            lastReceptorContactTime = Date.now();
-            if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
-          }
+          // Qualquer pacote no /dados prova que o receptor está online
+          lastReceptorContactTime = Date.now();
+          if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
 
           if (isCached || isRetained) {
             // ── DADO RETIDO / CACHE ──
