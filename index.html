@@ -593,8 +593,8 @@
         </div>
         <!-- Badge de dado em cache -->
         <span id="cacheBadge"><i class="fas fa-database"></i> Dado retido</span>
-        <!-- Hora da última atualização em destaque -->
-        <span id="lastUpdateBig"><i class="fas fa-clock"></i> <span id="lastUpdateBigText">aguardando...</span></span>
+        <!-- Botão de estatísticas -->
+        <span id="lastUpdateBig" onclick="abrirModalStats()" title="Ver estatísticas do dia" style="cursor:pointer;"><i class="fas fa-chart-bar"></i> <span id="lastUpdateBigText">Estatísticas</span></span>
       </div>
     </div>
 
@@ -751,48 +751,50 @@
     </div>
   </div>
 
-  <!-- Painel de Estatísticas do Dia -->
-  <div style="background:white;border-radius:15px;box-shadow:0 5px 20px rgba(0,0,0,0.08);padding:14px 16px 16px;margin-bottom:10px;flex-shrink:0;" id="statsPanel">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;">
-      <div class="card-header" style="margin:0;"><i class="fas fa-chart-bar"></i> Estatísticas do Dia</div>
-      <span style="font-size:0.68rem;color:var(--gray);font-weight:600;" id="statsDateLabel">hoje</span>
-    </div>
-    <div class="stats-grid">
-      <div class="stat-card min">
-        <div class="stat-label">🔴 Mínimo</div>
-        <div class="stat-value" id="statMin">--</div>
-        <div class="stat-unit">%</div>
-        <div class="stat-sub" id="statMinTime">--:--</div>
+  <!-- Modal de Estatísticas do Dia -->
+  <div id="modalStats" class="modal">
+    <div class="modal-content" style="max-width:360px;">
+      <h3><i class="fas fa-chart-bar"></i> Estatísticas do Dia <span style="font-size:0.7rem;font-weight:500;color:var(--gray);" id="statsDateLabel"></span></h3>
+      <div class="stats-grid" style="margin-top:12px;">
+        <div class="stat-card min">
+          <div class="stat-label">🔴 Mínimo</div>
+          <div class="stat-value" id="statMin">--</div>
+          <div class="stat-unit">%</div>
+          <div class="stat-sub" id="statMinTime">--:--</div>
+        </div>
+        <div class="stat-card max">
+          <div class="stat-label">🟢 Máximo</div>
+          <div class="stat-value" id="statMax">--</div>
+          <div class="stat-unit">%</div>
+          <div class="stat-sub" id="statMaxTime">--:--</div>
+        </div>
+        <div class="stat-card avg">
+          <div class="stat-label">🔵 Média</div>
+          <div class="stat-value" id="statAvg">--</div>
+          <div class="stat-unit">%</div>
+          <div class="stat-sub" id="statReadings">-- leituras</div>
+        </div>
+        <div class="stat-card fill">
+          <div class="stat-label">📈 Maior enchimento</div>
+          <div class="stat-value" id="statFill">--</div>
+          <div class="stat-unit">% ganho</div>
+          <div class="stat-sub" id="statFillTime">--:--</div>
+        </div>
+        <div class="stat-card empty">
+          <div class="stat-label">📉 Maior consumo</div>
+          <div class="stat-value" id="statEmpty">--</div>
+          <div class="stat-unit">% gasto</div>
+          <div class="stat-sub" id="statEmptyTime">--:--</div>
+        </div>
+        <div class="stat-card hours">
+          <div class="stat-label">🕐 Última leitura</div>
+          <div class="stat-value" id="statLastHour">--:--</div>
+          <div class="stat-unit"></div>
+          <div class="stat-sub" id="statLastAgo">há --min</div>
+        </div>
       </div>
-      <div class="stat-card max">
-        <div class="stat-label">🟢 Máximo</div>
-        <div class="stat-value" id="statMax">--</div>
-        <div class="stat-unit">%</div>
-        <div class="stat-sub" id="statMaxTime">--:--</div>
-      </div>
-      <div class="stat-card avg">
-        <div class="stat-label">🔵 Média</div>
-        <div class="stat-value" id="statAvg">--</div>
-        <div class="stat-unit">%</div>
-        <div class="stat-sub" id="statReadings">-- leituras</div>
-      </div>
-      <div class="stat-card fill">
-        <div class="stat-label">📈 Maior enchimento</div>
-        <div class="stat-value" id="statFill">--</div>
-        <div class="stat-unit">% ganho</div>
-        <div class="stat-sub" id="statFillTime">--:--</div>
-      </div>
-      <div class="stat-card empty">
-        <div class="stat-label">📉 Maior consumo</div>
-        <div class="stat-value" id="statEmpty">--</div>
-        <div class="stat-unit">% gasto</div>
-        <div class="stat-sub" id="statEmptyTime">--:--</div>
-      </div>
-      <div class="stat-card hours">
-        <div class="stat-label">🕐 Última leitura</div>
-        <div class="stat-value" id="statLastHour">--:--</div>
-        <div class="stat-unit"></div>
-        <div class="stat-sub" id="statLastAgo">há --min</div>
+      <div class="modal-buttons" style="margin-top:16px;">
+        <button class="btn btn-confirm" onclick="fecharModalStats()">Fechar</button>
       </div>
     </div>
   </div>
@@ -910,9 +912,12 @@
   function atualizarLastUpdateBig(hora, isCached) {
     const el    = document.getElementById('lastUpdateBig');
     const texto = document.getElementById('lastUpdateBigText');
-    texto.textContent = isCached ? `${hora} (retido)` : hora;
-    el.className = isCached ? '' : 'fresh';
-    setTimeout(() => { if (!isCached) el.className = ''; }, 3000);
+    if (!el || !texto) return;
+    // Badge virou botão de estatísticas — só pisca verde em dado ao vivo
+    if (!isCached) {
+      el.classList.add('fresh');
+      setTimeout(() => el.classList.remove('fresh'), 1500);
+    }
   }
 
   // ────────────────────────────────────────────────────
@@ -1256,6 +1261,12 @@
   // ── Gráfico Histórico ────────────────────────────────────────────────────
   let histChart      = null;
   let periodoMinutos = 30;   // período ativo: 30min, 60min ou 0=tudo
+
+  function abrirModalStats() {
+    atualizarEstatisticas();
+    document.getElementById('modalStats').classList.add('show');
+  }
+  function fecharModalStats() { document.getElementById('modalStats').classList.remove('show'); }
 
   function atualizarEstatisticas() {
     const hoje = new Date();
