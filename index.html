@@ -1419,7 +1419,7 @@
     } catch(e) { console.warn('[Notif] Falhou:', e); }
   }
 
-  const NOTIF_REPEAT_MS = 1 * 60 * 1000; // repete a cada 1min até confirmar
+  const NOTIF_REPEAT_MS = 10 * 1000; // repete a cada 10s (TESTE)
   let _notifCriticaConfirmada    = false;
   let _notifEnchimentoConfirmada = false;
   let _notifCriticaUltima        = 0;
