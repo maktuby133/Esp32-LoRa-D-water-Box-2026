@@ -1321,7 +1321,7 @@
   // ║         HISTÓRICO DO GOOGLE SHEETS                   ║
   // ╚══════════════════════════════════════════════════════╝
   function carregarHistoricoSheets(deviceCode) {
-    const url = `${SHEETS_URL}?device=${deviceCode}&limit=50`;
+    const url = `${SHEETS_URL}?device=${deviceCode}&limit=1444`;
     console.log('[Sheets] Buscando:', url);
     fetch(url)
       .then(r => {
