@@ -1390,9 +1390,9 @@
         _notifCriticaUltima = agora;
         enviarNotificacao(
           '⚠️ Caixa d\'água crítica!',
-          \`Nível em \${pct}% — abaixo de \${NIVEL_CRITICO}%. Toque para confirmar.\`
+          `Nível em ${pct}% — abaixo de ${NIVEL_CRITICO}%. Toque para confirmar.`
         );
-        adicionarLog(\`🔔 Alerta crítico: \${pct}% (repete a cada 5min até confirmar)\`, 'warning');
+        adicionarLog(`🔔 Alerta crítico: ${pct}% (repete a cada 5min até confirmar)`, 'warning');
         const banner = document.getElementById('alertNivelCritico');
         if (banner) banner.style.display = 'flex';
         document.getElementById('alertNivelCriticoTxt').textContent = `Nível crítico: ${pct}% — abaixo de ${NIVEL_CRITICO}%`;
@@ -1412,9 +1412,9 @@
       _notifEnchimentoConfirmada = true;
       enviarNotificacao(
         '💧 Caixa abastecida!',
-        \`Nível atingiu \${pct}% — caixa com bom volume.\`
+        `Nível atingiu ${pct}% — caixa com bom volume.`
       );
-      adicionarLog(\`🔔 Notificação: caixa abastecida (\${pct}%)\`);
+      adicionarLog(`🔔 Notificação: caixa abastecida (${pct}%)`);
     }
     if (pct < NIVEL_ENCHENDO - 5) _notifEnchimentoConfirmada = false;
   }
