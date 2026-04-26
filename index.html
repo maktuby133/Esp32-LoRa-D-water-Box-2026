@@ -506,6 +506,32 @@
       .tank-wrapper { width: min(200px, 78vw); height: min(188px, 73vw); }
       .header h1   { font-size: 0.8rem; }
     }
+    /* ── ESTATÍSTICAS DO DIA ─────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      text-align: center;
+      border-top: 3px solid var(--primary);
+    }
+    .stat-card.min  { border-color: #e63946; }
+    .stat-card.max  { border-color: #38b000; }
+    .stat-card.avg  { border-color: #0077b6; }
+    .stat-card.fill { border-color: #00b4d8; }
+    .stat-card.empty { border-color: #ff9e00; }
+    .stat-card.hours { border-color: #7b2cbf; }
+    .stat-label { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; color: var(--gray); margin-bottom: 4px; }
+    .stat-value { font-size: 1.15rem; font-weight: 800; color: var(--primary-dark); line-height: 1; }
+    .stat-unit  { font-size: 0.65rem; color: var(--gray); margin-top: 2px; }
+    .stat-sub   { font-size: 0.62rem; color: var(--gray); margin-top: 3px; }
+
     /* ── GRÁFICO HISTÓRICO ───────────────────────────── */
     #histChartCard { padding: 12px 14px 10px; }
     .hist-period-btn {
@@ -721,6 +747,52 @@
           <button class="btn btn-reboot" onclick="confirmarReboot()"><i class="fas fa-power-off"></i> Reiniciar</button>
         </div>
         <div id="updateHistory" style="max-height:150px;overflow-y:auto;flex-shrink:0;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Painel de Estatísticas do Dia -->
+  <div style="background:white;border-radius:15px;box-shadow:0 5px 20px rgba(0,0,0,0.08);padding:14px 16px 16px;margin-bottom:10px;flex-shrink:0;" id="statsPanel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;">
+      <div class="card-header" style="margin:0;"><i class="fas fa-chart-bar"></i> Estatísticas do Dia</div>
+      <span style="font-size:0.68rem;color:var(--gray);font-weight:600;" id="statsDateLabel">hoje</span>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card min">
+        <div class="stat-label">🔴 Mínimo</div>
+        <div class="stat-value" id="statMin">--</div>
+        <div class="stat-unit">%</div>
+        <div class="stat-sub" id="statMinTime">--:--</div>
+      </div>
+      <div class="stat-card max">
+        <div class="stat-label">🟢 Máximo</div>
+        <div class="stat-value" id="statMax">--</div>
+        <div class="stat-unit">%</div>
+        <div class="stat-sub" id="statMaxTime">--:--</div>
+      </div>
+      <div class="stat-card avg">
+        <div class="stat-label">🔵 Média</div>
+        <div class="stat-value" id="statAvg">--</div>
+        <div class="stat-unit">%</div>
+        <div class="stat-sub" id="statReadings">-- leituras</div>
+      </div>
+      <div class="stat-card fill">
+        <div class="stat-label">📈 Maior enchimento</div>
+        <div class="stat-value" id="statFill">--</div>
+        <div class="stat-unit">% ganho</div>
+        <div class="stat-sub" id="statFillTime">--:--</div>
+      </div>
+      <div class="stat-card empty">
+        <div class="stat-label">📉 Maior consumo</div>
+        <div class="stat-value" id="statEmpty">--</div>
+        <div class="stat-unit">% gasto</div>
+        <div class="stat-sub" id="statEmptyTime">--:--</div>
+      </div>
+      <div class="stat-card hours">
+        <div class="stat-label">🕐 Última leitura</div>
+        <div class="stat-value" id="statLastHour">--:--</div>
+        <div class="stat-unit"></div>
+        <div class="stat-sub" id="statLastAgo">há --min</div>
       </div>
     </div>
   </div>
@@ -1021,11 +1093,13 @@
       lora_signal: { quality: currentData.quality, rssi: currentData.rssi }
     };
     historico.unshift(registro);
-    if (historico.length > 50) historico.pop();
+    if (historico.length > 50) historico.pop();  // MQTT mantém 50; Sheets expande depois
 
     atualizarInterface(isCached);
     atualizarHistorico(isCached);
     atualizarGrafico();
+    atualizarEstatisticas();
+    if (!isCached) verificarNotificacoes(currentData.percentage);
     ocultarLoading('Dados recebidos ✅');
   }
 
@@ -1144,6 +1218,114 @@
   let histChart      = null;
   let periodoMinutos = 30;   // período ativo: 30min, 60min ou 0=tudo
 
+  function atualizarEstatisticas() {
+    const hoje = new Date();
+    const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
+    const dadosHoje = historico.filter(i => i.timestamp >= inicioDia && i.status !== 'sensor_error');
+    if (dadosHoje.length === 0) return;
+
+    // Mín / Máx / Média
+    let minVal = Infinity, maxVal = -Infinity, minTs = 0, maxTs = 0, soma = 0;
+    dadosHoje.forEach(d => {
+      if (d.percentage < minVal) { minVal = d.percentage; minTs = d.timestamp; }
+      if (d.percentage > maxVal) { maxVal = d.percentage; maxTs = d.timestamp; }
+      soma += d.percentage;
+    });
+    const avg = Math.round(soma / dadosHoje.length);
+
+    // Maior enchimento e maior consumo (variação entre leituras consecutivas)
+    const ordem = dadosHoje.slice().sort((a,b) => a.timestamp - b.timestamp);
+    let maiorEnchimento = 0, tsEnchimento = 0;
+    let maiorConsumo    = 0, tsConsumo    = 0;
+    for (let i = 1; i < ordem.length; i++) {
+      const delta = ordem[i].percentage - ordem[i-1].percentage;
+      if (delta > maiorEnchimento) { maiorEnchimento = delta; tsEnchimento = ordem[i].timestamp; }
+      if (delta < -maiorConsumo)   { maiorConsumo = -delta;   tsConsumo    = ordem[i].timestamp; }
+    }
+
+    // Última leitura
+    const ultima = historico.find(i => i.status !== 'sensor_error');
+    const agoMs  = ultima ? Date.now() - ultima.timestamp : 0;
+    const agoMin = Math.floor(agoMs / 60000);
+
+    const fmt = ts => new Date(ts).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+
+    document.getElementById('statMin').textContent      = minVal;
+    document.getElementById('statMinTime').textContent  = fmt(minTs);
+    document.getElementById('statMax').textContent      = maxVal;
+    document.getElementById('statMaxTime').textContent  = fmt(maxTs);
+    document.getElementById('statAvg').textContent      = avg;
+    document.getElementById('statReadings').textContent = dadosHoje.length + ' leituras';
+    document.getElementById('statFill').textContent     = maiorEnchimento > 0 ? '+' + maiorEnchimento : '--';
+    document.getElementById('statFillTime').textContent = maiorEnchimento > 0 ? fmt(tsEnchimento) : '--:--';
+    document.getElementById('statEmpty').textContent    = maiorConsumo > 0 ? '-' + maiorConsumo : '--';
+    document.getElementById('statEmptyTime').textContent= maiorConsumo > 0 ? fmt(tsConsumo) : '--:--';
+    document.getElementById('statLastHour').textContent = ultima ? fmt(ultima.timestamp) : '--:--';
+    document.getElementById('statLastAgo').textContent  = ultima ? (agoMin < 1 ? 'agora' : 'há ' + agoMin + 'min') : '--';
+    document.getElementById('statsDateLabel').textContent = hoje.toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'2-digit'});
+  }
+
+  // ── NOTIFICAÇÕES PUSH ────────────────────────────────────────────────────
+  let notifPermissao = false;
+  let _notifCriticaFired = false;
+  let _notifEnchimentoFired = false;
+
+  function pedirPermissaoNotificacao() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      notifPermissao = true;
+      return;
+    }
+    if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(p => {
+        notifPermissao = (p === 'granted');
+        if (notifPermissao) adicionarLog('🔔 Notificações ativadas');
+      });
+    }
+  }
+
+  function enviarNotificacao(titulo, corpo, icone) {
+    if (!notifPermissao || Notification.permission !== 'granted') return;
+    try {
+      const n = new Notification(titulo, {
+        body: corpo,
+        icon: icone || 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
+        badge: 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
+        tag: titulo, // evita duplicatas
+        renotify: false
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch(e) { console.warn('Notificação falhou:', e); }
+  }
+
+  function verificarNotificacoes(pct) {
+    if (!notifPermissao) return;
+    const NIVEL_CRITICO   = 20;
+    const NIVEL_ENCHENDO  = 80;
+
+    // Alerta de nível crítico (dispara uma vez até normalizar)
+    if (pct <= NIVEL_CRITICO && !_notifCriticaFired) {
+      _notifCriticaFired = true;
+      enviarNotificacao(
+        '⚠️ Caixa d'água crítica!',
+        `Nível em ${pct}% — abaixo de ${NIVEL_CRITICO}%. Verifique o abastecimento.`
+      );
+      adicionarLog(`🔔 Notificação enviada: nível crítico (${pct}%)`, 'warning');
+    }
+    if (pct > NIVEL_CRITICO + 5) _notifCriticaFired = false; // reset com margem
+
+    // Alerta quando encheu bem (dispara uma vez)
+    if (pct >= NIVEL_ENCHENDO && !_notifEnchimentoFired) {
+      _notifEnchimentoFired = true;
+      enviarNotificacao(
+        '💧 Caixa abastecida!',
+        `Nível atingiu ${pct}% — caixa com bom volume.`
+      );
+      adicionarLog(`🔔 Notificação enviada: caixa abastecida (${pct}%)`);
+    }
+    if (pct < NIVEL_ENCHENDO - 5) _notifEnchimentoFired = false;
+  }
+
   function setPeriod(min) {
     periodoMinutos = min;
     ['btn30m','btn1h','btn6h','btnAll'].forEach(id => document.getElementById(id).classList.remove('active'));
@@ -1153,13 +1335,16 @@
   }
 
   function atualizarGrafico() {
-    // ── filtra por período ──
-    let dados = historico.filter(i => i.status !== 'sensor_error');
+    // ── separa normais e erros de sensor ──
+    let todosNoPeriodo = historico.slice();
     if (periodoMinutos > 0) {
       const corte = Date.now() - periodoMinutos * 60 * 1000;
-      dados = dados.filter(i => i.timestamp >= corte);
+      todosNoPeriodo = todosNoPeriodo.filter(i => i.timestamp >= corte);
     }
+    let dados      = todosNoPeriodo.filter(i => i.status !== 'sensor_error');
+    let errosSensor = todosNoPeriodo.filter(i => i.status === 'sensor_error');
     dados = dados.slice().reverse();  // mais antigo primeiro
+    errosSensor = errosSensor.slice().reverse();
 
     // ── agregação por intervalo — evita gráfico poluído com muitos pontos ──
     const intervaloMs =
@@ -1202,6 +1387,12 @@
     const labels    = dados.map(i => new Date(i.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'}));
     const dataPct   = dados.map(i => i.percentage);
     const dataLit   = dados.map(i => i.liters);
+
+    // Pontos de falha de sensor — mapeados para o índice mais próximo no eixo X
+    const dataErros = dados.map(d => {
+      const temErro = errosSensor.some(e => Math.abs(e.timestamp - d.timestamp) < 120000);
+      return temErro ? d.percentage : null;
+    });
     const maxLitros = savedCapacityTotal > 0 ? savedCapacityTotal : Math.max(...dataLit, 1);
 
     const isMobile = window.innerWidth <= 600;
@@ -1220,6 +1411,27 @@
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
+        annotation: {
+          annotations: {
+            linhaCritica: {
+              type: 'line',
+              yMin: 20, yMax: 20,
+              yScaleID: 'yPct',
+              borderColor: 'rgba(230,57,70,0.5)',
+              borderWidth: 1.5,
+              borderDash: [6, 4],
+              label: {
+                display: true,
+                content: '⚠️ 20%',
+                position: 'end',
+                backgroundColor: 'rgba(230,57,70,0.15)',
+                color: '#e63946',
+                font: { size: 10, weight: '600' },
+                padding: { x: 6, y: 3 }
+              }
+            }
+          }
+        },
         tooltip: {
           backgroundColor: 'rgba(2,62,138,0.95)',
           titleColor: '#90e0ef',
@@ -1231,10 +1443,12 @@
           callbacks: {
             title: items => '🕐 ' + items[0].label,
             label: item => {
-              if (item.datasetIndex === 0)
-                return `  💧 Nível: ${item.raw}%`;
-              return `  🪣 Volume: ${item.raw} L`;
-            }
+              if (item.datasetIndex === 0) return `  💧 Nível: ${item.raw}%`;
+              if (item.datasetIndex === 1) return `  🪣 Volume: ${item.raw} L`;
+              if (item.datasetIndex === 2 && item.raw !== null) return `  🚨 Falha de sensor`;
+              return null;
+            },
+            filter: item => item.raw !== null
           }
         }
       },
@@ -1319,6 +1533,18 @@
               pointBorderWidth: 2,
               pointHoverRadius: 6,
               pointHoverBackgroundColor: '#166534'
+            },
+            {
+              label: 'Falha Sensor',
+              data: dataErros,
+              yAxisID: 'yPct',
+              type: 'scatter',
+              pointRadius: 7,
+              pointBackgroundColor: '#e63946',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointHoverRadius: 9,
+              showLine: false
             }
           ]
         },
@@ -1328,6 +1554,7 @@
       histChart.data.labels                      = labels;
       histChart.data.datasets[0].data            = dataPct;
       histChart.data.datasets[1].data            = dataLit;
+      histChart.data.datasets[2].data            = dataErros;
       histChart.options.scales.yLit.max          = savedCapacityTotal > 0 ? savedCapacityTotal : undefined;
       histChart.options.scales.yLit.suggestedMax = savedCapacityTotal > 0 ? savedCapacityTotal : maxLitros * 1.1;
       histChart.update('active');
@@ -1417,6 +1644,7 @@
         // Atualiza tabela e gráfico com os dados históricos
         atualizarHistorico(false);
         atualizarGrafico();
+        atualizarEstatisticas();
         console.log('[Sheets] historico total:', historico.length, '| inseridos:', inseridos, '| mais antigo:', new Date(historico[historico.length-1]?.timestamp).toLocaleTimeString());
         adicionarLog(`📊 ${inseridos} registros carregados do Sheets`);
       })
@@ -1619,6 +1847,7 @@
     document.getElementById('mainContainer').style.display = 'block';
     connectMQTT();
     carregarHistoricoSheets(codigo);
+    pedirPermissaoNotificacao();
   }
 
   function trocarDispositivo() {
