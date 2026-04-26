@@ -506,6 +506,11 @@
       .tank-wrapper { width: min(200px, 78vw); height: min(188px, 73vw); }
       .header h1   { font-size: 0.8rem; }
     }
+    @keyframes pulse-red {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:0.4; transform:scale(1.4); }
+    }
+
     /* ── ESTATÍSTICAS DO DIA ─────────────────────────── */
     .stats-grid {
       display: grid;
@@ -614,6 +619,11 @@
     </div>
     <div id="alertSensor" class="alert-banner alert-sensor">
       <i class="fas fa-exclamation-triangle"></i> FALHA NO SENSOR ULTRASSÔNICO
+    </div>
+    <!-- Indicador discreto de nível crítico — clique ou foco na página confirma -->
+    <div id="alertNivelCritico" onclick="confirmarNotifCritica()" title="Clique para confirmar" style="display:none;cursor:pointer;align-items:center;gap:6px;background:#fde8e8;border-left:4px solid #e63946;border-radius:6px;padding:5px 10px;margin-bottom:6px;font-weight:600;color:#c1121f;font-size:0.82rem;">
+      <span id="dotCritico" style="width:8px;height:8px;border-radius:50%;background:#e63946;display:inline-block;animation:pulse-red 1s infinite;flex-shrink:0;"></span>
+      <span id="alertNivelCriticoTxt">Nível crítico!</span>
     </div>
 
     <div class="status-panel">
@@ -1353,30 +1363,60 @@
     } catch(e) { console.warn('Notificação falhou:', e); }
   }
 
-  function verificarNotificacoes(pct) {
-    console.log('[NOTIF] pct:', pct, '| notifAtiva:', notifAtiva, '| notifPermissao:', notifPermissao, '| permission:', Notification?.permission, '| CRITICO:', NIVEL_CRITICO);
-    if (!notifAtiva || !notifPermissao) return;
-    // Alerta de nível crítico (dispara uma vez até normalizar)
-    if (pct <= NIVEL_CRITICO && !_notifCriticaFired) {
-      _notifCriticaFired = true;
-      enviarNotificacao(
-        '⚠️ Caixa d\'água crítica!',
-        `Nível em ${pct}% — abaixo de ${NIVEL_CRITICO}%. Verifique o abastecimento.`
-      );
-      adicionarLog(`🔔 Notificação enviada: nível crítico (${pct}%)`, 'warning');
-    }
-    if (pct > NIVEL_CRITICO + 5) _notifCriticaFired = false; // reset com margem
+  const NOTIF_REPEAT_MS = 1 * 60 * 1000; // repete a cada 1min até confirmar
+  let _notifCriticaConfirmada    = false;
+  let _notifEnchimentoConfirmada = false;
+  let _notifCriticaUltima        = 0;
 
-    // Alerta quando encheu bem (dispara uma vez)
-    if (pct >= NIVEL_ENCHENDO && !_notifEnchimentoFired) {
-      _notifEnchimentoFired = true;
+  function confirmarNotifCritica() {
+    _notifCriticaConfirmada = true;
+    adicionarLog('✅ Alerta crítico confirmado');
+    const banner = document.getElementById('alertNivelCritico');
+    if (banner) banner.style.display = 'none';
+  }
+  // Confirma automaticamente ao focar na janela (usuário abriu e viu)
+  window.addEventListener('focus', () => {
+    if (_notifCriticaUltima > 0 && !_notifCriticaConfirmada) confirmarNotifCritica();
+  });
+
+  function verificarNotificacoes(pct) {
+    if (!notifAtiva || !notifPermissao) return;
+    const agora = Date.now();
+
+    // ── Nível crítico — repete a cada 5min até confirmar ──
+    if (pct <= NIVEL_CRITICO) {
+      _notifEnchimentoConfirmada = false;
+      if (!_notifCriticaConfirmada && (agora - _notifCriticaUltima) >= NOTIF_REPEAT_MS) {
+        _notifCriticaUltima = agora;
+        enviarNotificacao(
+          '⚠️ Caixa d\'água crítica!',
+          \`Nível em \${pct}% — abaixo de \${NIVEL_CRITICO}%. Toque para confirmar.\`
+        );
+        adicionarLog(\`🔔 Alerta crítico: \${pct}% (repete a cada 5min até confirmar)\`, 'warning');
+        const banner = document.getElementById('alertNivelCritico');
+        if (banner) banner.style.display = 'flex';
+        document.getElementById('alertNivelCriticoTxt').textContent = `Nível crítico: ${pct}% — abaixo de ${NIVEL_CRITICO}%`;
+        const btn = document.getElementById('btnConfirmarAlerta');
+        if (btn) btn.style.display = 'inline-flex';
+      }
+    } else if (pct > NIVEL_CRITICO + 5) {
+      _notifCriticaConfirmada = false;
+      _notifCriticaUltima     = 0;
+      const banner2 = document.getElementById('alertNivelCritico');
+      if (banner2) banner2.style.display = 'none';
+      adicionarLog('✅ Nível normalizado — alertas resetados');
+    }
+
+    // ── Caixa abastecida — dispara uma vez por evento ──
+    if (pct >= NIVEL_ENCHENDO && !_notifEnchimentoConfirmada) {
+      _notifEnchimentoConfirmada = true;
       enviarNotificacao(
         '💧 Caixa abastecida!',
-        `Nível atingiu ${pct}% — caixa com bom volume.`
+        \`Nível atingiu \${pct}% — caixa com bom volume.\`
       );
-      adicionarLog(`🔔 Notificação enviada: caixa abastecida (${pct}%)`);
+      adicionarLog(\`🔔 Notificação: caixa abastecida (\${pct}%)\`);
     }
-    if (pct < NIVEL_ENCHENDO - 5) _notifEnchimentoFired = false;
+    if (pct < NIVEL_ENCHENDO - 5) _notifEnchimentoConfirmada = false;
   }
 
   function setPeriod(min) {
@@ -1592,11 +1632,11 @@
               data: dataErros,
               yAxisID: 'yPct',
               type: 'scatter',
-              pointRadius: 7,
+              pointRadius: 4,
               pointBackgroundColor: '#e63946',
               pointBorderColor: '#ffffff',
-              pointBorderWidth: 2,
-              pointHoverRadius: 9,
+              pointBorderWidth: 1,
+              pointHoverRadius: 6,
               showLine: false
             }
           ]
