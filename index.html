@@ -1329,12 +1329,32 @@
   let notifPermissao = false;
   let _notifCriticaFired = false;
   let _notifEnchimentoFired = false;
+  let swRegistration = null; // referência ao Service Worker registrado
+
+  // ── Registra o Service Worker (necessário para notificações com aba fechada) ──
+  function registrarServiceWorker() {
+    if (!('serviceWorker' in navigator)) {
+      console.warn('[SW] Service Worker não suportado neste navegador');
+      return;
+    }
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => {
+        swRegistration = reg;
+        console.log('[SW] Registrado com sucesso. Scope:', reg.scope);
+        adicionarLog('✅ Service Worker registrado (notificações em background ativas)');
+      })
+      .catch(err => {
+        console.warn('[SW] Falha ao registrar:', err);
+        adicionarLog('⚠️ Service Worker não registrado: ' + err.message, 'warning');
+      });
+  }
 
   function pedirPermissaoNotificacao() {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'granted') {
       notifPermissao = true;
       notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
+      registrarServiceWorker(); // garante SW registrado ao carregar com permissão já concedida
       return;
     }
     if (Notification.permission !== 'denied') {
@@ -1344,19 +1364,51 @@
           notifAtiva = true;
           localStorage.setItem('notif_ativa', 'true');
           adicionarLog('🔔 Notificações ativadas');
+          registrarServiceWorker(); // registra SW após permissão concedida
         }
       });
     }
   }
 
+  /**
+   * Envia notificação usando Service Worker (funciona com aba fechada/minimizada)
+   * ou cai para Notification API clássica como fallback.
+   */
   function enviarNotificacao(titulo, corpo, icone) {
     if (!notifPermissao || Notification.permission !== 'granted') return;
+
+    const tag = titulo; // evita duplicatas
+
+    // ── Tenta via Service Worker (funciona em background/aba fechada) ──
+    const swReady = swRegistration && swRegistration.active;
+    if (swReady) {
+      swRegistration.active.postMessage({
+        type:   'NOTIFICAR',
+        titulo: titulo,
+        corpo:  corpo,
+        tag:    tag
+      });
+      return;
+    }
+
+    // ── Fallback: verifica se há SW registrado no navigator ──
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type:   'NOTIFICAR',
+        titulo: titulo,
+        corpo:  corpo,
+        tag:    tag
+      });
+      return;
+    }
+
+    // ── Último recurso: Notification API clássica (só funciona com aba aberta) ──
     try {
       const n = new Notification(titulo, {
-        body: corpo,
-        icon: icone || 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
-        badge: 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
-        tag: titulo, // evita duplicatas
+        body:     corpo,
+        icon:     icone || 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
+        badge:    'https://cdn-icons-png.flaticon.com/512/2933/2933245.png',
+        tag:      tag,
         renotify: false
       });
       n.onclick = () => { window.focus(); n.close(); };
@@ -1954,7 +2006,15 @@
   let NIVEL_ENCHENDO = parseInt(localStorage.getItem('notif_enchendo') || '80');
   let notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
   // Sincroniza notifPermissao com permissão real do navegador ao carregar
-  if (Notification && Notification.permission === 'granted') notifPermissao = true;
+  if (Notification && Notification.permission === 'granted') {
+    notifPermissao = true;
+    // Registra SW imediatamente para ativação mais rápida
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => { swRegistration = swRegistration || reg; console.log('[SW] Pré-registrado'); })
+        .catch(e => console.warn('[SW] Pré-registro falhou:', e));
+    }
+  }
 
   function abrirModalNotif() {
     const modal = document.getElementById('modalNotif');
