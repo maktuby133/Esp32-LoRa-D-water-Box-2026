@@ -1482,11 +1482,9 @@
                 if (idadeMs < TRANSMITTER_TIMEOUT) {
                   lastDataMessageTime = agora - idadeMs;
                   secondsWithoutData  = Math.floor(idadeMs / 1000);
-                  if (idadeMs < (SLEEP_SECONDS + 10) * 1000) {
-                    transmitterActive = true;
-                    window._transmitterAlertFired = false;
-                    document.getElementById('alertTransmitter').classList.remove('show');
-                  }
+                  transmitterActive = true;
+                  window._transmitterAlertFired = false;
+                  document.getElementById('alertTransmitter').classList.remove('show');
                   adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás)`, 'warning');
                 } else {
                   lastDataMessageTime = agora - TRANSMITTER_TIMEOUT + 30000;
