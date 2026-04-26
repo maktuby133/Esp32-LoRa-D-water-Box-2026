@@ -1161,6 +1161,34 @@
     }
     dados = dados.slice().reverse();  // mais antigo primeiro
 
+    // ── agregação por intervalo — evita gráfico poluído com muitos pontos ──
+    const intervaloMs =
+      periodoMinutos === 0   ? 10 * 60 * 1000 :   // Tudo  → média cada 10min
+      periodoMinutos >= 360  ?  5 * 60 * 1000 :   // 6h    → média cada 5min
+      periodoMinutos >= 60   ?  2 * 60 * 1000 :   // 1h    → média cada 2min
+                                0;                 // 30m   → sem agregação
+    if (intervaloMs > 0 && dados.length > 0) {
+      const agregados = [];
+      let bucket = null;
+      dados.forEach(d => {
+        const slot = Math.floor(d.timestamp / intervaloMs) * intervaloMs;
+        if (!bucket || bucket.slot !== slot) {
+          if (bucket) agregados.push(bucket);
+          bucket = { slot, timestamp: d.timestamp, pctSum: 0, litSum: 0, count: 0 };
+        }
+        bucket.pctSum += d.percentage;
+        bucket.litSum += d.liters;
+        bucket.count++;
+      });
+      if (bucket) agregados.push(bucket);
+      dados = agregados.map(b => ({
+        timestamp:  b.timestamp,
+        percentage: Math.round(b.pctSum / b.count),
+        liters:     Math.round(b.litSum / b.count),
+        status:     'normal'
+      }));
+    }
+
     const emptyEl   = document.getElementById('histChartEmpty');
     const wrapperEl = document.getElementById('histChartWrapper');
     if (dados.length < 2) {
