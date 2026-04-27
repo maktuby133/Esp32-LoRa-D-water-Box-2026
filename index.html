@@ -1387,13 +1387,12 @@
 
     const _tag  = tag  || titulo;
     const _icon = 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png';
+    // Sem badge/vibrate — Firefox desktop rejeita a notificacao inteira com essas propriedades
     const opts  = {
       body:     corpo,
       icon:     _icon,
-      badge:    _icon,
       tag:      _tag,
-      renotify: true,   // IMPORTANTE: permite re-disparar mesma tag (alertas repetidos)
-      vibrate:  [200, 100, 200]
+      renotify: true   // permite re-disparar mesma tag em alertas repetidos
     };
 
     // ── Caminho 1: SW registration direta (melhor — funciona em background) ──
