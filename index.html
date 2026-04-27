@@ -2140,6 +2140,17 @@
     }
   });
 
+  // ╔══════════════════════════════════════════════════════╗
+  // ║  WATCHDOG DE ALERTAS — verifica nível periodicamente ║
+  // ║  independente de novos dados chegarem via MQTT       ║
+  // ╚══════════════════════════════════════════════════════╝
+  setInterval(() => {
+    if (!notifAtiva || !notifPermissao) return;
+    if (currentData && currentData.percentage !== undefined) {
+      verificarAlertas(currentData.percentage);
+    }
+  }, NOTIF_REPEAT_MS);
+
   // ── BOOT ─────────────────────────────────────────────
   iniciarTela();
   iniciarMqttWatchdog();
