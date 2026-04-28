@@ -2046,14 +2046,19 @@
 
   function toggleNotificacoes(ativo) {
     atualizarToggleVisual(ativo);
-    if (ativo && Notification.permission !== 'granted') {
-      Notification.requestPermission().then(p => {
-        notifPermissao = (p === 'granted');
-        document.getElementById('toggleNotif').checked = notifPermissao;
-        atualizarToggleVisual(notifPermissao);
-        if (notifPermissao) _registrarSW(); // registra SW ao conceder permissão pelo toggle
-        atualizarStatusNotif();
-      });
+    if (ativo) {
+      if (Notification.permission === 'granted') {
+        notifPermissao = true;
+        _registrarSW(); // garante SW registrado mesmo se permissao ja existia
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(p => {
+          notifPermissao = (p === 'granted');
+          document.getElementById('toggleNotif').checked = notifPermissao;
+          atualizarToggleVisual(notifPermissao);
+          if (notifPermissao) _registrarSW();
+          atualizarStatusNotif();
+        });
+      }
     }
     atualizarStatusNotif();
   }
@@ -2085,7 +2090,7 @@
     NIVEL_CRITICO  = parseInt(document.getElementById('sliderCritico').value);
     NIVEL_ENCHENDO = parseInt(document.getElementById('sliderEnchimento').value);
     notifAtiva     = ativo && Notification.permission === 'granted';
-    notifPermissao = notifAtiva;
+    notifPermissao = Notification.permission === 'granted'; // permissao independe do toggle
     localStorage.setItem('notif_critico',  NIVEL_CRITICO);
     localStorage.setItem('notif_enchendo', NIVEL_ENCHENDO);
     localStorage.setItem('notif_ativa',    notifAtiva);
@@ -2159,7 +2164,7 @@
   setInterval(() => {
     if (!notifAtiva || !notifPermissao) return;
     if (currentData && currentData.percentage !== undefined) {
-      verificarAlertas(currentData.percentage);
+      verificarNotificacoes(currentData.percentage);
     }
   }, NOTIF_REPEAT_MS);
 
