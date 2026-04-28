@@ -1327,6 +1327,7 @@
 
   // ── NOTIFICAÇÕES PUSH ────────────────────────────────────────────────────
   let notifPermissao    = false;
+  let notifAtiva        = localStorage.getItem('notif_ativa') !== 'false'; // unica declaracao
   let _notifCriticaFired    = false;
   let _notifEnchimentoFired = false;
   let _swRegistration   = null; // registration do Service Worker
@@ -1360,7 +1361,6 @@
     if (!('Notification' in window)) return;
     if (Notification.permission === 'granted') {
       notifPermissao = true;
-      notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
       _registrarSW();
       return;
     }
@@ -2020,9 +2020,7 @@
   // ── MODAL NOTIFICAÇÕES ───────────────────────────────────────────────────
   let NIVEL_CRITICO  = parseInt(localStorage.getItem('notif_critico')  || '20');
   let NIVEL_ENCHENDO = parseInt(localStorage.getItem('notif_enchendo') || '80');
-  let notifAtiva     = localStorage.getItem('notif_ativa') !== 'false';
-  // Sincroniza notifPermissao com permissão real do navegador ao carregar
-  // e registra o SW imediatamente se já tem permissão
+  // Sincroniza permissao e registra SW se ja concedida
   if (Notification && Notification.permission === 'granted') {
     notifPermissao = true;
     _registrarSW();
