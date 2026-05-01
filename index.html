@@ -902,6 +902,7 @@
   let transmitterActive      = false;
   let timeoutCheckInterval   = null;
   let secondsWithoutData     = 0;
+  let transmitterOfflineSince = null;   // momento em que o transmissor foi detectado offline
   let sensorErrorActive      = false;
   let leiturasConsecutivasErradas = 0;
   let ultimoValorValido      = null;
@@ -1064,12 +1065,18 @@
         if (tempoSemDados > TRANSMITTER_TIMEOUT && !window._transmitterAlertFired) {
           window._transmitterAlertFired = true;
           transmitterActive = false;
+          transmitterOfflineSince = agora;
           adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
           document.getElementById('alertTransmitter').classList.add('show');
           zerarInterfaceOffline('transmitter');
         }
+        if (transmitterOfflineSince && !transmitterActive) {
+          secondsWithoutData = Math.floor((agora - transmitterOfflineSince) / 1000);
+          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
+        }
         if (transmitterActive && window._transmitterAlertFired) {
           window._transmitterAlertFired = false;
+          transmitterOfflineSince = null;
         }
       } else {
         const tempoSemDados = agora - dashboardConnectTime;
@@ -1892,6 +1899,7 @@
                   secondsWithoutData  = Math.floor(idadeMs / 1000);
                   transmitterActive   = false;
                   dadoRetained        = false;
+                  transmitterOfflineSince = Date.now();
                   window._transmitterAlertFired = true;
                   adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — transmissor offline`, 'warning');
                   document.getElementById('alertTransmitter').classList.add('show');
@@ -1911,6 +1919,7 @@
             lastDataMessageTime    = Date.now();
             secondsWithoutData     = 0;
             transmitterActive      = true;
+            transmitterOfflineSince = null;
             window._transmitterAlertFired = false;
 
             let sensorOK     = payload.sensor_ok;
