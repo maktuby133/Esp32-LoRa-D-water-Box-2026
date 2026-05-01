@@ -1844,7 +1844,7 @@
       try {
         lastAnyMessageTime = Date.now();
         const payload  = JSON.parse(message.toString());
-        console.log('[MSG]', new Date().toLocaleTimeString(), topic, 'retain:', packet?.retain, 'cached:', payload.cached, 'pct:', payload.percentage);
+        console.log('[MSG]', new Date().toLocaleTimeString(), topic, 'retain:', packet?.retain, 'cached:', payload.cached, 'pct:', payload.percentage, 'epoch:', payload.epoch, 'idadeS:', payload.epoch ? Math.floor(Date.now()/1000 - payload.epoch) : 'N/A');
 
         // ── LWT retained no /status — aplica offline imediatamente ──
         if (packet && packet.retain && topic === TOPICS.status) {
@@ -1886,26 +1886,17 @@
           payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
 
           if (isCached || isRetained) {
-            // ── DADO RETIDO / CACHE — usa epoch para calibrar o timer ──
-            dadoRetained = true;
+            // ── DADO RETIDO / CACHE ──
+            // Trata como dado recente — receptor sempre online, transmissor manda a cada 30s
+            // Loop de timeout vai detectar offline se parar de chegar dado ao vivo
+            dadoRetained                  = true;
+            lastDataMessageTime           = Date.now();
+            secondsWithoutData            = 0;
+            transmitterActive             = true;
+            window._transmitterAlertFired = false;
+            document.getElementById('alertTransmitter').classList.remove('show');
             processarDados(payload, sensorOK, true);
-
-            const agora        = Date.now();
-            const epochPayload = payload.epoch || 0;
-            if (epochPayload > 0) {
-              const idadeMs = Math.max(0, agora - (epochPayload * 1000));
-              // Ajusta o timer para o tempo real do último dado — loop decide se está offline
-              lastDataMessageTime           = agora - idadeMs;
-              secondsWithoutData            = Math.floor(idadeMs / 1000);
-              transmitterActive             = true;
-              window._transmitterAlertFired = false;
-              document.getElementById('alertTransmitter').classList.remove('show');
-              adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás) — aguardando ciclo`, 'info');
-            } else {
-              // Sem epoch: assume que é recente, deixa o loop verificar
-              if (lastDataMessageTime === null) lastDataMessageTime = Date.now();
-              adicionarLog('📦 Dado retido sem epoch — aguardando próximo ciclo', 'warning');
-            }
+            adicionarLog('📦 Dado retido recebido — aguardando próximo ciclo ao vivo', 'info');
 
           } else {
             // ── DADO AO VIVO ──
