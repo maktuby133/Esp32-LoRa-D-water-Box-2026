@@ -1404,21 +1404,19 @@
     }
   }
 
-  const NOTIF_REPEAT_MS = 10 * 1000; // repete a cada 10s (TESTE)
+  const NOTIF_REPEAT_MS = 5 * 60 * 1000; // repete a cada 5min enquanto nível crítico
   let _notifCriticaConfirmada    = false;
   let _notifEnchimentoConfirmada = false;
   let _notifCriticaUltima        = 0;
 
   function confirmarNotifCritica() {
     _notifCriticaConfirmada = true;
-    adicionarLog('✅ Alerta crítico confirmado');
-    const banner = document.getElementById('alertNivelCritico');
-    if (banner) banner.style.display = 'none';
+    adicionarLog('✅ Alerta crítico confirmado — banner persiste até nível normalizar');
+    // Banner NÃO some — fica visível até o nível subir acima de NIVEL_CRITICO+5
+    const btn = document.getElementById('btnConfirmarAlerta');
+    if (btn) btn.style.display = 'none'; // só esconde o botão de confirmar
   }
-  // Confirma automaticamente ao focar na janela (usuário abriu e viu)
-  window.addEventListener('focus', () => {
-    if (_notifCriticaUltima > 0 && !_notifCriticaConfirmada) confirmarNotifCritica();
-  });
+  // Removido: não confirma automaticamente ao focar — usuário deve clicar no botão
 
   function verificarNotificacoes(pct) {
     if (!notifAtiva || !notifPermissao) return;
@@ -1445,6 +1443,8 @@
       _notifCriticaUltima     = 0;
       const banner2 = document.getElementById('alertNivelCritico');
       if (banner2) banner2.style.display = 'none';
+      const btn2 = document.getElementById('btnConfirmarAlerta');
+      if (btn2) btn2.style.display = 'inline-flex'; // restaura botão para próxima vez
       adicionarLog('✅ Nível normalizado — alertas resetados');
     }
 
