@@ -903,6 +903,7 @@
   let timeoutCheckInterval   = null;
   let secondsWithoutData     = 0;
   let transmitterOfflineSince = null;   // momento em que o transmissor foi detectado offline
+  let subscribeTime          = null;     // momento do subscribe — retained chega nos primeiros 500ms
   let sensorErrorActive      = false;
   let leiturasConsecutivasErradas = 0;
   let ultimoValorValido      = null;
@@ -1818,6 +1819,7 @@
       iniciarVerificacaoTimeout();
       client.subscribe([TOPICS.dados, TOPICS.status], err => {
         if (!err) {
+          subscribeTime = Date.now();
           lastReceptorStatusTime = Date.now();
           // Se em 3s não chegou nada retained, esconde o loading mesmo assim
           setTimeout(() => ocultarLoading('Aguardando transmissor...'), 3000);
@@ -1861,7 +1863,9 @@
 
         if (topic === TOPICS.dados) {
           const isCached   = payload.cached === true;
-          const isRetained = !!(packet && packet.retain); // retained = broker devolvendo último dado
+          // Retained = chegou dentro de 1500ms após o subscribe (janela segura)
+          // packet.retain pode ser true mesmo em mensagens ao vivo publicadas com retain flag
+          const isRetained = !isCached && subscribeTime !== null && (Date.now() - subscribeTime) < 1500;
 
           // Qualquer pacote no /dados prova que o receptor está online
           lastReceptorContactTime = Date.now();
