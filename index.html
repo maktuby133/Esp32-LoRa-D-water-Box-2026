@@ -1900,8 +1900,11 @@
 
           if (isCached || isRetained) {
             // ── DADO RETIDO / CACHE ──
-            // Trata como dado recente — receptor sempre online, transmissor manda a cada 30s
-            // Loop de timeout vai detectar offline se parar de chegar dado ao vivo
+            // Se o receptor já informou transmissor offline via heartbeat, ignorar dado retido
+            if (!transmitterActive && window._transmitterAlertFired) {
+              adicionarLog('📦 Dado retido ignorado — receptor já informou transmissor offline', 'warning');
+              return;
+            }
             dadoRetained                  = true;
             lastDataMessageTime           = Date.now();
             secondsWithoutData            = 0;
