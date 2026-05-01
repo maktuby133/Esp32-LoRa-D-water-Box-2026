@@ -1700,10 +1700,12 @@
   function adicionarLog(texto, tipo = 'normal') {
     if (texto === _ultimoLogTexto && tipo === _ultimoLogTipo) return;
     _ultimoLogTexto = texto; _ultimoLogTipo = tipo;
-    const hora = new Date().toLocaleTimeString('pt-BR');
-    const div  = document.createElement('div');
+    const agora = new Date();
+    const hora  = agora.toLocaleTimeString('pt-BR');
+    const data  = agora.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
+    const div   = document.createElement('div');
     div.className = 'update-entry' + (tipo==='alert' ? ' alert' : tipo==='warning' ? ' warning' : '');
-    div.innerHTML = `<span class="update-time">${hora}</span><span class="update-text">${texto}</span>`;
+    div.innerHTML = `<span class="update-time">${hora}<br><span style="font-size:0.68rem;font-weight:400;color:var(--gray)">${data}</span></span><span class="update-text">${texto}</span>`;
     const container = document.getElementById('updateHistory');
     container.insertBefore(div, container.firstChild);
     while (container.children.length > 20) container.removeChild(container.lastChild);
