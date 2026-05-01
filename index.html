@@ -887,8 +887,8 @@
   // ║  TIMEOUT = 3× (90s)                                  ║
   // ╚══════════════════════════════════════════════════════╝
   const SLEEP_SECONDS        = 30;
-  const TRANSMITTER_TIMEOUT  = 300000;      // 5min = ~9 ciclos — margem ampla para reconexões MQTT
-  const RECEPTOR_TIMEOUT     = 300000;      // 5min — mesma margem do transmissor
+  const TRANSMITTER_TIMEOUT  = 120000;      // 2min = ~4 ciclos — margem para instabilidade de rede
+  const RECEPTOR_TIMEOUT     = 120000;      // 2min — mesma margem do transmissor
 
   let client                 = null;
   // histChart declarado dentro de atualizarGrafico
