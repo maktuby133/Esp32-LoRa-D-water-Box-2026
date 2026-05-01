@@ -903,6 +903,7 @@
   let timeoutCheckInterval   = null;
   let secondsWithoutData     = 0;
   let transmitterOfflineSince = null;   // momento em que o transmissor foi detectado offline
+  let receptorReportedOffline = false;   // receptor informou via heartbeat que transmissor está offline
   let subscribeTime          = null;     // momento do subscribe — retained chega nos primeiros 500ms
   let sensorErrorActive      = false;
   let leiturasConsecutivasErradas = 0;
@@ -1856,6 +1857,7 @@
           }
           if (payload.heartbeat === true && payload.transmitter_online === false) {
             // Receptor online mas transmissor não recebe LoRa há mais de 40s
+            receptorReportedOffline       = true;
             lastDataMessageTime           = null;
             transmitterActive             = false;
             transmitterOfflineSince       = Date.now();
@@ -1865,6 +1867,10 @@
             zerarInterfaceOffline('transmitter');
             adicionarLog('⚠️ Receptor informa: transmissor offline', 'alert');
             return;
+          }
+          if (payload.heartbeat === true && payload.transmitter_online === true) {
+            // Receptor confirmou que transmissor voltou
+            receptorReportedOffline = false;
           }
         }
 
@@ -1901,7 +1907,7 @@
           if (isCached || isRetained) {
             // ── DADO RETIDO / CACHE ──
             // Se o receptor já informou transmissor offline via heartbeat, ignorar dado retido
-            if (!transmitterActive && window._transmitterAlertFired) {
+            if (receptorReportedOffline) {
               adicionarLog('📦 Dado retido ignorado — receptor já informou transmissor offline', 'warning');
               return;
             }
@@ -1916,6 +1922,7 @@
 
           } else {
             // ── DADO AO VIVO ──
+            receptorReportedOffline = false;
             dadoRetained            = false;
             lastDataMessageTime     = Date.now();
             secondsWithoutData      = 0;
