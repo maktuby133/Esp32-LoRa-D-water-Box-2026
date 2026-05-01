@@ -1846,11 +1846,24 @@
         const payload  = JSON.parse(message.toString());
         console.log('[MSG]', new Date().toLocaleTimeString(), topic, 'retain:', packet?.retain, 'cached:', payload.cached, 'pct:', payload.percentage, 'epoch:', payload.epoch, 'idadeS:', payload.epoch ? Math.floor(Date.now()/1000 - payload.epoch) : 'N/A');
 
-        // ── LWT retained no /status — aplica offline imediatamente ──
+        // ── /status retained — receptor informa estado do transmissor ──
         if (packet && packet.retain && topic === TOPICS.status) {
           if (payload.online === false && payload.heartbeat !== true) {
+            // LWT: receptor offline
             ocultarLoading('Receptor offline ❌');
             zerarInterfaceOffline('receptor');
+            return;
+          }
+          if (payload.heartbeat === true && payload.transmitter_online === false) {
+            // Receptor online mas transmissor não recebe LoRa há mais de 40s
+            lastDataMessageTime           = null;
+            transmitterActive             = false;
+            transmitterOfflineSince       = Date.now();
+            window._transmitterAlertFired = true;
+            ocultarLoading('Transmissor offline ❌');
+            document.getElementById('alertTransmitter').classList.add('show');
+            zerarInterfaceOffline('transmitter');
+            adicionarLog('⚠️ Receptor informa: transmissor offline', 'alert');
             return;
           }
         }
