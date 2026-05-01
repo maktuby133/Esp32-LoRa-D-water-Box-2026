@@ -1837,9 +1837,14 @@
         const payload  = JSON.parse(message.toString());
         console.log('[MSG]', new Date().toLocaleTimeString(), topic, 'retain:', packet?.retain, 'cached:', payload.cached, 'pct:', payload.percentage);
 
-        // ── Filtro LWT no /status ──
+        // ── LWT retained no /status — aplica offline imediatamente ──
         if (packet && packet.retain && topic === TOPICS.status) {
-          if (payload.online === false && payload.heartbeat !== true) return;
+          if (payload.online === false && payload.heartbeat !== true) {
+            // Receptor estava offline quando a página abriu — mostra offline já
+            ocultarLoading('Receptor offline ❌');
+            zerarInterfaceOffline('receptor');
+            return;
+          }
         }
 
         // ── Filtro deviceID ──
@@ -1883,10 +1888,12 @@
                   document.getElementById('alertTransmitter').classList.remove('show');
                   adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás)`, 'warning');
                 } else {
-                  lastDataMessageTime = agora - TRANSMITTER_TIMEOUT + 30000;
+                  // Dado muito antigo — transmissor ja esta offline, mostra imediatamente
+                  lastDataMessageTime = agora - idadeMs;
                   secondsWithoutData  = Math.floor(idadeMs / 1000);
+                  transmitterActive   = false;
                   window._transmitterAlertFired = false;
-                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — aguardando próximo ciclo`, 'warning');
+                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — transmissor offline`, 'warning');
                 }
               } else {
                 if (lastDataMessageTime === null) {
