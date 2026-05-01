@@ -1863,84 +1863,59 @@
 
         if (topic === TOPICS.dados) {
           const isCached   = payload.cached === true;
-          // Retained = chegou dentro de 1500ms após o subscribe (janela segura)
-          // packet.retain pode ser true mesmo em mensagens ao vivo publicadas com retain flag
-          const isRetained = !isCached && subscribeTime !== null && (Date.now() - subscribeTime) < 1500;
+          // packet.retain=true = broker entregou dado retido (não importa como foi publicado)
+          // packet.retain=false = mensagem ao vivo
+          const isRetained = !isCached && !!(packet && packet.retain);
 
           // Qualquer pacote no /dados prova que o receptor está online
           lastReceptorContactTime = Date.now();
           if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
 
+          // ── Processar sensor e valores (comum a retained e ao vivo) ──
+          let sensorOK     = payload.sensor_ok;
+          const distancia  = parseFloat(payload.distance);
+          const percentual = parseInt(payload.percentage);
+          if (sensorOK !== false && (distancia < 0 || distancia === 0 || percentual < 0)) sensorOK = false;
+          if (sensorOK && !isRetained && ultimoValorValido !== null && (percentual - ultimoValorValido.percentage) < -50) sensorOK = false;
+          if (sensorOK) {
+            ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
+            if (!isRetained) leiturasConsecutivasErradas = 0;
+          } else {
+            if (!isRetained) leiturasConsecutivasErradas++;
+          }
+          payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
+
           if (isCached || isRetained) {
-            // ── DADO RETIDO / CACHE ──
+            // ── DADO RETIDO / CACHE — usa epoch para calibrar o timer ──
             dadoRetained = true;
-            let sensorOK = payload.sensor_ok;
-            const distancia  = parseFloat(payload.distance);
-            const percentual = parseInt(payload.percentage);
-            if (sensorOK !== false && (distancia < 0 || distancia === 0 || percentual < 0)) sensorOK = false;
-            if (sensorOK) {
-              ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
-            }
-            payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
             processarDados(payload, sensorOK, true);
 
-            // SEMPRE recalcula pelo epoch — corrige falso offline após reconexão MQTT
-            {
-              const agora        = Date.now();
-              const epochPayload = payload.epoch || 0;
-              if (epochPayload > 0) {
-                const idadeMs = Math.max(0, agora - (epochPayload * 1000));
-                if (idadeMs < TRANSMITTER_TIMEOUT) {
-                  lastDataMessageTime = agora - idadeMs;
-                  secondsWithoutData  = Math.floor(idadeMs / 1000);
-                  transmitterActive = true;
-                  window._transmitterAlertFired = false;
-                  document.getElementById('alertTransmitter').classList.remove('show');
-                  adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás)`, 'warning');
-                } else {
-                  // Dado retido muito antigo — transmissor offline, dispara imediatamente
-                  lastDataMessageTime = agora - idadeMs;
-                  secondsWithoutData  = Math.floor(idadeMs / 1000);
-                  transmitterActive   = false;
-                  dadoRetained        = false;
-                  transmitterOfflineSince = Date.now();
-                  window._transmitterAlertFired = true;
-                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — transmissor offline`, 'warning');
-                  document.getElementById('alertTransmitter').classList.add('show');
-                  zerarInterfaceOffline('transmitter');
-                }
-              } else {
-                if (lastDataMessageTime === null) {
-                  lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT / 2);
-                  adicionarLog('📦 Dado retido sem epoch — verificando transmissor...', 'warning');
-                }
-              }
+            const agora        = Date.now();
+            const epochPayload = payload.epoch || 0;
+            if (epochPayload > 0) {
+              const idadeMs = Math.max(0, agora - (epochPayload * 1000));
+              // Ajusta o timer para o tempo real do último dado — loop decide se está offline
+              lastDataMessageTime           = agora - idadeMs;
+              secondsWithoutData            = Math.floor(idadeMs / 1000);
+              transmitterActive             = true;
+              window._transmitterAlertFired = false;
+              document.getElementById('alertTransmitter').classList.remove('show');
+              adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás) — aguardando ciclo`, 'info');
+            } else {
+              // Sem epoch: assume que é recente, deixa o loop verificar
+              if (lastDataMessageTime === null) lastDataMessageTime = Date.now();
+              adicionarLog('📦 Dado retido sem epoch — aguardando próximo ciclo', 'warning');
             }
 
           } else {
             // ── DADO AO VIVO ──
-            dadoRetained           = false;
-            lastDataMessageTime    = Date.now();
-            secondsWithoutData     = 0;
-            transmitterActive      = true;
+            dadoRetained            = false;
+            lastDataMessageTime     = Date.now();
+            secondsWithoutData      = 0;
+            transmitterActive       = true;
             transmitterOfflineSince = null;
             window._transmitterAlertFired = false;
-
-            let sensorOK     = payload.sensor_ok;
-            const distancia  = parseFloat(payload.distance);
-            const percentual = parseInt(payload.percentage);
-            if (sensorOK !== false) {
-              if (distancia < 0 || distancia === 0 || percentual < 0) sensorOK = false;
-              if (ultimoValorValido !== null && (percentual - ultimoValorValido.percentage) < -50) sensorOK = false;
-            }
-            if (sensorOK) {
-              ultimoValorValido           = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
-              leiturasConsecutivasErradas = 0;
-            } else {
-              leiturasConsecutivasErradas++;
-            }
             document.getElementById('alertTransmitter').classList.remove('show');
-            payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
             processarDados(payload, sensorOK, false);
           }
 
