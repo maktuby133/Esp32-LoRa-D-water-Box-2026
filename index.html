@@ -609,7 +609,7 @@
     </div>
 
     <div id="alertTransmitter" class="alert-banner alert-transmitter">
-      <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR — offline há <span id="timeoutSeconds">0</span>s
+      <i class="fas fa-satellite-dish"></i> SEM SINAL DO TRANSMISSOR
     </div>
     <div id="alertReceptor" class="alert-banner alert-receptor">
       <i class="fas fa-wifi"></i> RECEPTOR DESCONECTADO — verifique energia e WiFi do receptor
@@ -1062,7 +1062,6 @@
       } else if (lastDataMessageTime) {
         const tempoSemDados = agora - lastDataMessageTime;
         secondsWithoutData  = Math.floor(tempoSemDados / 1000);
-        document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
         if (tempoSemDados > TRANSMITTER_TIMEOUT && !window._transmitterAlertFired) {
           window._transmitterAlertFired = true;
           transmitterActive             = false;
@@ -1073,7 +1072,6 @@
         }
         if (transmitterOfflineSince && !transmitterActive) {
           secondsWithoutData = Math.floor((agora - transmitterOfflineSince) / 1000);
-          document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
         }
         if (transmitterActive && !window._transmitterAlertFired) {
           transmitterOfflineSince = null;
@@ -1081,7 +1079,6 @@
       } else {
         const tempoSemDados = agora - dashboardConnectTime;
         secondsWithoutData  = Math.floor(tempoSemDados / 1000);
-        document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
         if (tempoSemDados > TRANSMITTER_TIMEOUT && !window._transmitterAlertFired) {
           window._transmitterAlertFired = true;
           adicionarLog('⚠️ Transmissor não responde desde a abertura do painel', 'alert');
