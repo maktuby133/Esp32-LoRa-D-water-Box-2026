@@ -902,14 +902,13 @@
   let transmitterActive      = false;
   let timeoutCheckInterval   = null;
   let secondsWithoutData     = 0;
-  let transmitterOfflineSince = null;   // momento em que o transmissor foi detectado offline
-  let receptorReportedOffline = false;   // receptor informou via heartbeat que transmissor está offline
-  let subscribeTime          = null;     // momento do subscribe — retained chega nos primeiros 500ms
   let sensorErrorActive      = false;
   let leiturasConsecutivasErradas = 0;
   let ultimoValorValido      = null;
   let pageHiddenAt           = null;
   let dadoRetained           = false;
+  let transmitterOfflineSince = null;
+  let receptorReportedOffline = false;
 
 
   // ── Loading overlay ──────────────────────────────────
@@ -1066,8 +1065,8 @@
         document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
         if (tempoSemDados > TRANSMITTER_TIMEOUT && !window._transmitterAlertFired) {
           window._transmitterAlertFired = true;
-          transmitterActive = false;
-          transmitterOfflineSince = agora;
+          transmitterActive             = false;
+          transmitterOfflineSince       = agora;
           adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
           document.getElementById('alertTransmitter').classList.add('show');
           zerarInterfaceOffline('transmitter');
@@ -1076,8 +1075,7 @@
           secondsWithoutData = Math.floor((agora - transmitterOfflineSince) / 1000);
           document.getElementById('timeoutSeconds').textContent = secondsWithoutData;
         }
-        if (transmitterActive && window._transmitterAlertFired) {
-          window._transmitterAlertFired = false;
+        if (transmitterActive && !window._transmitterAlertFired) {
           transmitterOfflineSince = null;
         }
       } else {
@@ -1261,12 +1259,14 @@
     slice.forEach((item, idx) => {
       const row = document.createElement('tr');
       if (idx === 0 && !isCached) row.classList.add('new-row');
-      const hora = new Date(item.timestamp).toLocaleTimeString('pt-BR');
+      const dt   = new Date(item.timestamp);
+      const hora  = dt.toLocaleTimeString('pt-BR');
+      const data  = dt.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
       let classeBadge = 'badge-normal', textoStatus = 'OK';
       if (item.status === 'sensor_error') { classeBadge = 'badge-error';  textoStatus = 'FALHA'; }
       if (item.status === 'cached')       { classeBadge = 'badge-cache';  textoStatus = 'Cache'; }
       row.innerHTML = `
-        <td>${hora}</td>
+        <td>${hora}<br><span style="font-size:0.65rem;color:var(--gray);">${data}</span></td>
         <td><span class="status-badge ${classeBadge}">${textoStatus}</span></td>
         <td>${item.percentage}%</td>
         <td>${item.liters}L</td>
@@ -1405,19 +1405,21 @@
     }
   }
 
-  const NOTIF_REPEAT_MS = 5 * 60 * 1000; // repete a cada 5min enquanto nível crítico
+  const NOTIF_REPEAT_MS = 10 * 1000; // repete a cada 10s (TESTE)
   let _notifCriticaConfirmada    = false;
   let _notifEnchimentoConfirmada = false;
   let _notifCriticaUltima        = 0;
 
   function confirmarNotifCritica() {
     _notifCriticaConfirmada = true;
-    adicionarLog('✅ Alerta crítico confirmado — banner persiste até nível normalizar');
-    // Banner NÃO some — fica visível até o nível subir acima de NIVEL_CRITICO+5
-    const btn = document.getElementById('btnConfirmarAlerta');
-    if (btn) btn.style.display = 'none'; // só esconde o botão de confirmar
+    adicionarLog('✅ Alerta crítico confirmado');
+    const banner = document.getElementById('alertNivelCritico');
+    if (banner) banner.style.display = 'none';
   }
-  // Removido: não confirma automaticamente ao focar — usuário deve clicar no botão
+  // Confirma automaticamente ao focar na janela (usuário abriu e viu)
+  window.addEventListener('focus', () => {
+    if (_notifCriticaUltima > 0 && !_notifCriticaConfirmada) confirmarNotifCritica();
+  });
 
   function verificarNotificacoes(pct) {
     if (!notifAtiva || !notifPermissao) return;
@@ -1444,8 +1446,6 @@
       _notifCriticaUltima     = 0;
       const banner2 = document.getElementById('alertNivelCritico');
       if (banner2) banner2.style.display = 'none';
-      const btn2 = document.getElementById('btnConfirmarAlerta');
-      if (btn2) btn2.style.display = 'inline-flex'; // restaura botão para próxima vez
       adicionarLog('✅ Nível normalizado — alertas resetados');
     }
 
@@ -1822,7 +1822,6 @@
       iniciarVerificacaoTimeout();
       client.subscribe([TOPICS.dados, TOPICS.status], err => {
         if (!err) {
-          subscribeTime = Date.now();
           lastReceptorStatusTime = Date.now();
           // Se em 3s não chegou nada retained, esconde o loading mesmo assim
           setTimeout(() => ocultarLoading('Aguardando transmissor...'), 3000);
@@ -1847,20 +1846,17 @@
       try {
         lastAnyMessageTime = Date.now();
         const payload  = JSON.parse(message.toString());
-        console.log('[MSG]', new Date().toLocaleTimeString(), topic, 'retain:', packet?.retain, 'cached:', payload.cached, 'pct:', payload.percentage, 'epoch:', payload.epoch, 'idadeS:', payload.epoch ? Math.floor(Date.now()/1000 - payload.epoch) : 'N/A');
+        console.log('[MSG]', new Date().toLocaleTimeString(), topic, 'retain:', packet?.retain, 'cached:', payload.cached, 'pct:', payload.percentage);
 
-        // ── /status retained — receptor informa estado do transmissor ──
+        // ── /status retained: LWT e estado do transmissor ──
         if (packet && packet.retain && topic === TOPICS.status) {
           if (payload.online === false && payload.heartbeat !== true) {
-            // LWT: receptor offline
             ocultarLoading('Receptor offline ❌');
             zerarInterfaceOffline('receptor');
             return;
           }
           if (payload.heartbeat === true && payload.transmitter_online === false) {
-            // Receptor online mas transmissor não recebe LoRa há mais de 40s
             receptorReportedOffline       = true;
-            lastDataMessageTime           = null;
             transmitterActive             = false;
             transmitterOfflineSince       = Date.now();
             window._transmitterAlertFired = true;
@@ -1871,7 +1867,6 @@
             return;
           }
           if (payload.heartbeat === true && payload.transmitter_online === true) {
-            // Receptor confirmou que transmissor voltou
             receptorReportedOffline = false;
           }
         }
@@ -1884,54 +1879,83 @@
 
         if (topic === TOPICS.dados) {
           const isCached   = payload.cached === true;
-          // packet.retain=true = broker entregou dado retido (não importa como foi publicado)
-          // packet.retain=false = mensagem ao vivo
           const isRetained = !isCached && !!(packet && packet.retain);
 
           // Qualquer pacote no /dados prova que o receptor está online
           lastReceptorContactTime = Date.now();
           if (!receptorOnline) atualizarStatusReceptor(true, 'Online');
 
-          // ── Processar sensor e valores (comum a retained e ao vivo) ──
-          let sensorOK     = payload.sensor_ok;
-          const distancia  = parseFloat(payload.distance);
-          const percentual = parseInt(payload.percentage);
-          if (sensorOK !== false && (distancia < 0 || distancia === 0 || percentual < 0)) sensorOK = false;
-          if (sensorOK && !isRetained && ultimoValorValido !== null && (percentual - ultimoValorValido.percentage) < -50) sensorOK = false;
-          if (sensorOK) {
-            ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
-            if (!isRetained) leiturasConsecutivasErradas = 0;
-          } else {
-            if (!isRetained) leiturasConsecutivasErradas++;
-          }
-          payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
-
           if (isCached || isRetained) {
             // ── DADO RETIDO / CACHE ──
-            // Se o receptor já informou transmissor offline via heartbeat, ignorar dado retido
-            if (receptorReportedOffline) {
-              adicionarLog('📦 Dado retido ignorado — receptor já informou transmissor offline', 'warning');
-              return;
-            }
-            dadoRetained                  = true;
+            if (receptorReportedOffline) return;
+            dadoRetained = true;
             lastDataMessageTime           = Date.now();
             secondsWithoutData            = 0;
             transmitterActive             = true;
             window._transmitterAlertFired = false;
             document.getElementById('alertTransmitter').classList.remove('show');
+            let sensorOK = payload.sensor_ok;
+            const distancia  = parseFloat(payload.distance);
+            const percentual = parseInt(payload.percentage);
+            if (sensorOK !== false && (distancia < 0 || distancia === 0 || percentual < 0)) sensorOK = false;
+            if (sensorOK) {
+              ultimoValorValido = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
+            }
+            payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
             processarDados(payload, sensorOK, true);
-            adicionarLog('📦 Dado retido recebido — aguardando próximo ciclo ao vivo', 'info');
+
+            // SEMPRE recalcula pelo epoch — corrige falso offline após reconexão MQTT
+            {
+              const agora        = Date.now();
+              const epochPayload = payload.epoch || 0;
+              if (epochPayload > 0) {
+                const idadeMs = Math.max(0, agora - (epochPayload * 1000));
+                if (idadeMs < TRANSMITTER_TIMEOUT) {
+                  lastDataMessageTime = agora - idadeMs;
+                  secondsWithoutData  = Math.floor(idadeMs / 1000);
+                  transmitterActive = true;
+                  window._transmitterAlertFired = false;
+                  document.getElementById('alertTransmitter').classList.remove('show');
+                  adicionarLog(`📦 Dado retido (${Math.floor(idadeMs/1000)}s atrás)`, 'warning');
+                } else {
+                  lastDataMessageTime = agora - TRANSMITTER_TIMEOUT + 30000;
+                  secondsWithoutData  = Math.floor(idadeMs / 1000);
+                  window._transmitterAlertFired = false;
+                  adicionarLog(`⚠️ Dado retido tem ${Math.floor(idadeMs/60000)} min — aguardando próximo ciclo`, 'warning');
+                }
+              } else {
+                if (lastDataMessageTime === null) {
+                  lastDataMessageTime = agora - (TRANSMITTER_TIMEOUT / 2);
+                  adicionarLog('📦 Dado retido sem epoch — verificando transmissor...', 'warning');
+                }
+              }
+            }
 
           } else {
             // ── DADO AO VIVO ──
-            receptorReportedOffline = false;
-            dadoRetained            = false;
-            lastDataMessageTime     = Date.now();
-            secondsWithoutData      = 0;
-            transmitterActive       = true;
-            transmitterOfflineSince = null;
+            receptorReportedOffline       = false;
+            dadoRetained                  = false;
+            lastDataMessageTime           = Date.now();
+            secondsWithoutData            = 0;
+            transmitterActive             = true;
+            transmitterOfflineSince       = null;
             window._transmitterAlertFired = false;
+
+            let sensorOK     = payload.sensor_ok;
+            const distancia  = parseFloat(payload.distance);
+            const percentual = parseInt(payload.percentage);
+            if (sensorOK !== false) {
+              if (distancia < 0 || distancia === 0 || percentual < 0) sensorOK = false;
+              if (ultimoValorValido !== null && (percentual - ultimoValorValido.percentage) < -50) sensorOK = false;
+            }
+            if (sensorOK) {
+              ultimoValorValido           = { percentage: percentual, liters: parseInt(payload.liters), distance: distancia, level: parseInt(payload.level) };
+              leiturasConsecutivasErradas = 0;
+            } else {
+              leiturasConsecutivasErradas++;
+            }
             document.getElementById('alertTransmitter').classList.remove('show');
+            payload.signal_quality = calcularQualidadeSinal(payload.lora_rssi || -100);
             processarDados(payload, sensorOK, false);
           }
 
@@ -1990,9 +2014,15 @@
   }
 
   function trocarDispositivo() {
-    if (!confirm('Trocar de dispositivo? A página será recarregada.')) return;
+    document.getElementById('modalTrocarDevice').classList.add('show');
+  }
+  function confirmarTrocarDevice() {
+    document.getElementById('modalTrocarDevice').classList.remove('show');
     try { localStorage.removeItem(STORAGE_CODE_KEY); } catch(e) {}
     location.reload();
+  }
+  function cancelarTrocarDevice() {
+    document.getElementById('modalTrocarDevice').classList.remove('show');
   }
 
   // ── MODAL NOTIFICAÇÕES ───────────────────────────────────────────────────
@@ -2148,5 +2178,17 @@
   iniciarTela();
   iniciarMqttWatchdog();
   </script>
+  <!-- Modal trocar dispositivo -->
+  <div id="modalTrocarDevice" class="modal">
+    <div class="modal-content" style="max-width:320px;">
+      <h3 style="color:var(--primary-dark);"><i class="fas fa-microchip"></i> Trocar dispositivo</h3>
+      <p>A página será recarregada e você poderá digitar um novo código.</p>
+      <div class="modal-buttons">
+        <button class="btn btn-cancel" onclick="cancelarTrocarDevice()">Cancelar</button>
+        <button class="btn btn-confirm" onclick="confirmarTrocarDevice()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
