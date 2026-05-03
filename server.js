@@ -58,12 +58,13 @@ const MQTT_USER = 'render-server';
 const MQTT_PASS = process.env.MQTT_PASS || '061084Cca';
 
 const mqttClient = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
-  username:        MQTT_USER,
-  password:        MQTT_PASS,
-  clientId:        'render-server-' + Math.random().toString(36).substr(2, 8),
+  username:           MQTT_USER,
+  password:           MQTT_PASS,
+  clientId:           'render-server-01',
   rejectUnauthorized: false,
-  reconnectPeriod: 5000,
-  keepalive:       60
+  reconnectPeriod:    5000,
+  keepalive:          60,
+  clean:              true
 });
 
 mqttClient.on('connect', () => {
@@ -74,7 +75,7 @@ mqttClient.on('connect', () => {
   });
 });
 
-mqttClient.on('error',     e  => console.error('[MQTT] Erro:', e.message));
+mqttClient.on('error',     e  => console.error('[MQTT] Erro:', e.message, '| user:', MQTT_USER, '| host:', MQTT_HOST));
 mqttClient.on('reconnect', () => console.log('[MQTT] Reconectando...'));
 
 // ── ARMAZENAMENTO ────────────────────────────────────
