@@ -53,7 +53,7 @@ async function getFCMToken() {
 }
 
 // ── MQTT ─────────────────────────────────────────────
-const MQTT_HOST = '006d70cbbb9d44c2a347d2a3903c8f9a.s1.eu.hivemq.cloud';
+const MQTT_HOST = '13efa30a8367496d82053ae1fec856fb.s1.eu.hivemq.cloud';
 const MQTT_USER = 'esp32-Project';
 const MQTT_PASS = process.env.MQTT_PASS || '061084Cca';
 
@@ -281,4 +281,3 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`[SERVER] Rodando na porta ${PORT}`);
 });
-
