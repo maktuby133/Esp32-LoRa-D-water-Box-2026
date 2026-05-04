@@ -849,6 +849,16 @@
           </label>
         </div>
 
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:#fff3f3;border-radius:10px;border:1px solid #fecaca;">
+          <span style="font-size:0.8rem;font-weight:600;">📡 Transmissor offline</span>
+          <label style="position:relative;display:inline-block;width:42px;height:24px;">
+            <input type="checkbox" id="toggleNotifTransmissor" style="opacity:0;width:0;height:0;">
+            <span id="sliderToggleTX" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:24px;transition:.3s;">
+              <span style="position:absolute;content:'';height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;display:block;" id="sliderThumbTX"></span>
+            </span>
+          </label>
+        </div>
+
         <div id="notifStatusMsg" style="font-size:0.75rem;text-align:center;color:var(--gray);"></div>
       </div>
 
@@ -1069,6 +1079,15 @@
           adicionarLog('⚠️ Perda de sinal do transmissor', 'alert');
           document.getElementById('alertTransmitter').classList.add('show');
           zerarInterfaceOffline('transmitter');
+          // ── Notificação de transmissor offline ──
+          if (notifAtiva && notifPermissao && notifTransmissorOfline) {
+            _notifTransmissorUltima = agora;
+            enviarNotificacao(
+              '📡 Transmissor offline!',
+              'Sem sinal do transmissor LoRa. Verifique o dispositivo na caixa d'água.'
+            );
+            adicionarLog('🔔 Notificação: transmissor offline', 'alert');
+          }
         }
         if (transmitterOfflineSince && !transmitterActive) {
           secondsWithoutData = Math.floor((agora - transmitterOfflineSince) / 1000);
@@ -1338,60 +1357,29 @@
   let _notifEnchimentoFired = false;
   let _swRegistration   = null; // registration do Service Worker
 
-  const SERVER_URL = 'https://caixa-dagua-mqtt.onrender.com';
-
-  // Registra SW e faz subscribe Web Push no servidor
-  async function _registrarSW() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      adicionarLog('⚠️ Navegador não suporta notificações em background', 'warning');
-      return;
-    }
-    try {
-      const reg = await navigator.serviceWorker.register('sw.js');
-      _swRegistration = reg;
-      await navigator.serviceWorker.ready;
-      console.log('[SW] Registrado e ativo');
-      adicionarLog('✅ Service Worker ativo');
-
-      // Buscar VAPID public key do servidor
-      const res     = await fetch(SERVER_URL + '/vapid-public-key');
-      const { key } = await res.json();
-
-      // Criar ou recuperar subscription Web Push
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly:      true,
-          applicationServerKey: _urlBase64ToUint8Array(key)
-        });
-      }
-
-      // Registrar subscription no servidor com os limites atuais
-      await fetch(SERVER_URL + '/subscribe', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          deviceId:      deviceMac,
-          subscription:  sub.toJSON(),
-          nivelCritico:  NIVEL_CRITICO,
-          nivelEnchendo: NIVEL_ENCHENDO
-        })
+  // Registra o SW assim que possível — necessário para notificações em background
+  function _registrarSW() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => {
+        _swRegistration = reg;
+        // Garante que o SW está ativo (pode estar em 'installing' ou 'waiting')
+        const sw = reg.active || reg.installing || reg.waiting;
+        if (sw && sw.state !== 'activated') {
+          sw.addEventListener('statechange', e => {
+            if (e.target.state === 'activated') {
+              _swRegistration = reg;
+              console.log('[SW] Ativado e pronto');
+            }
+          });
+        }
+        console.log('[SW] Registrado. Estado:', (reg.active ? 'active' : reg.installing ? 'installing' : 'waiting'));
+        adicionarLog('✅ Notificações em background ativas (Service Worker)');
+      })
+      .catch(err => {
+        console.warn('[SW] Falha ao registrar:', err.message);
+        adicionarLog('⚠️ SW não registrado — notificações só funcionam com aba aberta', 'warning');
       });
-
-      adicionarLog('✅ Notificações em background ativas');
-      console.log('[PUSH] Subscription registrada no servidor');
-    } catch(e) {
-      console.warn('[SW] Erro:', e.message);
-      adicionarLog('⚠️ Falha ao registrar notificações: ' + e.message, 'warning');
-    }
-  }
-
-  // Converte VAPID key de base64 para Uint8Array
-  function _urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const raw     = atob(base64);
-    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
   }
 
   function pedirPermissaoNotificacao() {
@@ -1424,13 +1412,12 @@
   function enviarNotificacao(titulo, corpo) {
     if (Notification.permission !== 'granted') return;
     const opts = { body: corpo, icon: _NOTIF_ICON, tag: titulo, renotify: true };
-    // Usa SW via registration.showNotification() — funciona com aba aberta/minimizada
-    if (_swRegistration) {
-      _swRegistration.showNotification(titulo, opts).catch(() => {
-        try { new Notification(titulo, opts); } catch(e) {}
-      });
+    if (_swRegistration && _swRegistration.active) {
+      _swRegistration.showNotification(titulo, opts);
     } else {
-      try { new Notification(titulo, opts); } catch(e) {}
+      navigator.serviceWorker.ready
+        .then(r => { _swRegistration = r; r.showNotification(titulo, opts); })
+        .catch(() => { try { new Notification(titulo, opts); } catch(e){} });
     }
   }
 
@@ -2057,6 +2044,8 @@
   // ── MODAL NOTIFICAÇÕES ───────────────────────────────────────────────────
   let NIVEL_CRITICO  = parseInt(localStorage.getItem('notif_critico')  || '20');
   let NIVEL_ENCHENDO = parseInt(localStorage.getItem('notif_enchendo') || '80');
+  let notifTransmissorOfline = localStorage.getItem('notif_transmissor_offline') !== 'false';
+  let _notifTransmissorUltima = 0;
   // Sincroniza permissao e registra SW se ja concedida
   if (Notification && Notification.permission === 'granted') {
     notifPermissao = true;
@@ -2073,6 +2062,10 @@
     const toggle = document.getElementById('toggleNotif');
     toggle.checked = notifAtiva;
     atualizarToggleVisual(notifAtiva);
+    // Carrega estado do toggle de transmissor offline
+    const toggleTX = document.getElementById('toggleNotifTransmissor');
+    toggleTX.checked = notifTransmissorOfline;
+    atualizarToggleVisualTX(notifTransmissorOfline);
     atualizarStatusNotif();
     modal.classList.add('show');
   }
@@ -2107,6 +2100,15 @@
     }
   }
 
+  function atualizarToggleVisualTX(ativo) {
+    const bg    = document.getElementById('sliderToggleTX');
+    const thumb = document.getElementById('sliderThumbTX');
+    if (bg && thumb) {
+      bg.style.background   = ativo ? '#e63946' : '#ccc';
+      thumb.style.transform = ativo ? 'translateX(18px)' : 'translateX(0)';
+    }
+  }
+
   function atualizarStatusNotif() {
     const msg = document.getElementById('notifStatusMsg');
     if (!('Notification' in window)) {
@@ -2126,21 +2128,16 @@
     NIVEL_ENCHENDO = parseInt(document.getElementById('sliderEnchimento').value);
     notifAtiva     = ativo && Notification.permission === 'granted';
     notifPermissao = Notification.permission === 'granted'; // permissao independe do toggle
+    notifTransmissorOfline = document.getElementById('toggleNotifTransmissor').checked;
     localStorage.setItem('notif_critico',  NIVEL_CRITICO);
     localStorage.setItem('notif_enchendo', NIVEL_ENCHENDO);
     localStorage.setItem('notif_ativa',    notifAtiva);
+    localStorage.setItem('notif_transmissor_offline', notifTransmissorOfline);
     // Reseta flags para reavaliar com novos limites
     _notifCriticaFired   = false;
     _notifEnchimentoFired = false;
-    adicionarLog(`🔔 Notificações salvas — crítico: ${NIVEL_CRITICO}%, abastecida: ${NIVEL_ENCHENDO}%`);
-    // Atualiza limites no servidor para notificações com aba fechada
-    if (deviceMac) {
-      fetch(SERVER_URL + '/update-config', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ deviceId: deviceMac, nivelCritico: NIVEL_CRITICO, nivelEnchendo: NIVEL_ENCHENDO })
-      }).catch(() => {});
-    }
+    _notifTransmissorUltima = 0;
+    adicionarLog(`🔔 Notificações salvas — crítico: ${NIVEL_CRITICO}%, abastecida: ${NIVEL_ENCHENDO}%, TX offline: ${notifTransmissorOfline ? 'sim' : 'não'}`);
     fecharModalNotif();
   }
 
@@ -2206,6 +2203,19 @@
   // ╚══════════════════════════════════════════════════════╝
   setInterval(() => {
     if (!notifAtiva || !notifPermissao) return;
+    // ── Transmissor offline — repete igual ao nível crítico ──
+    if (notifTransmissorOfline && window._transmitterAlertFired && !transmitterActive) {
+      const agora = Date.now();
+      if ((agora - _notifTransmissorUltima) >= NOTIF_REPEAT_MS) {
+        _notifTransmissorUltima = agora;
+        enviarNotificacao(
+          '📡 Transmissor ainda offline!',
+          'Continua sem sinal do transmissor LoRa. Verifique o dispositivo na caixa d'água.'
+        );
+        adicionarLog('🔔 Repetindo alerta: transmissor offline', 'alert');
+      }
+    }
+    // ── Nível da caixa ──
     if (currentData && currentData.percentage !== undefined) {
       verificarNotificacoes(currentData.percentage);
     }
