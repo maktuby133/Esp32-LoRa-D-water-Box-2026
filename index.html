@@ -1989,10 +1989,16 @@
   // ╚══════════════════════════════════════════════════════╝
   const STORAGE_CODE_KEY = 'dispositivo_codigo';
   function iniciarTela() {
+    let codigoSalvo = null;
     try {
-      const salvo = localStorage.getItem(STORAGE_CODE_KEY);
-      if (salvo) ativarDispositivo(salvo);
+      codigoSalvo = localStorage.getItem(STORAGE_CODE_KEY);
+      if (codigoSalvo) ativarDispositivo(codigoSalvo);
     } catch(e) {}
+    // Se não há código salvo, o usuário precisa digitar — oculta o overlay imediatamente
+    if (!codigoSalvo) {
+      const ov = document.getElementById('loadingOverlay');
+      if (ov) { ov.classList.add('hidden'); }
+    }
     document.getElementById('codigoInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmarCodigo(); });
     document.getElementById('codigoInput').addEventListener('input',   e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-F0-9]/g, ''); });
   }
