@@ -245,6 +245,22 @@ app.post('/subscribe-fcm', (req, res) => {
   res.json({ ok: true });
 });
 
+// Browser cancela subscription Web Push
+app.post('/unsubscribe', (req, res) => {
+  const { deviceId, endpoint } = req.body;
+  if (!deviceId) return res.status(400).json({ error: 'deviceId obrigatório' });
+
+  if (subscriptions[deviceId]) {
+    const antes = subscriptions[deviceId].length;
+    subscriptions[deviceId] = subscriptions[deviceId].filter(
+      s => s.subscription.endpoint !== endpoint
+    );
+    const removidos = antes - subscriptions[deviceId].length;
+    console.log(`[UNSUB] Device ${deviceId}: ${removidos} subscription(s) removida(s) (total: ${subscriptions[deviceId].length})`);
+  }
+  res.json({ ok: true });
+});
+
 // Atualiza limites de notificação para um device
 app.post('/update-config', (req, res) => {
   const { deviceId, nivelCritico, nivelEnchendo } = req.body;
