@@ -46,7 +46,7 @@ self.addEventListener('notificationclick', event => {
   const url = (event.notification.data && event.notification.data.url) || self.registration.scope;
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      for (const c of list) if (c.url.includes('index_LoRa') && 'focus' in c) return c.focus();
+      for (const c of list) if ('focus' in c) return c.focus();
       if (clients.openWindow) return clients.openWindow(url);
     })
   );
