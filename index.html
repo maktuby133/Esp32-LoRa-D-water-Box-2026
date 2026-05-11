@@ -2040,6 +2040,11 @@
     connectMQTT();
     carregarHistoricoSheets(codigo);
     pedirPermissaoNotificacao();
+    // Se permissão já estava concedida antes (sessão anterior), registra SW agora
+    // que deviceMac está disponível — garante subscription com deviceId correto
+    if (Notification && Notification.permission === 'granted' && notifAtiva) {
+      _registrarSW();
+    }
   }
 
   function trocarDispositivo() {
@@ -2057,10 +2062,9 @@
   // ── MODAL NOTIFICAÇÕES ───────────────────────────────────────────────────
   let NIVEL_CRITICO  = parseInt(localStorage.getItem('notif_critico')  || '20');
   let NIVEL_ENCHENDO = parseInt(localStorage.getItem('notif_enchendo') || '80');
-  // Sincroniza permissao e registra SW se ja concedida
+  // Sincroniza permissao — SW será registrado pelo ativarDispositivo após deviceMac estar disponível
   if (Notification && Notification.permission === 'granted') {
     notifPermissao = true;
-    _registrarSW();
   }
 
   function abrirModalNotif() {
