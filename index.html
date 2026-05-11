@@ -1333,9 +1333,7 @@
 
   // ── NOTIFICAÇÕES PUSH ────────────────────────────────────────────────────
   let notifPermissao    = false;
-  // notifAtiva só é true se o usuário ativou E a permissão foi concedida
-  let notifAtiva = localStorage.getItem('notif_ativa') !== 'false'
-                   && (typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  let notifAtiva        = localStorage.getItem('notif_ativa') !== 'false'; // unica declaracao
   let _notifCriticaFired    = false;
   let _notifEnchimentoFired = false;
   let _swRegistration   = null; // registration do Service Worker
@@ -1344,27 +1342,22 @@
 
   // Registra SW e faz subscribe Web Push no servidor
   async function _registrarSW() {
-    if (!('serviceWorker' in navigator)) {
-      adicionarLog('⚠️ Navegador não suporta Service Worker — use Chrome/Edge/Firefox em HTTPS', 'warning');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      adicionarLog('⚠️ Navegador não suporta notificações em background', 'warning');
       return;
     }
-    if (!('PushManager' in window)) {
-      adicionarLog('⚠️ Navegador não suporta Web Push — notificações só funcionam com aba aberta', 'warning');
-      // Sem PushManager, ainda tenta registrar o SW para showNotification() funcionar
-    }
     try {
-      const swPath = new URL('sw.js', location.href).pathname;
-      const reg = await navigator.serviceWorker.register(swPath);
+      const reg = await navigator.serviceWorker.register('sw.js');
       _swRegistration = reg;
       await navigator.serviceWorker.ready;
-      console.log('[SW] Registrado e ativo em:', reg.scope);
+      console.log('[SW] Registrado e ativo');
       adicionarLog('✅ Service Worker ativo');
 
-      if (!('PushManager' in window)) return;
-
+      // Buscar VAPID public key do servidor
       const res     = await fetch(SERVER_URL + '/vapid-public-key');
       const { key } = await res.json();
 
+      // Criar ou recuperar subscription Web Push
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
         sub = await reg.pushManager.subscribe({
@@ -1373,12 +1366,7 @@
         });
       }
 
-      // Só registra no servidor se deviceMac já estiver disponível
-      if (!deviceMac) {
-        console.log('[SW] deviceMac ainda não disponível — subscription será enviada ao ativar dispositivo');
-        return;
-      }
-
+      // Registrar subscription no servidor com os limites atuais
       await fetch(SERVER_URL + '/subscribe', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1391,10 +1379,10 @@
       });
 
       adicionarLog('✅ Notificações em background ativas');
-      console.log('[PUSH] Subscription registrada no servidor para device:', deviceMac);
+      console.log('[PUSH] Subscription registrada no servidor');
     } catch(e) {
-      console.warn('[SW] Erro no registro:', e.name, e.message);
-      adicionarLog('⚠️ Falha ao registrar SW: ' + e.message + ' (verifique HTTPS e que sw.js está acessível)', 'warning');
+      console.warn('[SW] Erro:', e.message);
+      adicionarLog('⚠️ Falha ao registrar notificações: ' + e.message, 'warning');
     }
   }
 
@@ -1410,8 +1398,6 @@
     if (!('Notification' in window)) return;
     if (Notification.permission === 'granted') {
       notifPermissao = true;
-      // Respeita a preferência salva — não força notifAtiva=true se o usuário desativou
-      if (localStorage.getItem('notif_ativa') !== 'false') notifAtiva = true;
       _registrarSW();
       return;
     }
@@ -1438,21 +1424,13 @@
   function enviarNotificacao(titulo, corpo) {
     if (Notification.permission !== 'granted') return;
     const opts = { body: corpo, icon: _NOTIF_ICON, tag: titulo, renotify: true };
+    // Usa SW via registration.showNotification() — funciona com aba aberta/minimizada
     if (_swRegistration) {
-      // Via SW — funciona no desktop Chrome/Edge/Firefox e mobile
-      _swRegistration.showNotification(titulo, opts).catch(err => {
-        console.warn('[NOTIF] SW showNotification falhou:', err);
-        // Fallback para API legada (funciona no Firefox desktop e Safari)
-        try { new Notification(titulo, opts); } catch(e) {
-          console.warn('[NOTIF] Fallback Notification() também falhou:', e.message);
-        }
+      _swRegistration.showNotification(titulo, opts).catch(() => {
+        try { new Notification(titulo, opts); } catch(e) {}
       });
     } else {
-      // SW não registrado — tenta API legada e avisa no log
-      console.warn('[NOTIF] _swRegistration é null — notificações podem não funcionar no Chrome desktop. Verifique HTTPS e que sw.js está acessível.');
-      try { new Notification(titulo, opts); } catch(e) {
-        console.warn('[NOTIF] Notification() falhou:', e.message);
-      }
+      try { new Notification(titulo, opts); } catch(e) {}
     }
   }
 
@@ -2062,11 +2040,6 @@
     connectMQTT();
     carregarHistoricoSheets(codigo);
     pedirPermissaoNotificacao();
-    // Se SW já estava registrado (permissão já concedida antes), envia subscription agora
-    // que deviceMac está disponível
-    if (_swRegistration && notifAtiva) {
-      _registrarSW();
-    }
   }
 
   function trocarDispositivo() {
@@ -2109,18 +2082,18 @@
   function toggleNotificacoes(ativo) {
     atualizarToggleVisual(ativo);
     if (!ativo) {
-      notifAtiva = false;
+      notifAtiva = false; // para o watchdog imediatamente
       atualizarStatusNotif();
       return;
     }
     if (Notification.permission === 'granted') {
       notifPermissao = true;
-      notifAtiva = true; // ← BUG: faltava setar true aqui
+      notifAtiva = true;
       _registrarSW();
     } else if (Notification.permission !== 'denied') {
       Notification.requestPermission().then(p => {
         notifPermissao = (p === 'granted');
-        notifAtiva     = notifPermissao; // ← também aqui
+        notifAtiva = notifPermissao;
         document.getElementById('toggleNotif').checked = notifPermissao;
         atualizarToggleVisual(notifPermissao);
         if (notifPermissao) _registrarSW();
@@ -2145,10 +2118,8 @@
       msg.textContent = '❌ Seu navegador não suporta notificações';
     } else if (Notification.permission === 'denied') {
       msg.textContent = '🚫 Permissão negada — habilite nas configurações do navegador';
-    } else if (Notification.permission === 'granted' && notifAtiva) {
-      msg.textContent = '✅ Notificações ativas';
-    } else if (Notification.permission === 'granted' && !notifAtiva) {
-      msg.textContent = '🔕 Notificações desativadas pelo usuário';
+    } else if (Notification.permission === 'granted') {
+      msg.textContent = '✅ Permissão concedida';
     } else {
       msg.textContent = '⏳ Permissão ainda não solicitada';
     }
@@ -2167,28 +2138,25 @@
     _notifCriticaFired   = false;
     _notifEnchimentoFired = false;
     adicionarLog(`🔔 Notificações salvas — crítico: ${NIVEL_CRITICO}%, abastecida: ${NIVEL_ENCHENDO}%`);
-
-    if (!notifAtiva) {
-      // Cancela subscription no servidor para parar push com aba fechada
-      if (_swRegistration) {
+    // Atualiza limites no servidor para notificações com aba fechada
+    if (deviceMac) {
+      if (notifAtiva) {
+        fetch(SERVER_URL + '/update-config', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ deviceId: deviceMac, nivelCritico: NIVEL_CRITICO, nivelEnchendo: NIVEL_ENCHENDO })
+        }).catch(() => {});
+      } else if (_swRegistration) {
         _swRegistration.pushManager.getSubscription().then(sub => {
-          if (sub && deviceMac) {
+          if (sub) {
             fetch(SERVER_URL + '/unsubscribe', {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },
               body:    JSON.stringify({ deviceId: deviceMac, endpoint: sub.endpoint })
-            }).then(() => adicionarLog('🔕 Notificações em background desativadas'))
-              .catch(() => {});
+            }).catch(() => {});
           }
         }).catch(() => {});
       }
-    } else if (deviceMac) {
-      // Atualiza limites no servidor para notificações com aba fechada
-      fetch(SERVER_URL + '/update-config', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ deviceId: deviceMac, nivelCritico: NIVEL_CRITICO, nivelEnchendo: NIVEL_ENCHENDO })
-      }).catch(() => {});
     }
     fecharModalNotif();
   }
