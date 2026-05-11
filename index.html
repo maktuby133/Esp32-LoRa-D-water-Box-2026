@@ -1333,7 +1333,9 @@
 
   // ── NOTIFICAÇÕES PUSH ────────────────────────────────────────────────────
   let notifPermissao    = false;
-  let notifAtiva        = localStorage.getItem('notif_ativa') !== 'false'; // unica declaracao
+  // notifAtiva só é true se o usuário ativou E a permissão foi concedida
+  let notifAtiva = localStorage.getItem('notif_ativa') !== 'false'
+                   && (typeof Notification !== 'undefined' && Notification.permission === 'granted');
   let _notifCriticaFired    = false;
   let _notifEnchimentoFired = false;
   let _swRegistration   = null; // registration do Service Worker
@@ -1351,7 +1353,6 @@
       // Sem PushManager, ainda tenta registrar o SW para showNotification() funcionar
     }
     try {
-      // Caminho absoluto garante funcionamento independente do diretório da página
       const swPath = new URL('sw.js', location.href).pathname;
       const reg = await navigator.serviceWorker.register(swPath);
       _swRegistration = reg;
@@ -1359,13 +1360,11 @@
       console.log('[SW] Registrado e ativo em:', reg.scope);
       adicionarLog('✅ Service Worker ativo');
 
-      if (!('PushManager' in window)) return; // sem push, para aqui
+      if (!('PushManager' in window)) return;
 
-      // Buscar VAPID public key do servidor
       const res     = await fetch(SERVER_URL + '/vapid-public-key');
       const { key } = await res.json();
 
-      // Criar ou recuperar subscription Web Push
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
         sub = await reg.pushManager.subscribe({
@@ -1374,7 +1373,12 @@
         });
       }
 
-      // Registrar subscription no servidor com os limites atuais
+      // Só registra no servidor se deviceMac já estiver disponível
+      if (!deviceMac) {
+        console.log('[SW] deviceMac ainda não disponível — subscription será enviada ao ativar dispositivo');
+        return;
+      }
+
       await fetch(SERVER_URL + '/subscribe', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1387,7 +1391,7 @@
       });
 
       adicionarLog('✅ Notificações em background ativas');
-      console.log('[PUSH] Subscription registrada no servidor');
+      console.log('[PUSH] Subscription registrada no servidor para device:', deviceMac);
     } catch(e) {
       console.warn('[SW] Erro no registro:', e.name, e.message);
       adicionarLog('⚠️ Falha ao registrar SW: ' + e.message + ' (verifique HTTPS e que sw.js está acessível)', 'warning');
@@ -1406,6 +1410,8 @@
     if (!('Notification' in window)) return;
     if (Notification.permission === 'granted') {
       notifPermissao = true;
+      // Respeita a preferência salva — não força notifAtiva=true se o usuário desativou
+      if (localStorage.getItem('notif_ativa') !== 'false') notifAtiva = true;
       _registrarSW();
       return;
     }
@@ -2056,6 +2062,11 @@
     connectMQTT();
     carregarHistoricoSheets(codigo);
     pedirPermissaoNotificacao();
+    // Se SW já estava registrado (permissão já concedida antes), envia subscription agora
+    // que deviceMac está disponível
+    if (_swRegistration && notifAtiva) {
+      _registrarSW();
+    }
   }
 
   function trocarDispositivo() {
@@ -2098,17 +2109,18 @@
   function toggleNotificacoes(ativo) {
     atualizarToggleVisual(ativo);
     if (!ativo) {
-      // Desativar imediatamente em memória — salvarConfigNotif persiste no localStorage
       notifAtiva = false;
       atualizarStatusNotif();
       return;
     }
     if (Notification.permission === 'granted') {
       notifPermissao = true;
-      _registrarSW(); // garante SW registrado mesmo se permissao ja existia
+      notifAtiva = true; // ← BUG: faltava setar true aqui
+      _registrarSW();
     } else if (Notification.permission !== 'denied') {
       Notification.requestPermission().then(p => {
         notifPermissao = (p === 'granted');
+        notifAtiva     = notifPermissao; // ← também aqui
         document.getElementById('toggleNotif').checked = notifPermissao;
         atualizarToggleVisual(notifPermissao);
         if (notifPermissao) _registrarSW();
@@ -2133,8 +2145,10 @@
       msg.textContent = '❌ Seu navegador não suporta notificações';
     } else if (Notification.permission === 'denied') {
       msg.textContent = '🚫 Permissão negada — habilite nas configurações do navegador';
-    } else if (Notification.permission === 'granted') {
-      msg.textContent = '✅ Permissão concedida';
+    } else if (Notification.permission === 'granted' && notifAtiva) {
+      msg.textContent = '✅ Notificações ativas';
+    } else if (Notification.permission === 'granted' && !notifAtiva) {
+      msg.textContent = '🔕 Notificações desativadas pelo usuário';
     } else {
       msg.textContent = '⏳ Permissão ainda não solicitada';
     }
