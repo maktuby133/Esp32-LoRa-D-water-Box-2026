@@ -88,7 +88,7 @@ const fcmTokens = {};
 // Controle de alertas: evita spam
 // lastAlert[deviceId] = timestamp do último alerta enviado
 const lastAlert = {};
-const ALERT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos entre alertas
+const ALERT_INTERVAL_MS = 1 * 60 * 1000; // 1 minuto entre alertas
 
 // ── PROCESSAR MENSAGEM MQTT ──────────────────────────
 mqttClient.on('message', async (topic, message) => {
