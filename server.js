@@ -1,6 +1,6 @@
 // ╔══════════════════════════════════════════════════════╗
 // ║   SERVIDOR MQTT + WEB PUSH — Monitor Caixa d'Água   ║
-// ║   Deploy: Render.com                                 ║
+// ║   Deploy: Railway                                    ║
 // ╚══════════════════════════════════════════════════════╝
 
 const express    = require('express');
@@ -12,7 +12,16 @@ const { GoogleAuth } = require('google-auth-library');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// CORS explícito — aceita qualquer origem (necessário para Railway + browsers)
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Responde preflight OPTIONS em todas as rotas
+app.options('*', cors());
+
 app.use(express.json());
 
 // ── VAPID (Web Push) ─────────────────────────────────
@@ -68,9 +77,10 @@ const mqttClient = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
 
 mqttClient.on('connect', () => {
   console.log('[MQTT] Conectado ao HiveMQ');
-  // Subscreve em todos os devices: caixas/agua/+/dados
-  mqttClient.subscribe('caixas/agua/+/dados', err => {
-    if (!err) console.log('[MQTT] Subscrito em caixas/agua/+/dados');
+  // Subscreve nos dois formatos possíveis de tópico
+  mqttClient.subscribe(['/agua/+/dados', 'agua/+/dados', 'caixas/agua/+/dados'], err => {
+    if (!err) console.log('[MQTT] Subscrito em /agua/+/dados, agua/+/dados e caixas/agua/+/dados');
+    else console.error('[MQTT] Erro ao subscrever:', err.message);
   });
 });
 
@@ -92,9 +102,13 @@ const ALERT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos entre alertas
 // ── PROCESSAR MENSAGEM MQTT ──────────────────────────
 mqttClient.on('message', async (topic, message) => {
   try {
-    // Extrair deviceId do tópico: caixas/agua/DEVICEID/dados
-    const parts    = topic.split('/');
-    const deviceId = parts[2];
+    // Extrai deviceId do tópico independente do formato:
+    // /agua/DEVICEID/dados  → parts = ['', 'agua', 'DEVICEID', 'dados']
+    // agua/DEVICEID/dados   → parts = ['agua', 'DEVICEID', 'dados']
+    // caixas/agua/DEVICEID/dados → parts = ['caixas', 'agua', 'DEVICEID', 'dados']
+    const parts    = topic.split('/').filter(p => p !== ''); // remove strings vazias
+    // deviceId é sempre o penúltimo segmento (antes de 'dados')
+    const deviceId = parts[parts.length - 2];
     const payload  = JSON.parse(message.toString());
 
     if (payload.cached) return; // ignora dados de cache
@@ -102,7 +116,7 @@ mqttClient.on('message', async (topic, message) => {
     const pct = parseInt(payload.percentage);
     if (isNaN(pct)) return;
 
-    console.log(`[MQTT] Device ${deviceId}: ${pct}%`);
+    console.log(`[MQTT] Tópico: ${topic} | Device: ${deviceId} | Nível: ${pct}%`);
 
     // Verificar subscriptions deste device
     const subs = subscriptions[deviceId] || [];
