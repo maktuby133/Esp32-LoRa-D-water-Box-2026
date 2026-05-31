@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Servidor MQTT + Web Push para Monitor Caixa d'Água",
   "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node server.js"
   },
@@ -14,4 +17,3 @@
     "google-auth-library": "^9.6.3"
   }
 }
-
