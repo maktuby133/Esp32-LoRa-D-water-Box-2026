@@ -52,9 +52,9 @@ async function getFCMToken() {
 }
 
 // ── MQTT ─────────────────────────────────────────────
-const MQTT_HOST = '13efa30a8367496d82053ae1fec856fb.s1.eu.hivemq.cloud';
-const MQTT_USER = 'esp32-Project';
-const MQTT_PASS = '061084Cca';
+const MQTT_HOST = 'cee37ceeb13242b3a9099f84327c2c1c.s1.eu.hivemq.cloud';
+const MQTT_USER = 'monitortemp';
+const MQTT_PASS = '061084Cc@';
 
 const mqttClient = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
   username:           MQTT_USER,
