@@ -88,7 +88,7 @@ const fcmTokens = {};
 // Controle de alertas: evita spam
 // lastAlert[deviceId] = timestamp do último alerta enviado
 const lastAlert = {};
-const ALERT_INTERVAL_MS = 1 * 60 * 1000; // 1 minuto entre alertas
+const ALERT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos entre alertas
 
 // ── PROCESSAR MENSAGEM MQTT ──────────────────────────
 mqttClient.on('message', async (topic, message) => {
@@ -242,22 +242,6 @@ app.post('/subscribe-fcm', (req, res) => {
     existe.nivelEnchendo = nivelEnchendo || 80;
   }
 
-  res.json({ ok: true });
-});
-
-// Browser cancela subscription Web Push
-app.post('/unsubscribe', (req, res) => {
-  const { deviceId, endpoint } = req.body;
-  if (!deviceId) return res.status(400).json({ error: 'deviceId obrigatório' });
-
-  if (subscriptions[deviceId]) {
-    const antes = subscriptions[deviceId].length;
-    subscriptions[deviceId] = subscriptions[deviceId].filter(
-      s => s.subscription.endpoint !== endpoint
-    );
-    const removidos = antes - subscriptions[deviceId].length;
-    console.log(`[UNSUB] Device ${deviceId}: ${removidos} subscription(s) removida(s) (total: ${subscriptions[deviceId].length})`);
-  }
   res.json({ ok: true });
 });
 
