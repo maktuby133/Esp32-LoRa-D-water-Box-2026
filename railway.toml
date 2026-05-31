@@ -1,1 +1,6 @@
-
+[deploy]
+startCommand = "node server.js"
+healthcheckPath = "/ping"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
