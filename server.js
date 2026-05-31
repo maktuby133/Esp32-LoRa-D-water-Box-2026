@@ -10,7 +10,8 @@ const webpush    = require('web-push');
 const { GoogleAuth } = require('google-auth-library');
 
 const app  = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
+console.log(`[DEBUG] process.env.PORT=${process.env.PORT} | Usando PORT=${PORT}`);
 
 // CORS explícito — aceita qualquer origem (necessário para Railway + browsers)
 app.use(cors({
