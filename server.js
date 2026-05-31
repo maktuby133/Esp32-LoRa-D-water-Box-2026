@@ -68,9 +68,9 @@ const MQTT_PASS = '061084Cc@';
 const mqttClient = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
   username:           MQTT_USER,
   password:           MQTT_PASS,
-  clientId:           'render-server-01',
+  clientId:           'railway-server-01',
   rejectUnauthorized: false,
-  reconnectPeriod:    5000,
+  reconnectPeriod:    30000, // 30s entre tentativas — evita loop e restart do Railway
   keepalive:          60,
   clean:              true
 });
