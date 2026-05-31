@@ -16,12 +16,19 @@ app.use(cors());
 app.use(express.json());
 
 // ── VAPID (Web Push) ─────────────────────────────────
-// Gere uma vez com: npx web-push generate-vapid-keys
-// e coloque nas variáveis de ambiente do Render
-const VAPID_PUBLIC  = process.env.VAPID_PUBLIC  || 'BAr__h-peUzkzXFpUc0azRN70irT6bQVz1PHsUbsWIH2w5BDV1KligHC116A6bXXg_BVW7SpkvCNNm0gadgEuMc';
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE || '4zqMat_A0PLPWh9Nn9OaVFPcqocvFWp0tQgdslBkMV4';
-const VAPID_EMAIL   = process.env.VAPID_EMAIL   || 'mailto:seu@email.com';
+const VAPID_DEFAULT_PUBLIC  = 'BAr__h-peUzkzXFpUc0azRN70irT6bQVz1PHsUbsWIH2w5BDV1KligHC116A6bXXg_BVW7SpkvCNNm0gadgEuMc';
+const VAPID_DEFAULT_PRIVATE = '4zqMat_A0PLPWh9Nn9OaVFPcqocvFWp0tQgdslBkMV4';
 
+// Valida se a chave é Base64 URL-safe sem padding (sem '=')
+function isValidVapidKey(key) {
+  return typeof key === 'string' && key.length > 0 && !/[=+/]/.test(key);
+}
+
+const VAPID_PUBLIC  = isValidVapidKey(process.env.VAPID_PUBLIC)  ? process.env.VAPID_PUBLIC  : VAPID_DEFAULT_PUBLIC;
+const VAPID_PRIVATE = isValidVapidKey(process.env.VAPID_PRIVATE) ? process.env.VAPID_PRIVATE : VAPID_DEFAULT_PRIVATE;
+const VAPID_EMAIL   = process.env.VAPID_EMAIL || 'mailto:seu@email.com';
+
+console.log('[VAPID] Usando public key:', VAPID_PUBLIC.substring(0, 20) + '...');
 webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
 
 // ── FCM via Service Account ──────────────────────────
