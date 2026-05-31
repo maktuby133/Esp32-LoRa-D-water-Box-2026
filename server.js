@@ -18,8 +18,8 @@ app.use(express.json());
 // ── VAPID (Web Push) ─────────────────────────────────
 // Gere uma vez com: npx web-push generate-vapid-keys
 // e coloque nas variáveis de ambiente do Render
-const VAPID_PUBLIC  = process.env.VAPID_PUBLIC  || 'BKZTXi7NhdwJyCTMv4XLNC9B1ptSBzieezMmxB4MEIXF1i8m89LGpM-Hu___kdtVzU6TcLFHv9YWrPW0McbGgqg';
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE || 'v55TLAR120DtveA4e-UswjTprXfm-0crSpgcp3dYTvQ';
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC  || 'BAr__h-peUzkzXFpUc0azRN70irT6bQVz1PHsUbsWIH2w5BDV1KligHC116A6bXXg_BVW7SpkvCNNm0gadgEuMc';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE || '4zqMat_A0PLPWh9Nn9OaVFPcqocvFWp0tQgdslBkMV4';
 const VAPID_EMAIL   = process.env.VAPID_EMAIL   || 'mailto:seu@email.com';
 
 webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
