@@ -1338,7 +1338,7 @@
   let _notifEnchimentoFired = false;
   let _swRegistration   = null; // registration do Service Worker
 
-  const SERVER_URL = 'https://esp32-lora-d-water-box-2026-production.up.railway.app/';
+  const SERVER_URL = 'https://esp32-lora-d-water-box-2026-production.up.railway.app';
 
   // Registra SW e faz subscribe Web Push no servidor
   async function _registrarSW() {
@@ -1434,7 +1434,7 @@
     }
   }
 
-  const NOTIF_REPEAT_MS = 1 * 60 * 1000; // repete a cada 1 minuto
+  const NOTIF_REPEAT_MS = 10 * 1000; // repete a cada 10s (TESTE)
   let _notifCriticaConfirmada    = false;
   let _notifEnchimentoConfirmada = false;
   let _notifCriticaUltima        = 0;
@@ -2040,11 +2040,6 @@
     connectMQTT();
     carregarHistoricoSheets(codigo);
     pedirPermissaoNotificacao();
-    // Se permissão já estava concedida antes (sessão anterior), registra SW agora
-    // que deviceMac está disponível — garante subscription com deviceId correto
-    if (Notification && Notification.permission === 'granted' && notifAtiva) {
-      _registrarSW();
-    }
   }
 
   function trocarDispositivo() {
@@ -2062,9 +2057,10 @@
   // ── MODAL NOTIFICAÇÕES ───────────────────────────────────────────────────
   let NIVEL_CRITICO  = parseInt(localStorage.getItem('notif_critico')  || '20');
   let NIVEL_ENCHENDO = parseInt(localStorage.getItem('notif_enchendo') || '80');
-  // Sincroniza permissao — SW será registrado pelo ativarDispositivo após deviceMac estar disponível
+  // Sincroniza permissao e registra SW se ja concedida
   if (Notification && Notification.permission === 'granted') {
     notifPermissao = true;
+    _registrarSW();
   }
 
   function abrirModalNotif() {
@@ -2085,24 +2081,19 @@
 
   function toggleNotificacoes(ativo) {
     atualizarToggleVisual(ativo);
-    if (!ativo) {
-      notifAtiva = false; // para o watchdog imediatamente
-      atualizarStatusNotif();
-      return;
-    }
-    if (Notification.permission === 'granted') {
-      notifPermissao = true;
-      notifAtiva = true;
-      _registrarSW();
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(p => {
-        notifPermissao = (p === 'granted');
-        notifAtiva = notifPermissao;
-        document.getElementById('toggleNotif').checked = notifPermissao;
-        atualizarToggleVisual(notifPermissao);
-        if (notifPermissao) _registrarSW();
-        atualizarStatusNotif();
-      });
+    if (ativo) {
+      if (Notification.permission === 'granted') {
+        notifPermissao = true;
+        _registrarSW(); // garante SW registrado mesmo se permissao ja existia
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(p => {
+          notifPermissao = (p === 'granted');
+          document.getElementById('toggleNotif').checked = notifPermissao;
+          atualizarToggleVisual(notifPermissao);
+          if (notifPermissao) _registrarSW();
+          atualizarStatusNotif();
+        });
+      }
     }
     atualizarStatusNotif();
   }
@@ -2144,23 +2135,11 @@
     adicionarLog(`🔔 Notificações salvas — crítico: ${NIVEL_CRITICO}%, abastecida: ${NIVEL_ENCHENDO}%`);
     // Atualiza limites no servidor para notificações com aba fechada
     if (deviceMac) {
-      if (notifAtiva) {
-        fetch(SERVER_URL + '/update-config', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ deviceId: deviceMac, nivelCritico: NIVEL_CRITICO, nivelEnchendo: NIVEL_ENCHENDO })
-        }).catch(() => {});
-      } else if (_swRegistration) {
-        _swRegistration.pushManager.getSubscription().then(sub => {
-          if (sub) {
-            fetch(SERVER_URL + '/unsubscribe', {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify({ deviceId: deviceMac, endpoint: sub.endpoint })
-            }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
+      fetch(SERVER_URL + '/update-config', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ deviceId: deviceMac, nivelCritico: NIVEL_CRITICO, nivelEnchendo: NIVEL_ENCHENDO })
+      }).catch(() => {});
     }
     fecharModalNotif();
   }
